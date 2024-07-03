@@ -2,8 +2,15 @@ import gc
 import abc
 import time
 import torch
+
+from metrics.metrics import time_in_range
+from metrics.statistics import calc_stats
 from utils.worker import OnPolicyWorker as Worker
 
+from decouple import config
+MAIN_PATH = config('MAIN_PATH')
+
+import pandas as pd
 
 class Agent:
     def __init__(self, args):
@@ -77,13 +84,36 @@ class Agent:
                 self.evaluate()
 
     def evaluate(self):
-        print('\n################## Starting Validation Trials #######################')
+        print('\n---------------------------------------------------------')
+        print('===> Starting Validation Trials ....')
         validation_agents = [Worker(args=self.args, mode='testing', worker_id=i + self.validation_agent_id_offset)
                              for i in range(self.args.n_val_trials)]
         with torch.no_grad():
             for i in range(self.args.n_val_trials):
                 validation_agents[i].rollout(policy=self.policy, buffer=None)
-            print('Algorithm Training/Validation Completed Successfully.')
+
+            # calculate the final metrics.
+            cohort_res, summary_stats = [], []
+            secondary_columns = ['epi', 't', 'reward', 'normo', 'hypo', 'sev_hypo', 'hyper', 'lgbi',
+                             'hgbi', 'ri', 'sev_hyper', 'aBGP_rmse', 'cBGP_rmse']
+            data = []
+            FOLDER_PATH = '/results/'+self.args.experiment_folder+'/testing/data'
+            for i in range(0, self.args.n_val_trials):
+                test_i = 'logs_worker_'+str(self.validation_agent_id_offset+i)+'.csv'
+                df = pd.read_csv(MAIN_PATH +FOLDER_PATH+ '/'+test_i)
+                normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper = time_in_range(df['cgm'])
+                reward_val = df['rew'].sum()*(100/288)
+                e = [[i, df.shape[0], reward_val, normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper, 0, 0]]
+                dataframe=pd.DataFrame(e, columns=secondary_columns)
+                data.append(dataframe)
+            res = pd.concat(data)
+            res['PatientID'] = self.args.patient_id
+            summary_stats.append(res)
+            metric=['mean', 'std', 'min', 'max']
+            print(calc_stats(res, metric=metric, sim_len=288))
+
+            print('\nAlgorithm Training/Validation Completed Successfully.')
+            print('---------------------------------------------------------')
             exit()
 
     def decay_lr(self):
