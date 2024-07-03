@@ -1,0 +1,72 @@
+---
+
+n_features: 2
+use_handcraft: 0
+feature_history: 12
+calibration: 12
+n_handcrafted_features: 1
+
+# NN model parameters
+n_hidden: 16
+n_rnn_layers: 1
+rnn_directions: 1
+bidirectional: False
+
+# parameters for RL discounting strategies
+return_type: 'average'   # discount | average
+gamma: 0.99
+lambda_: 0.95
+
+# parameters for the RL rollout
+normalize_reward: True  # reward received is normalised
+shuffle_rollout: True  # rollout trajectory data is shuffled
+
+# phase1: ppo optimisation parameters
+entropy_coef: 0.001
+grad_clip: 20
+eps_clip: 0.1
+target_kl: 0.01
+# training parameters
+pi_lr: 3.e-4
+vf_lr: 3.e-4
+batch_size: 1024
+n_pi_epochs: 5
+n_vf_epochs: 5
+
+# phase2: aux model learning
+aux_mode: 'dual'  # refactor
+aux_buffer_max: 25000 # must be larger than steps at one update
+aux_frequency: 1  # frequency of updates
+aux_vf_coef: 0.01
+aux_pi_coef: 0.01
+aux_batch_size: 1024
+n_aux_epochs: 5
+aux_lr: 3.e-4 
+
+# phase3: planning
+use_planning: 'yes'
+planning_n_step: 6
+n_planning_simulations: 50
+plan_batch_size: 1024
+n_plan_epochs: 1
+#args.planning_lr = 1e-4 * 3
+
+# train
+n_step: 256
+max_epi_length: 2880
+n_training_workers: 16
+total_interactions: 800000  # total number of interactions the agent will train for
+n_interactions_lr_decay: 600000
+
+# test
+n_testing_workers: 20
+max_test_epi_len: 288  # testing conducted for 1 day: 12 steps/hr * 24 hours
+
+# validation
+n_val_trials: 500
+
+# TODO: deprecated, refactor
+kl: 1 # experimenting KL implementation
+bgp_pred_mode: False
+n_bgp_steps: 0
+pretrain_period: 5760

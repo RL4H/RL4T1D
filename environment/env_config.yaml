@@ -1,0 +1,86 @@
+---
+# select patient <patient_id> (the environment for RL) info using command line, default is adolescent0
+
+env_settings:
+  # state - space
+  obs_type: 'past_history'  # past_history OR history_and_extra_features
+  history_length: 12
+  history_n_features: 2  # glucose and insulin # fixed cannot be changed
+
+  # action space
+  n_actions: 1  # Fixed, dual-hormone not implemented.
+  control_space_type: 'exponential'  # see associated paper for the idea behind, non-linear action spaces.
+
+
+# params for RL
+n_action: 1  # number of action of the env: ONLY insulin
+n_features: 2
+feature_history: 12
+calibration: 12
+
+control_space_type: 'exponential'  # see associated paper for the idea behind, non-linear action spaces.
+
+## glucose sensor ##
+sensor: 'GuardianRT'
+glucose_max: 600  # Note the selected sensors range would affect this
+glucose_min: 39
+
+## insulin pump ##
+pump: 'Insulet'
+insulin_max: 5 # 5 Units, max dose given / step
+insulin_min: 0
+
+### training scenario ####
+# Meal time is sample from a truncated norm distribution: [time_lb   mean+var time_ub].
+meal_times_mean: [8, 10.5, 13, 16.5, 20, 22.5] # times are in 24-hour format
+time_variance: [60, 30, 60, 30, 60, 30] # in minutes
+time_lower_bound: [7, 10, 12, 16, 19, 22] # 24-hour format
+time_upper_bound: [9, 11, 14, 17, 21, 23] # 24-hour format
+
+# A meal (carb content > 0) is sampled from a uniform dist: [mean-(3*var) mean+(3*var)]
+meal_prob: [0.95, -1, 0.95, -1, 0.95, -1] # prob (0,1) if -1 this meal is skipped.
+meal_amount: [45, 30, 85, 30, 80, 30] # carbohydrate grams
+meal_variance: [5, 3, 5, 3, 10, 3]
+##########################
+
+### Validation scenario ####
+val_meal_prob: [1, -1, 1, -1, 1, -1]  # Fixed Meals
+val_meal_amount: [40, 0, 80, 0, 60, 0]  # Fixed meal carbs
+val_meal_variance: [1e-8, 1e-8, 1e-8, 1e-8, 1e-8, 1e-8]  # No meal cho variance
+val_time_variance: [1e-8, 1e-8, 1e-8, 1e-8, 1e-8, 1e-8]  # No meal time variance
+##########################
+
+t_meal: 20  # meal announcement used for std bb, typically 20
+# 'if zero, assume no announcement; announce meal x min before, '
+# Paper: 'Optimal prandial timing of bolus insulin in diabetes management: a review,'
+# 'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5836969/'
+
+# additional features which may be used for algorithms,
+use_meal_announcement: False  # adds meal announcement as a timeseries feature.
+use_carb_announcement: False
+use_tod_announcement: False
+
+use_bolus: True
+expert_bolus: False
+use_cf: False  # param for BB
+expert_cf: False
+
+## re-organise following additional info.
+# fixed "HARD" benchmark scenario
+# self.parser.add_argument('--meal_prob', type=list, default=[1, -1, 1, -1, 1, -1], help='')
+# self.parser.add_argument('--meal_amount', type=list, default=[45, 30, 85, 30, 80, 30], help='')
+# self.parser.add_argument('--meal_variance', type=list, default=[1e-8, 1e-8, 1e-8, 1e-8, 1e-8, 1e-8], help='')
+# self.parser.add_argument('--time_variance', type=list, default=[1e-8, 1e-8, 1e-8, 1e-8, 1e-8, 1e-8], help='in mins')
+
+# Fixed "EASY" benchmark scenario: manual control SBB
+# self.parser.add_argument('--meal_prob', type=list, default=[1, -1, 1, -1, 1, -1], help='')
+# self.parser.add_argument('--meal_amount', type=list, default=[40, 20, 80, 10, 60, 30], help='')
+# self.parser.add_argument('--meal_variance', type=list, default=[1e-8, 1e-8, 1e-8, 1e-8, 1e-8, 1e-8], help='')
+# self.parser.add_argument('--time_variance', type=list, default=[1e-8, 1e-8, 1e-8, 1e-8, 1e-8, 1e-8], help='in mins')
+
+# parameters for children
+# self.parser.add_argument('--meal_amount', type=list, default=[30, 15, 45, 15, 45, 15], help='')
+# self.parser.add_argument('--meal_variance', type=list, default=[5, 3, 5, 3, 5, 3], help='')
+
+# Elena paper meal: Breakfast 30-60g, Lunch 70-100g, Dinner 70-110g, Snack 20-40g
+# June9 exp run: Breakfast 45 (10), Lunch 100 (10, Dinner 90 (1), Snack 10(5)

@@ -1,0 +1,18 @@
+---
+# sbb algorithm training settings.
+target_glucose: 140.0 # main glucose target
+glucose_cf_target: 150.0  # glucose correction target, correction bolus only when glucose > this target
+use_bolus: True  # use bolus not just basal
+
+# To simulate the errors in CHO estimation,
+# Implementation based on Paper:
+carb_estimation_method: 'real'  # 'linear, quadratic, real, rand')
+
+# TODO: t_meal is also required for bb, currently passed as an env param so that RL can also use if needed.
+
+# validation simulations
+n_trials: 1  #500
+duration: 288  # 288 = 1-day
+
+
+

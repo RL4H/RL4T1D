@@ -1,0 +1,41 @@
+---
+n_handcrafted_features: 1  # not used
+n_features: 2
+use_handcraft: 0
+
+# NN model parameters
+n_hidden: 16
+n_rnn_layers: 1
+rnn_directions: 1
+bidirectional: False
+
+# SAC params
+sac_v2: True  # toggle between two implementations of SAC, using value_fn vs
+target_entropy: -1
+entropy_lr: 3.e-4
+entropy_coef: 0.1
+weight_decay: 0
+batch_size: 256 # the mini_batch size
+replay_buffer_size: 100000 # total <s,a,r,s'> pairs
+sample_size: 256
+soft_tau: 0.005
+gamma: 0.997
+shuffle_rollout: True  # rollout trajectory data is shuffled
+
+# train
+n_training_workers: 16
+n_step: 256
+max_epi_length: 2880
+n_pi_epochs: 1  # can be used to increase number of epochs for all networks updates.
+pi_lr: 3.e-4
+vf_lr: 3.e-4
+grad_clip: 20
+total_interactions: 800000  # total number of interactions the agent will train for
+n_interactions_lr_decay: 600000
+
+#est
+n_testing_workers: 20
+max_test_epi_len: 288
+
+# validation
+n_val_trials: 500
