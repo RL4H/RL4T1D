@@ -15,7 +15,7 @@
 <img src="https://chirathyh.github.io/images/gif_aps.gif" width="70%" alt="APS">
 </p>
 
-Maintaining glucose levels is a life-long optimisation problem, complicated due to the disturbances associated with daily events (meals, exercise, stress.. etc), delays present in glucose sensing and insulin action, partial observability, and safety constraints among others. A simulation of glucose regulation, using a RL-based strategy is shown below, where the optimal glucose range is shaded in green severe hypoglycemia / hyperglycemia ranges highlighted by the red dotted line. The blood glucose measurements are presented in the top, while the administered insulin by the RL agent is presented in the bottom. The disturbances related to meal events and the carbohydrate content of the meals are presented in red.
+**Objective/Task:** Maintaining glucose levels is a life-long optimisation problem, complicated due to the disturbances associated with daily events (meals, exercise, stress.. etc), delays present in glucose sensing and insulin action, partial observability, and safety constraints among others. A simulation of glucose regulation, using a RL-based strategy is shown below, where the optimal glucose range is shaded in green severe hypoglycemia / hyperglycemia ranges highlighted by the red dotted line. The blood glucose measurements are presented in the top, while the administered insulin by the RL agent is presented in the bottom. The disturbances related to meal events and the carbohydrate content of the meals are presented in red.
 
 ![Glucose Regulation](img/gif_glucose.gif)
 
@@ -114,27 +114,6 @@ A plotting library is developed to plot the glucose, insulin, and meal fluctuati
   publisher={Elsevier}
 }
 ```
-```
-@inproceedings{hettiarachchi2022non,
-  title={Non-linear Continuous Action Spaces for Reinforcement Learning in Type 1 Diabetes},
-  author={Hettiarachchi, Chirath and Malagutti, Nicolo and Nolan, Christopher J and Suominen, Hanna and Daskalaki, Elena},
-  booktitle={AI 2022: Advances in Artificial Intelligence: 35th Australasian Joint Conference, AI 2022, Perth, WA, Australia, December 5-8, 2022, Proceedings},
-  pages={557--570},
-  year={2022},
-  organization={Springer}
-}
-```
-```
-@inproceedings{hettiarachchi2022reinforcement,
-  title={A Reinforcement Learning Based System for Blood Glucose Control without Carbohydrate Estimation in Type 1 Diabetes: In Silico Validation},
-  author={Hettiarachchi, Chirath and Malagutti, Nicolo and Nolan, Christopher and Daskalaki, Eleni and Suominen, Hanna},
-  booktitle={2022 44th Annual International Conference of the IEEE Engineering in Medicine \& Biology Society (EMBC)},
-  pages={950--956},
-  year={2022},
-  organization={IEEE}
-}
-```
-
 Acknowledgement
 --
 
