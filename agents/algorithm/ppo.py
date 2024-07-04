@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from agents.algorithm.agent import Agent
-from agents.networks.actor_critic import ActorCritic
+from agents.models.actor_critic import ActorCritic
 from utils.onpolicy_buffers import RolloutBuffer
 from utils.logger import LogExperiment
 

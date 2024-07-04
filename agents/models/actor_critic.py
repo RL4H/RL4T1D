@@ -1,8 +1,34 @@
 import torch
 import torch.nn as nn
 
-from agents.networks.actor import ActorNetwork
-from agents.networks.critic import CriticNetwork
+
+from agents.models.feature_extracter import LSTMFeatureExtractor
+from agents.models.policy import PolicyModule
+from agents.models.value import ValueModule
+
+
+class ActorNetwork(nn.Module):
+    def __init__(self, args):
+        super(ActorNetwork, self).__init__()
+        self.FeatureExtractor = LSTMFeatureExtractor(args)
+        self.PolicyModule = PolicyModule(args)
+
+    def forward(self, s):
+        lstmOut = self.FeatureExtractor.forward(s)
+        mu, sigma, action, log_prob = self.PolicyModule.forward(lstmOut)
+        return mu, sigma, action, log_prob
+
+
+class CriticNetwork(nn.Module):
+    def __init__(self, args):
+        super(CriticNetwork, self).__init__()
+        self.FeatureExtractor = LSTMFeatureExtractor(args)
+        self.ValueModule = ValueModule(args)
+
+    def forward(self, s):
+        lstmOut = self.FeatureExtractor.forward(s)
+        value = self.ValueModule.forward(lstmOut)
+        return value
 
 
 class ActorCritic(nn.Module):

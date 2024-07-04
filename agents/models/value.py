@@ -1,7 +1,8 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-from agents.networks.normed_linear import NormedLinear
+from agents.models.normed_linear import NormedLinear
+from agents.models.feature_extracter import LSTMFeatureExtractor
 
 
 class ValueModule(nn.Module):

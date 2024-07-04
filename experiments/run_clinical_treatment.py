@@ -6,10 +6,14 @@ import sys
 from decouple import config
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
+
 from utils.options import Options
-from utils.core import time_in_range, get_patient_env, set_logger, custom_reward, get_env, combined_shape
-from agents.std_bb import carb_estimate
-from agents.std_bb.BBController import BasalBolusController
+from environment.utils import get_env, get_patient_env
+from metrics.metrics import time_in_range
+from utils.core import combined_shape
+
+from clinical.carb_counting import carb_estimate
+from clinical.basal_bolus_treatment import BasalBolusController
 
 import warnings
 warnings.simplefilter('ignore', Warning)
@@ -26,6 +30,7 @@ def run_simulation(args, id=0, rollout_steps=288*30, n_trials=10, seed=0):
 
     for trial in range(0, n_trials):
         trial_history = np.zeros(combined_shape(rollout_steps, 4), dtype=np.float32)
+
         state = env.reset()  # fresh env and ensures all the trials start within normoglycemia.
 
         counter = 0

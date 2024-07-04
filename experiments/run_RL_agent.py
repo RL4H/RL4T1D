@@ -22,7 +22,7 @@ def set_agent_parameters(args):
         agent = A2C(args=args, load_model=False, actor_path='', critic_path='')
 
     elif args.agent == 'sac':
-        from agents.sac.sac import SAC
+        from agents.algorithm.sac import SAC
         agent = SAC(args=args, load_model=False, actor_path='', critic_path='')
 
     elif args.agent == 'g2p2c':

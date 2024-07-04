@@ -108,6 +108,7 @@ class Agent:
                 data.append(dataframe)
             res = pd.concat(data)
             res['PatientID'] = self.args.patient_id
+            res.rename(columns={'sev_hypo':'S_hypo', 'sev_hyper':'S_hyper'}, inplace=True)
             summary_stats.append(res)
             metric=['mean', 'std', 'min', 'max']
             print(calc_stats(res, metric=metric, sim_len=288))

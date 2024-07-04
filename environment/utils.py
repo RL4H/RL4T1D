@@ -1,11 +1,17 @@
 import scipy.signal
 import numpy as np
+import pandas as pd
 import logging
 import gym
 from gym.envs.registration import register
 import warnings
 import math
 import torch
+import pkg_resources
+
+
+CONTROL_QUEST = pkg_resources.resource_filename('simglucose', 'params/Quest.csv')
+PATIENT_PARA_FILE = pkg_resources.resource_filename('simglucose', 'params/vpatient_params.csv')
 
 
 def get_env(args, worker_id=None, env_type=None):
@@ -73,3 +79,16 @@ def risk_index(BG, horizon):
 
 def custom_reward(bg_hist, **kwargs):
     return -risk_index([bg_hist[-1]], 1)[-1]
+
+
+def get_basal(patient_name='none'):
+    if patient_name == 'none':
+        print('Patient name not provided')
+    quest = pd.read_csv(CONTROL_QUEST)
+    patient_params = pd.read_csv(PATIENT_PARA_FILE)
+    q = quest[quest.Name.str.match(patient_name)]
+    params = patient_params[patient_params.Name.str.match(patient_name)]
+    u2ss = params.u2ss.values.item()
+    BW = params.BW.values.item()
+    basal = u2ss * BW / 6000
+    return basal

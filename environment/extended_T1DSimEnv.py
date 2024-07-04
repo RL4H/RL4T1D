@@ -7,6 +7,7 @@ from simglucose.controller.base import Action
 from environment.extended_scenario import RandomScenario
 from environment.reward_func import composite_reward
 from environment.state_space import StateSpace
+from environment.utils import get_basal
 
 import numpy as np
 import pkg_resources
@@ -14,8 +15,6 @@ import gym
 from gym import spaces
 from gym.utils import seeding
 from datetime import datetime
-
-from environment.pumpAction import Pump
 
 
 PATIENT_PARA_FILE = pkg_resources.resource_filename(
@@ -25,8 +24,6 @@ PATIENT_PARA_FILE = pkg_resources.resource_filename(
 class T1DSimEnv(gym.Env):
     # A wrapper of simglucose.simulation.env.T1DSimEnv to support gym API
     metadata = {'render.modes': ['human']}
-    SENSOR_HARDWARE = 'Dexcom'
-    INSULIN_PUMP_HARDWARE = 'Insulet'
 
     def __init__(self, patient_name=None, reward_fun=None, seed=None, args=None, env_type=None):
         # patient_name must be 'adolescent#001' to 'adolescent#010', or 'adult#001' to 'adult#010', or 'child#001' to 'child#010'
@@ -45,9 +42,7 @@ class T1DSimEnv(gym.Env):
         self.env_type = env_type
 
         self.state_space = StateSpace(self.args)
-        self.pump = Pump(self.args, patient_name=self.patient_name)
-        self.std_basal = self.pump.get_basal()
-
+        self.std_basal = get_basal(patient_name=self.patient_name)
         self.reward_fun = reward_fun
         self.np_random, _ = seeding.np_random(seed=seed)
         self.env, _, _, _ = self._create_env_from_random_state()
@@ -108,7 +103,6 @@ class T1DSimEnv(gym.Env):
         self.env, _, _, _ = self._create_env_from_random_state()
         obs, _, _, _ = self.env.reset()
         self.cur_state, _ = self.state_space.update(cgm=obs.CGM, ins=0, meal=0)
-        self.pump.calibrate(obs)
         cur_cgm = self.calibration_process()
         return self.cur_state
 

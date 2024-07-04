@@ -4,11 +4,10 @@ import time
 import torch
 import torch.nn as nn
 
-# from agents.sac.worker import Worker
+
 from utils.worker import OffPolicyWorker as Worker
 from utils.offpolicy_buffers import ReplayMemory, Transition
-
-from agents.sac.models import ActorCritic  # todo refactor
+from agents.models.actor_critic_sac import ActorCritic
 
 
 class SAC:
@@ -17,9 +16,7 @@ class SAC:
         self.gamma = args.gamma
         self.device = args.device
         self.n_step = args.n_step
-        self.feature_history = args.feature_history
-        self.n_handcrafted_features = args.n_handcrafted_features
-        self.n_features = args.n_features
+
         self.grad_clip = args.grad_clip
 
         self.n_training_workers = args.n_training_workers
@@ -117,23 +114,21 @@ class SAC:
             batch = Transition(*zip(*transitions))
 
             cur_state_batch = torch.cat(batch.old_states)
-            cur_feat_batch = torch.cat(batch.feat)
             actions_batch = torch.cat(batch.action).unsqueeze(1)
             reward_batch = torch.cat(batch.reward).unsqueeze(1)
             next_state_batch = torch.cat(batch.next_state)
-            next_feat_batch = torch.cat(batch.next_feat)
             done_batch = torch.cat(batch.done).unsqueeze(1)
 
-            actions_pi, log_prob = self.sac.evaluate_policy(cur_state_batch, cur_feat_batch)
+            actions_pi, log_prob = self.sac.evaluate_policy(cur_state_batch)
             self.entropy_coef = torch.exp(self.log_ent_coef.detach()) if self.sac_v2 else 0.001
 
             # value network update
             if not self.sac_v2:
                 self.value_optimizer.zero_grad()
                 with torch.no_grad():
-                    min_qf_val = torch.min(self.sac.soft_q_net1(cur_state_batch, cur_feat_batch, actions_pi),
-                                           self.sac.soft_q_net2(cur_state_batch, cur_feat_batch, actions_pi))
-                predicted_value = self.sac.value_net(cur_state_batch, cur_feat_batch)
+                    min_qf_val = torch.min(self.sac.soft_q_net1(cur_state_batch, actions_pi),
+                                           self.sac.soft_q_net2(cur_state_batch, actions_pi))
+                predicted_value = self.sac.value_net(cur_state_batch)
                 value_func_estimate = min_qf_val - (self.entropy_coef * log_prob)  # todo the temperature paramter
                 value_loss = 0.5 * self.value_criterion(predicted_value, value_func_estimate.detach())
                 value_loss.backward()
@@ -146,17 +141,17 @@ class SAC:
             self.soft_q_optimizer2.zero_grad()
             with torch.no_grad():  # calculate the target q vals here.
                 if self.sac_v2:
-                    new_action, next_log_prob = self.sac.evaluate_policy(next_state_batch, next_feat_batch)
-                    next_q_values = torch.min(self.sac.target_q_net1(next_state_batch, next_feat_batch, new_action),
-                                              self.sac.target_q_net2(next_state_batch, next_feat_batch, new_action))
+                    new_action, next_log_prob = self.sac.evaluate_policy(next_state_batch)
+                    next_q_values = torch.min(self.sac.target_q_net1(next_state_batch, new_action),
+                                              self.sac.target_q_net2(next_state_batch, new_action))
                     next_q_values = next_q_values - self.entropy_coef * next_log_prob
                     target_q_values = (reward_batch + (self.gamma * (1 - done_batch) * next_q_values))
                 else:
-                    target_value = self.sac.value_net_target(next_state_batch, next_feat_batch)
+                    target_value = self.sac.value_net_target(next_state_batch)
                     target_q_values = (reward_batch + self.gamma * (1 - done_batch) * target_value)
 
-            predicted_q_value1 = self.sac.soft_q_net1(cur_state_batch, cur_feat_batch, actions_batch)
-            predicted_q_value2 = self.sac.soft_q_net2(cur_state_batch, cur_feat_batch, actions_batch)
+            predicted_q_value1 = self.sac.soft_q_net1(cur_state_batch, actions_batch)
+            predicted_q_value2 = self.sac.soft_q_net2(cur_state_batch, actions_batch)
             q_value_loss1 = 0.5 * self.soft_q_criterion1(predicted_q_value1, target_q_values)
             q_value_loss2 = 0.5 * self.soft_q_criterion2(predicted_q_value2, target_q_values)
             q_value_loss1.backward()
@@ -174,8 +169,8 @@ class SAC:
                 p.requires_grad = False
 
             self.policy_optimizer.zero_grad()
-            min_qf_pi = torch.min(self.sac.soft_q_net1(cur_state_batch, cur_feat_batch, actions_pi),
-                                  self.sac.soft_q_net2(cur_state_batch, cur_feat_batch, actions_pi))
+            min_qf_pi = torch.min(self.sac.soft_q_net1(cur_state_batch, actions_pi),
+                                  self.sac.soft_q_net2(cur_state_batch, actions_pi))
 
             policy_loss = (self.entropy_coef * log_prob - min_qf_pi).mean()
             policy_loss.backward()
@@ -191,7 +186,7 @@ class SAC:
             # entropy coeff update
             if self.sac_v2:
                 self.ent_coef_optimizer.zero_grad()
-                _, log_prob = self.sac.evaluate_policy(cur_state_batch, cur_feat_batch)
+                _, log_prob = self.sac.evaluate_policy(cur_state_batch)
                 ent_coef_loss = -(self.log_ent_coef * (log_prob + self.target_entropy).detach()).mean()
                 ent_coef_loss.backward()
                 coeff_grad += torch.nn.utils.clip_grad_norm_([self.log_ent_coef], self.grad_clip)

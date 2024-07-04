@@ -4,7 +4,7 @@ n_features: 2
 use_handcraft: 0
 
 # NN model parameters
-n_hidden: 16
+n_rnn_hidden: 16
 n_rnn_layers: 1
 rnn_directions: 1
 bidirectional: False

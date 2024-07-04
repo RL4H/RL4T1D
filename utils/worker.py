@@ -69,24 +69,21 @@ class OffPolicyWorker(Worker):
 
         for steps in range(0, self.rollout_steps):
 
-            rl_action = policy.get_action(self.state, [0], worker_mode=self.worker_mode)
+            rl_action = policy.get_action(self.state)
             pump_action = self.controlspace.map(agent_action=rl_action['action'][0])  # map RL action => control space (pump)
 
             state, reward, is_done, info = self.env.step(pump_action)
 
             this_state = deepcopy(self.state)
-            this_feat = [0]
 
             self.state = state  # update -> state.
 
             # store -> rollout data for training. TODO: generalise among different buffers.
             if self.worker_mode == 'training':
                 buffer.push(torch.as_tensor(this_state, dtype=torch.float32, device=self.args.device).unsqueeze(0),
-                                   torch.as_tensor(this_feat, dtype=torch.float32, device=self.args.device).unsqueeze(0),
                                    torch.as_tensor([rl_action['action'][0]], dtype=torch.float32, device=self.args.device),
                                    torch.as_tensor([reward], dtype=torch.float32, device=self.args.device),
                                    torch.as_tensor(self.state, dtype=torch.float32, device=self.args.device).unsqueeze(0),
-                                   torch.as_tensor([0], dtype=torch.float32, device=self.args.device).unsqueeze(0),
                                    torch.as_tensor([is_done], dtype=torch.float32, device=self.args.device))
 
             rl_action['log_prob']=[0] # todo fix the logger

@@ -2,25 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from agents.networks.feature_extracter import LSTMFeatureExtractor
-from agents.networks.normed_linear import NormedLinear
+
+from agents.models.normed_linear import NormedLinear
 
 
-class ActorNetwork(nn.Module):
+class PolicyModule(nn.Module):
     def __init__(self, args):
-        super(ActorNetwork, self).__init__()
-        self.FeatureExtractor = LSTMFeatureExtractor(args)
-        self.ActionModule = ActionModule(args)
-
-    def forward(self, s):
-        lstmOut = self.FeatureExtractor.forward(s)
-        mu, sigma, action, log_prob = self.ActionModule.forward(lstmOut)
-        return mu, sigma, action, log_prob
-
-
-class ActionModule(nn.Module):
-    def __init__(self, args):
-        super(ActionModule, self).__init__()
+        super(PolicyModule, self).__init__()
         self.device = args.device
 
         self.output = args.n_action

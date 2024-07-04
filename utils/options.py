@@ -32,7 +32,7 @@ class Options:
         self.parser.add_argument('--patient_id', type=int, default=0, help='id: adolescent(0-9), child(10-19), adult(20-29)')
         self.parser.add_argument('--env_config', type=str, default=MAIN_PATH+'/environment/env_config.yaml', help='')
 
-        self.parser.add_argument('--clinical_config', type=str, default=MAIN_PATH+'/agents/std_bb/bb_config.yaml', help='')
+        self.parser.add_argument('--clinical_config', type=str, default=MAIN_PATH+'/clinical/bb_config.yaml', help='')
 
         # RL agent
         self.parser.add_argument('--agent', type=str, default='ppo', help='agent used for the experiment.')
