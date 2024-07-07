@@ -4,8 +4,8 @@ from utils.control_space import ControlSpace
 
 
 class Worker(T1DEnv):
-    def __init__(self, args, mode, worker_id):
-        T1DEnv.__init__(self, args, mode, worker_id)
+    def __init__(self, args, env_args, mode, worker_id):
+        T1DEnv.__init__(self, env_args, mode, worker_id)
         self.episode, self.counter = 0, 0
         self.rollout_steps = args.n_step if self.worker_mode == 'training' else args.max_test_epi_len
         self.stop_factor = (args.max_epi_length - 1) if self.worker_mode == 'training' else (args.max_test_epi_len - 1)
@@ -19,8 +19,8 @@ class Worker(T1DEnv):
 
 
 class OnPolicyWorker(Worker):
-    def __init__(self, args, mode, worker_id):
-        Worker.__init__(self, args, mode, worker_id)
+    def __init__(self, args, env_args, mode, worker_id):
+        Worker.__init__(self, args, env_args, mode, worker_id)
 
     def rollout(self, policy=None, buffer=None):
         if self.worker_mode != 'training':  # always a fresh env for testing.
@@ -59,8 +59,8 @@ from copy import deepcopy
 
 
 class OffPolicyWorker(Worker):
-    def __init__(self, args, mode, worker_id):
-        Worker.__init__(self, args, mode, worker_id)
+    def __init__(self, args, env_args, mode, worker_id):
+        Worker.__init__(self, args, env_args, mode, worker_id)
 
     def rollout(self, policy=None, buffer=None):
 

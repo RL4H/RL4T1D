@@ -11,10 +11,13 @@ from decouple import config
 MAIN_PATH = config('MAIN_PATH')
 
 import pandas as pd
+import wandb
+
 
 class Agent:
-    def __init__(self, args):
+    def __init__(self, args, env_args):
         self.args = None
+        self.env_args = None
         self.policy = None
         self.RolloutBuffer = None
 
@@ -28,6 +31,13 @@ class Agent:
         self.testing_agent_id_offset = 5000  # 5000, 5001, 5002, ... (5000+n_testing_workers)
         self.validation_agent_id_offset = 6000  # 6000, 6001, 6002, ... (6000+n_val_trials)
 
+        if args.debug:
+            self.n_testing_workers = 2
+            self.n_training_workers = 2
+            self.total_interactions = 4000
+            self.n_interactions_lr_decay = 2000
+            self.n_val_trials = 3
+
     @abc.abstractmethod
     def update(self):
         """
@@ -36,16 +46,16 @@ class Agent:
 
     def run(self):
         # initialise workers for training
-        training_agents = [Worker(args=self.args, mode='training', worker_id=i+self.training_agent_id_offset)
+        training_agents = [Worker(args=self.args, env_args=self.env_args, mode='training', worker_id=i+self.training_agent_id_offset)
                            for i in range(self.n_training_workers)]
 
         # initialise workers for testing after each update step
-        testing_agents = [Worker(args=self.args, mode='testing', worker_id=i+self.testing_agent_id_offset)
+        testing_agents = [Worker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+self.testing_agent_id_offset)
                           for i in range(self.n_testing_workers)]
 
         # start ppo learning
         rollout, completed_interactions = 0, 0
-        while completed_interactions < self.args.total_interactions:  # steps * n_workers * epochs. 3000 is just a large number
+        while completed_interactions < self.total_interactions:  # steps * n_workers * epochs. 3000 is just a large number
             tstart = time.perf_counter()
             # run training workers to collect data
             for i in range(self.n_training_workers):
@@ -65,14 +75,15 @@ class Agent:
             gc.collect()  # garbage collector to clean unused objects.
 
             # decay lr and set entropy coeff to zero to stabilise the policy towards the end.
-            if completed_interactions > self.args.n_interactions_lr_decay:
+            if completed_interactions > self.n_interactions_lr_decay:
                 self.decay_lr()
 
-            experiment_done = True if completed_interactions > self.args.total_interactions else False
+            experiment_done = True if completed_interactions > self.total_interactions else False
 
             # logging
+            #wandb.log({"Training Progress": (completed_interactions/self.total_interactions)*100})
             print('\n---------------------------------------------------------')
-            print('Training Progress: {:.2f}%, Elapsed time: {:.4f} minutes.'.format(min(100.00, (completed_interactions/self.args.total_interactions)*100),
+            print('Training Progress: {:.2f}%, Elapsed time: {:.4f} minutes.'.format(min(100.00, (completed_interactions/self.total_interactions)*100),
                                                                                      (time.perf_counter() - tstart)/60))
             print('---------------------------------------------------------')
 
@@ -86,10 +97,10 @@ class Agent:
     def evaluate(self):
         print('\n---------------------------------------------------------')
         print('===> Starting Validation Trials ....')
-        validation_agents = [Worker(args=self.args, mode='testing', worker_id=i + self.validation_agent_id_offset)
-                             for i in range(self.args.n_val_trials)]
+        validation_agents = [Worker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + self.validation_agent_id_offset)
+                             for i in range(self.n_val_trials)]
         with torch.no_grad():
-            for i in range(self.args.n_val_trials):
+            for i in range(self.n_val_trials):
                 validation_agents[i].rollout(policy=self.policy, buffer=None)
 
             # calculate the final metrics.
@@ -98,7 +109,7 @@ class Agent:
                              'hgbi', 'ri', 'sev_hyper', 'aBGP_rmse', 'cBGP_rmse']
             data = []
             FOLDER_PATH = '/results/'+self.args.experiment_folder+'/testing/data'
-            for i in range(0, self.args.n_val_trials):
+            for i in range(0, self.n_val_trials):
                 test_i = 'logs_worker_'+str(self.validation_agent_id_offset+i)+'.csv'
                 df = pd.read_csv(MAIN_PATH +FOLDER_PATH+ '/'+test_i)
                 normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper = time_in_range(df['cgm'])

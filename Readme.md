@@ -7,6 +7,8 @@
 [![CI](https://github.com/chirathyh/G2P2C/actions/workflows/python-app.yml/badge.svg)](https://github.com/chirathyh/G2P2C/actions/workflows/python-app.yml)
 [![DOI](https://img.shields.io/badge/DOI-10.25911/CXAQ--3151-blue)](http://hdl.handle.net/1885/305591)
 
+**IMPORTANT** This project is currently is in development: please visit the legacy codebase: [**G2P2C**](https://github.com/RL4H/G2P2C)
+
 **RL4T1D** is a project to develop Reinforcement Learning (RL)-based Artificial Pancreas Systems (APS), with the aim to automate treatment in Type 1 Diabetes (T1D). For more detailed information please visit the legacy codebase: [**G2P2C**](https://github.com/RL4H/G2P2C)
 
 **Background:** Type 1 Diabetes (T1D) is casued by the autoimmune destruction of the islet beta-cells and results in absolute insulin deficiency (cover image: Human islet of Langerhans created by Stable Diffusion). Hence, external administration of insulin is required to maintain glucose levels, which is cruicial as both low and high glucose levels are detrimental to health. This is usually done through an insulin pump attached to the body. An continuous glucose sensor is also attached to measure the glucose levels so that a control algorithm can estimate the appropriate insulin dose. In this project we design Reinforcement Learning (RL) based Artificial Pancreas Systems (APS) for the glucose control problem. The figure below shows the main components of an APS. 
@@ -39,7 +41,7 @@ Using the project
 Running a **Proximal Policy Optimisation (PPO)** algorithm for glucose control. More information related to state-action space, reward formulations: [Paper](https://ieeexplore.ieee.org/abstract/document/9871054) .
 ```
 cd experiments 
-python run_RL_agent.py --agent ppo --experiment_folder test --patient_id 0 --device cpu --seed 3 --debug True
+python run_RL_agent.py hydra.job.name=test experiment.device=cpu agent=ppo agent.debug=True hydra/job_logging=disabled
 ```
 
 Running a clinical treatment strategy based on a clinical treatment strategy: **Basal-Bolus (BB)**. More info: [Paper](https://ieeexplore.ieee.org/abstract/document/9871054) .

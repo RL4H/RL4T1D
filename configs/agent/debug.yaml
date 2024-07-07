@@ -1,0 +1,17 @@
+# @package _global_
+# used for debug: these configs will overwrite the main configs
+agent:
+  n_testing_workers: 2
+  n_training_workers: 2
+
+  total_interactions: 4000
+  n_interactions_lr_decay: 2000
+  n_val_trials: 3
+
+  #g2p2c specific
+  aux_buffer_max: 1000
+
+  #sac specific
+  batch_size: 64  # the mini_batch size
+  replay_buffer_size: 1024   # total <s,a,r,s'> pairs
+  sample_size: 128

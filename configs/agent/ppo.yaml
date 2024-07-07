@@ -1,6 +1,7 @@
----
-
 # NN model parameters
+agent: 'ppo'
+debug: False
+
 n_rnn_hidden: 16
 n_rnn_layers: 1
 rnn_directions: 1

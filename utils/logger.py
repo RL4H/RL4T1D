@@ -12,26 +12,30 @@ import logging
 import torch
 from utils.core import combined_shape
 from metrics.metrics import time_in_range
+import json
 
 
 def set_logger(LOG_DIR):
     log_filename = LOG_DIR + '/debug.log'
-    logging.basicConfig(filename=log_filename, filemode='a', format='%(levelname)s - %(message)s', level=logging.INFO)
+    #logging.basicConfig(filename=log_filename, filemode='a', format='%(levelname)s - %(message)s', level=logging.INFO)
 
 
-def setup_folders(args):
-    # create the folder which will save experiment data.
-    LOG_DIR = MAIN_PATH + "/results/" + args.experiment_folder
+def setup_folders(args: dict) -> None:  # create the folder which will save experiment data.
+    LOG_DIR = args.experiment.experiment_dir
     CHECK_FOLDER = os.path.isdir(LOG_DIR)
     if CHECK_FOLDER:
         shutil.rmtree(LOG_DIR)
     os.makedirs(LOG_DIR + '/checkpoints')
     os.makedirs(LOG_DIR + '/training/data')
     os.makedirs(LOG_DIR + '/testing/data')
-    os.makedirs(LOG_DIR + '/code')
-    args.experiment_dir = LOG_DIR
     set_logger(LOG_DIR)
-    return args
+
+#copy_folder(src=MAIN_PATH + '/agents/'+ self.opt.agent, dst=MAIN_PATH + '/results/' + self.opt.experiment_folder + '/code')  # copy running agent code to outputs
+
+# with open(args.experiment_dir + '/args.json', 'w') as fp:  # save the experiments args.
+#     json.dump(vars(args), fp, indent=4)
+#     fp.close()
+
 
 
 def copy_folder(src, dst):

@@ -1,0 +1,42 @@
+experiment:
+  folder: ${hydra:job.name}
+  experiment_dir: ../results/${hydra:job.name}
+  device: 'cpu'
+  verbose: True
+  seed: 0
+
+defaults:
+  - env: env
+  - agent: ppo
+  - _self_
+
+env:
+  experiment_folder: ${experiment.experiment_dir}
+  device: ${experiment.device}
+  verbose: ${experiment.verbose}
+  seed: ${experiment.seed}
+
+agent:
+  experiment_folder: ${experiment.experiment_dir}
+  experiment_dir: ${experiment.experiment_dir}
+  device: ${experiment.device}
+  verbose: ${experiment.verbose}
+  seed: ${experiment.seed}
+
+  # need to resolve these.
+  n_action: 1
+  n_features: 2
+  feature_history: 12
+
+  control_space_type: 'exponential'
+
+  patient_id: 0
+
+  insulin_min: 0
+  insulin_max: 5
+
+  glucose_max: 600  # Note the selected sensors range would affect this
+  glucose_min: 39
+
+
+# python run_RL_agent.py hydra.job.name=tery agent.debug=True hydra/job_logging=disabled
