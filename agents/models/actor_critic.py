@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+import mlflow
+from mlflow.models import infer_signature
 
 from agents.models.feature_extracter import LSTMFeatureExtractor
 from agents.models.policy import PolicyModule
@@ -70,6 +72,10 @@ class ActorCritic(nn.Module):
     def save(self, episode):  # save checkpoints for networks.
         actor_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_Actor.pth'
         critic_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_Critic.pth'
+
         torch.save(self.Actor, actor_path)
+        mlflow.pytorch.log_model(self.Actor, 'actor_model')
+
         torch.save(self.Critic, critic_path)
+        mlflow.pytorch.log_model(self.Critic, 'critic_model')
 

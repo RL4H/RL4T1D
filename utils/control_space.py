@@ -5,10 +5,10 @@ import math
 
 
 class ControlSpace:
-    def __init__(self, args):
-        self.pump_min = args.insulin_min
-        self.pump_max = args.insulin_max
-        self.control_space_type = args.control_space_type
+    def __init__(self, control_space_type, insulin_min, insulin_max):
+        self.pump_min = insulin_min
+        self.pump_max = insulin_max
+        self.control_space_type = control_space_type
 
     def map(self, agent_action=None):
 

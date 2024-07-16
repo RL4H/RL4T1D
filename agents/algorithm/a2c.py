@@ -1,16 +1,17 @@
 import torch
 import torch.nn as nn
 
-from agents.agent import Agent
+from agents.algorithm.agent import Agent
 from agents.models.actor_critic import ActorCritic
 from utils.onpolicy_buffers import RolloutBuffer
 from utils.logger import LogExperiment
 
 
 class A2C(Agent):
-    def __init__(self, args, load_model, actor_path, critic_path):
-        super(A2C, self).__init__(args)
+    def __init__(self, args, env_args, load_model, actor_path, critic_path):
+        super(A2C, self).__init__(args, env_args=env_args)
         self.args = args
+        self.env_args = env_args
         self.device = args.device
         self.completed_interactions = 0
 

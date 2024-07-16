@@ -11,13 +11,23 @@ from decouple import config
 MAIN_PATH = config('MAIN_PATH')
 
 import pandas as pd
-import wandb
+from omegaconf import OmegaConf, open_dict
 
 
 class Agent:
     def __init__(self, args, env_args):
-        self.args = None
-        self.env_args = None
+        self.args = args
+
+        self.env_args = env_args
+
+        with open_dict(self.args):  # TODO: the interface between env - agent, improve?
+            self.args.n_features = len(env_args.obs_features)
+            self.args.obs_window = env_args.obs_window
+            self.args.glucose_max = env_args.glucose_max  # Note the selected sensors range would affect this
+            self.args.glucose_min = env_args.glucose_min
+            self.args.n_action = env_args.n_actions
+            self.args.patient_id = env_args.patient_id
+
         self.policy = None
         self.RolloutBuffer = None
 
@@ -115,7 +125,7 @@ class Agent:
                 normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper = time_in_range(df['cgm'])
                 reward_val = df['rew'].sum()*(100/288)
                 e = [[i, df.shape[0], reward_val, normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper, 0, 0]]
-                dataframe=pd.DataFrame(e, columns=secondary_columns)
+                dataframe = pd.DataFrame(e, columns=secondary_columns)
                 data.append(dataframe)
             res = pd.concat(data)
             res['PatientID'] = self.args.patient_id

@@ -1,4 +1,6 @@
----
+agent: 'a2c'
+debug: False
+
 # TODO: delete the redundant configs used by ppo but not a2c
 # timeseries, handcraft ?
 n_handcrafted_features: 1

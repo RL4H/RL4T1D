@@ -14,6 +14,7 @@ from utils.core import combined_shape
 from metrics.metrics import time_in_range
 import json
 
+import mlflow
 
 def set_logger(LOG_DIR):
     log_filename = LOG_DIR + '/debug.log'
@@ -60,6 +61,9 @@ class LogExperiment:
 
     def save(self, log_name, data):
         save_log(self.args.experiment_dir, data, log_name)
+        data = data[0]
+        mlflow.log_metrics({'policy_grad': data[0], 'value_grad': data[1], 'val_loss': data[2], 'exp_var':data[3],
+                            'true_var': data[4], 'pi_loss': data[5], 'avg_rew': data[6]})
 
 
 class LogWorker:
@@ -90,6 +94,7 @@ class LogWorker:
         df = pd.DataFrame(self.episode_history[0:counter], columns=self.episode_logs)
         df.to_csv(self.args.experiment_dir + '/' + self.worker_mode + '/data/logs_worker_' + str(self.worker_id) + '.csv',
                   mode='a', header=False, index=False)
+        mlflow.log_table(data=df, artifact_file='logs_worker_' + str(self.worker_id) + '.json')
 
         # log the summary stats for the episode (rollout)
         normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper = time_in_range(df['cgm'])

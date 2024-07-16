@@ -1,6 +1,17 @@
+hydra:
+  run:
+    dir: ../results/${experiment.name}
+
+mlflow:
+  track: True
+  tracking_uri: ../results/mlflow # http://127.0.0.1:5000
+
 experiment:
-  folder: ${hydra:job.name}
-  experiment_dir: ../results/${hydra:job.name}
+  name: 'name'
+  run_name:
+  folder: ${experiment.name}
+  experiment_dir: ../results/${experiment.name}
+
   device: 'cpu'
   verbose: True
   seed: 0
@@ -10,6 +21,7 @@ defaults:
   - agent: ppo
   - _self_
 
+# TODO: think about refactoring the following params, so both env and agent can use without duplication ?
 env:
   experiment_folder: ${experiment.experiment_dir}
   device: ${experiment.device}
@@ -22,21 +34,7 @@ agent:
   device: ${experiment.device}
   verbose: ${experiment.verbose}
   seed: ${experiment.seed}
-
-  # need to resolve these.
-  n_action: 1
-  n_features: 2
-  feature_history: 12
-
   control_space_type: 'exponential'
 
-  patient_id: 0
+# python run_RL_agent.py experiment.name=test33 experiment.device=cpu agent=ppo agent.debug=True hydra/job_logging=disabled
 
-  insulin_min: 0
-  insulin_max: 5
-
-  glucose_max: 600  # Note the selected sensors range would affect this
-  glucose_min: 39
-
-
-# python run_RL_agent.py hydra.job.name=tery agent.debug=True hydra/job_logging=disabled

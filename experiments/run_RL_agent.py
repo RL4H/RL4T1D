@@ -8,8 +8,9 @@ MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
 import hydra
+import mlflow
 from omegaconf import DictConfig, OmegaConf
-import wandb
+
 
 warnings.simplefilter('ignore', Warning)
 
@@ -24,9 +25,9 @@ def set_agent_parameters(cfg):
         setup_folders(cfg)
         agent = PPO(args=cfg.agent, env_args=cfg.env, load_model=False, actor_path='', critic_path='')
 
-    # elif args.agent.agent == 'a2c':
-    #     from agents.algorithm.a2c import A2C
-    #     agent = A2C(args=args, load_model=False, actor_path='', critic_path='')
+    elif cfg.agent.agent == 'a2c':
+        from agents.algorithm.a2c import A2C
+        agent = A2C(args=cfg.agent, env_args=cfg.env, load_model=False, actor_path='', critic_path='')
     #
     # elif args.agent.agent == 'sac':
     #     from agents.algorithm.sac import SAC
@@ -44,24 +45,25 @@ def set_agent_parameters(cfg):
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg: DictConfig) -> None:
     agent = set_agent_parameters(cfg)  # load agent
-    #run = wandb.init(entity=cfg.wandb.entity, project=cfg.wandb.project)
-    # wandb.config = OmegaConf.to_container(
-    #     cfg, resolve=True, throw_on_missing=True
-    # )
-    #wandb.init(entity=cfg.wandb.entity, project=cfg.wandb.project)
+
     if cfg.experiment.verbose:
         print('\nExperiment Starting...')
         print("\nOptions =================>")
         print(vars(cfg))
         print('\nDevice which the program run on:', cfg.experiment.device)
 
-    #exit()
-
     torch.manual_seed(cfg.experiment.seed)
     random.seed(cfg.experiment.seed)
     np.random.seed(cfg.experiment.seed)
 
-    agent.run()
+    mlflow.set_tracking_uri(cfg.mlflow.tracking_uri)
+    mlflow.set_experiment(cfg.experiment.name)
+    experiment = mlflow.get_experiment_by_name(cfg.experiment.name)
+    run_name = cfg.experiment.run_name if cfg.experiment.run_name is not None else cfg.agent.agent
+
+    with mlflow.start_run(experiment_id=experiment.experiment_id, run_name=run_name):
+        mlflow.log_params(cfg)
+        agent.run()
 
 
 if __name__ == '__main__':

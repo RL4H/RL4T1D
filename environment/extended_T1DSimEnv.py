@@ -59,7 +59,9 @@ class T1DSimEnv(gym.Env):
         else:  # step function used by the RL agent
             state, _reward, done, info = self.env.step(act, reward_fun=self.reward_fun)
             reward = composite_reward(self.args, state=state.CGM, reward=_reward)  # revised reward func: extension of RI
-            obs, _ = self.state_space.update(cgm=state.CGM, ins=action, meal=0)
+            obs = self.state_space.update({'cgm': state.CGM, 'insulin': action, 'time_to_meal': remaining_time,
+                                          'future_carb': future_carb, 'meal_type': meal_type,
+                                           'day_hour': day_hour, 'day_min': day_min})
 
             info['cgm'] = state
             info['future_carb'] = future_carb
@@ -70,7 +72,6 @@ class T1DSimEnv(gym.Env):
 
             # overwrite the done from simglucose, add stricter conditions.
             done = state.CGM <= 40 or state.CGM >= 600
-
         return obs, reward, done, info
 
     def announce_meal(self, meal_announce=None):
@@ -102,18 +103,21 @@ class T1DSimEnv(gym.Env):
     def _reset(self):
         self.env, _, _, _ = self._create_env_from_random_state()
         obs, _, _, _ = self.env.reset()
-        self.cur_state, _ = self.state_space.update(cgm=obs.CGM, ins=0, meal=0)
+        self.cur_state = self.state_space.update({'cgm': obs.CGM, 'insulin': 0, 'time_to_meal': 0,
+                                          'future_carb': 0, 'meal_type': 0, 'day_hour': 0, 'day_min': 0})
         cur_cgm = self.calibration_process()
         return self.cur_state
 
     def calibration_process(self):
         self.reinit_flag, cur_cgm = False, 0
-        for t in range(0, self.args.calibration):  # open-loop simulation for calibration period.
+        for t in range(0, self.args.obs_window):  # open-loop simulation for calibration period.
             act = Action(basal=self.std_basal, bolus=0)
             future_carb, remaining_time, day_hour, day_min, meal_type = self.announce_meal(meal_announce=None)
 
             state, reward, is_done, info = self.env.step(act)
-            self.cur_state, _ = self.state_space.update(cgm=state.CGM, ins=self.std_basal, meal=0)
+            self.cur_state = self.state_space.update({'cgm': state.CGM, 'insulin': self.std_basal,
+                                                      'time_to_meal': remaining_time, 'future_carb': future_carb, 'meal_type': meal_type,
+                                                      'day_hour': day_hour, 'day_min': day_min})
 
             cur_cgm = state.CGM
             info['state'] = state

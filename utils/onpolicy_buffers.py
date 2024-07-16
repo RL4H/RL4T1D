@@ -17,7 +17,7 @@ class RolloutBuffer:
 
         self.n_training_workers = args.n_training_workers
         self.n_step = args.n_step
-        self.feature_history = args.feature_history
+        self.feature_history = args.obs_window
         self.n_features = args.n_features
 
         self.RolloutWorker = RolloutWorker(args)
@@ -105,7 +105,7 @@ class RolloutWorker:
         self.device = args.device
         self.args = args
 
-        self.feature_hist = args.feature_history
+        self.feature_hist = args.obs_window
         self.features = args.n_features
 
         self.state = np.zeros(core.combined_shape(self.size, (self.feature_hist, self.features)), dtype=np.float32)

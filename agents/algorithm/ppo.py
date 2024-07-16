@@ -10,8 +10,6 @@ from utils.logger import LogExperiment
 class PPO(Agent):
     def __init__(self, args, env_args, load_model, actor_path, critic_path):
         super(PPO, self).__init__(args, env_args=env_args)
-        self.args = args
-        self.env_args = env_args
         self.device = args.device
         self.completed_interactions = 0
 
@@ -23,7 +21,7 @@ class PPO(Agent):
         self.vf_lr = args.vf_lr
 
         # load models and setup optimiser.
-        self.policy = ActorCritic(args, load_model, actor_path, critic_path).to(self.device)
+        self.policy = ActorCritic(self.args, load_model, actor_path, critic_path).to(self.device)
         if args.verbose:
             print('PolicyNet Params: {}'.format(sum(p.numel() for p in self.policy.Actor.parameters() if p.requires_grad)))
             print('ValueNet Params: {}'.format(sum(p.numel() for p in self.policy.Critic.parameters() if p.requires_grad)))
@@ -31,7 +29,7 @@ class PPO(Agent):
         self.optimizer_Critic = torch.optim.Adam(self.policy.Critic.parameters(), lr=self.vf_lr)
         self.value_criterion = nn.MSELoss()
 
-        self.RolloutBuffer = RolloutBuffer(args)
+        self.RolloutBuffer = RolloutBuffer(self.args)
         self.rollout_buffer = {}
 
         # ppo params
@@ -42,7 +40,7 @@ class PPO(Agent):
 
         # logging
         self.model_logs = torch.zeros(7, device=self.args.device)
-        self.LogExperiment = LogExperiment(args)
+        self.LogExperiment = LogExperiment(self.args)
 
     def train_pi(self):
         print('Running Policy Update...')
@@ -125,7 +123,6 @@ class PPO(Agent):
                 var_y = torch.var(y_true)
                 true_var += var_y
                 explained_var += 1 - torch.var(y_true - y_pred) / (var_y + 1e-5)
-
         return value_grad / val_count, val_loss_log, explained_var / val_count, true_var / val_count
 
     def update(self):
@@ -133,5 +130,6 @@ class PPO(Agent):
         self.model_logs[0], self.model_logs[5] = self.train_pi()
         self.model_logs[1], self.model_logs[2], self.model_logs[3], self.model_logs[4] = self.train_vf()
         self.LogExperiment.save(log_name='/model_log', data=[self.model_logs.detach().cpu().flatten().numpy()])
+
 
 

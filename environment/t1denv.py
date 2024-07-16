@@ -24,8 +24,7 @@ class T1DEnv:
 
     @property
     def action_space(self):
-        ub = self.env.pump._params['max_basal']
-        return spaces.Box(low=0, high=ub, shape=(1,))
+        return spaces.Box(low=self.args.insulin_min, high=self.args.insulin_max, shape=(1,))
 
     @property
     def observation_space(self):
