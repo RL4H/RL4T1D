@@ -1,4 +1,3 @@
-# NN model parameters
 agent: 'ppo'
 debug: False
 

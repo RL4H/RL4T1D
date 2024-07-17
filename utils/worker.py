@@ -7,8 +7,6 @@ class Worker(T1DEnv):
     def __init__(self, args, env_args, mode, worker_id):
         T1DEnv.__init__(self, env_args, mode, worker_id)
 
-        # update args related to the en
-
         self.episode, self.counter = 0, 0
         self.rollout_steps = args.n_step if self.worker_mode == 'training' else args.max_test_epi_len
         self.stop_factor = (args.max_epi_length - 1) if self.worker_mode == 'training' else (args.max_test_epi_len - 1)

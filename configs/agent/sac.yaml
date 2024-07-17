@@ -1,4 +1,6 @@
----
+agent: 'sac'
+debug: False
+
 n_handcrafted_features: 1  # not used
 n_features: 2
 use_handcraft: 0

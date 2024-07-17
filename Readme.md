@@ -43,6 +43,15 @@ Running a **Proximal Policy Optimisation (PPO)** algorithm for glucose control. 
 cd experiments 
 python run_RL_agent.py experiment.name=test33 experiment.device=cpu agent=ppo agent.debug=True hydra/job_logging=disabled
 ```
+Running a **Soft Actor Critic (SAC)** algorithm for glucose control. 
+```
+cd experiments 
+python run_RL_agent.py experiment.name=test33 experiment.device=cpu agent=sac agent.debug=True hydra/job_logging=disabled
+```
+Start mlflow
+```
+mlflow ui --backend-store-uri results/mlflow 
+```
 
 TODO: FIX: Broken due to env state space update. Running a clinical treatment strategy based on a clinical treatment strategy: **Basal-Bolus (BB)**. More info: [Paper](https://ieeexplore.ieee.org/abstract/document/9871054) .
 ```
@@ -64,7 +73,7 @@ RoadMap and Notes
   * validation results.
 * Write test cases <br>
 * Add read docs like GluCoEnv. <br>
-* currently only tested for PPO, do fixes for off-policy (e.g., agent, worker classes). <br>
+* Improve handling offpolicy vs onpolicy workers. <br>
 * Issue running hydra from jupyter notebook. <br>
 * build batch scripts to run for mutiple seeds, envs. <br>
 * provide capability to run agents without using main script (integrate with other rl-libraries). <br>

@@ -9,7 +9,7 @@ from utils.logger import LogExperiment
 
 class A2C(Agent):
     def __init__(self, args, env_args, load_model, actor_path, critic_path):
-        super(A2C, self).__init__(args, env_args=env_args)
+        super(A2C, self).__init__(args, env_args=env_args, type="OnPolicy")
         self.args = args
         self.env_args = env_args
         self.device = args.device
@@ -31,7 +31,7 @@ class A2C(Agent):
         self.optimizer_Critic = torch.optim.Adam(self.policy.Critic.parameters(), lr=self.vf_lr)
         self.value_criterion = nn.MSELoss()
 
-        self.RolloutBuffer = RolloutBuffer(args)
+        self.buffer = RolloutBuffer(args)
         self.rollout_buffer = {}
 
         # logging
@@ -96,7 +96,7 @@ class A2C(Agent):
         return value_grad / val_count, val_loss_log, explained_var / val_count, true_var / val_count
 
     def update(self):
-        self.rollout_buffer = self.RolloutBuffer.prepare_rollout_buffer()
+        self.rollout_buffer = self.buffer.prepare_rollout_buffer()
         self.model_logs[0], self.model_logs[5] = self.train_pi()
         self.model_logs[1], self.model_logs[2], self.model_logs[3], self.model_logs[4]  = self.train_vf()
         self.LogExperiment.save(log_name='/model_log', data=[self.model_logs.detach().cpu().flatten().numpy()])

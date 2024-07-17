@@ -3,7 +3,7 @@ hydra:
     dir: ../results/${experiment.name}
 
 mlflow:
-  track: True
+  track: False
   tracking_uri: ../results/mlflow # http://127.0.0.1:5000
 
 experiment:
@@ -35,6 +35,8 @@ agent:
   verbose: ${experiment.verbose}
   seed: ${experiment.seed}
   control_space_type: 'exponential'
+  mlflow_track: ${mlflow.track}
 
 # python run_RL_agent.py experiment.name=test33 experiment.device=cpu agent=ppo agent.debug=True hydra/job_logging=disabled
-
+# kill -9 $(lsof -t -i:5000)
+# mlflow ui --backend-store-uri results/mlflow

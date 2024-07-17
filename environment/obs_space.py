@@ -3,7 +3,7 @@ from collections import deque
 from utils import core
 
 
-class StateSpace:
+class ObservationSpace:
     def __init__(self, args):
         self.args = args
         self.obs_window = args.obs_window

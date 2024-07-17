@@ -5,7 +5,7 @@ import torch
 
 from metrics.metrics import time_in_range
 from metrics.statistics import calc_stats
-from utils.worker import OnPolicyWorker as Worker
+
 
 from decouple import config
 MAIN_PATH = config('MAIN_PATH')
@@ -15,10 +15,10 @@ from omegaconf import OmegaConf, open_dict
 
 
 class Agent:
-    def __init__(self, args, env_args):
+    def __init__(self, args, env_args, type="None"):
         self.args = args
-
         self.env_args = env_args
+        self.agent_type = type
 
         with open_dict(self.args):  # TODO: the interface between env - agent, improve?
             self.args.n_features = len(env_args.obs_features)
@@ -29,7 +29,7 @@ class Agent:
             self.args.patient_id = env_args.patient_id
 
         self.policy = None
-        self.RolloutBuffer = None
+        self.buffer = None
 
         # workers run the simulations. For each worker an env is created, and the worker ID should be unique.
         self.n_training_workers = args.n_training_workers
@@ -41,12 +41,33 @@ class Agent:
         self.testing_agent_id_offset = 5000  # 5000, 5001, 5002, ... (5000+n_testing_workers)
         self.validation_agent_id_offset = 6000  # 6000, 6001, 6002, ... (6000+n_val_trials)
 
-        if args.debug:
+        if args.debug:  # TODO: a better way to approach the debug case?
             self.n_testing_workers = 2
             self.n_training_workers = 2
             self.total_interactions = 4000
             self.n_interactions_lr_decay = 2000
             self.n_val_trials = 3
+
+        # initialise workers
+        if type == "OnPolicy":
+            from utils.worker import OnPolicyWorker as Worker
+            self.training_agents = [Worker(args=self.args, env_args=self.env_args, mode='training',
+                                           worker_id=i+self.training_agent_id_offset) for i in range(self.n_training_workers)]
+            self.testing_agents = [Worker(args=self.args, env_args=self.env_args, mode='testing',
+                                          worker_id=i+self.testing_agent_id_offset) for i in range(self.n_testing_workers)]
+            self.validation_agents = [Worker(args=self.args, env_args=self.env_args, mode='testing',
+                                             worker_id=i + self.validation_agent_id_offset) for i in range(self.n_val_trials)]
+        elif type == "OffPolicy":
+            from utils.worker import OffPolicyWorker as Worker
+            self.training_agents = [Worker(args=self.args, env_args=self.env_args, mode='training',
+                                           worker_id=i+self.training_agent_id_offset) for i in range(self.n_training_workers)]
+            self.testing_agents = [Worker(args=self.args, env_args=self.env_args, mode='testing',
+                                          worker_id=i+self.testing_agent_id_offset) for i in range(self.n_testing_workers)]
+            self.validation_agents = [Worker(args=self.args, env_args=self.env_args, mode='testing',
+                                             worker_id=i + self.validation_agent_id_offset) for i in range(self.n_val_trials)]
+        else:
+            print("specify agent type")
+            exit()
 
     @abc.abstractmethod
     def update(self):
@@ -55,29 +76,26 @@ class Agent:
         """
 
     def run(self):
-        # initialise workers for training
-        training_agents = [Worker(args=self.args, env_args=self.env_args, mode='training', worker_id=i+self.training_agent_id_offset)
-                           for i in range(self.n_training_workers)]
-
-        # initialise workers for testing after each update step
-        testing_agents = [Worker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+self.testing_agent_id_offset)
-                          for i in range(self.n_testing_workers)]
-
-        # start ppo learning
+        # learning
         rollout, completed_interactions = 0, 0
-        while completed_interactions < self.total_interactions:  # steps * n_workers * epochs. 3000 is just a large number
+        while completed_interactions < self.total_interactions:  # steps * n_workers * epochs.
             tstart = time.perf_counter()
-            # run training workers to collect data
-            for i in range(self.n_training_workers):
-                training_agents[i].rollout(policy=self.policy, buffer=self.RolloutBuffer.RolloutWorker)
-                self.RolloutBuffer.save_rollout(training_agent_index=i)
+            for i in range(self.n_training_workers):  # run training workers to collect data
+
+                # TODO: handle buffers better
+                if self.agent_type == "OnPolicy":
+                    self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer.RolloutWorker)
+                    self.buffer.save_rollout(training_agent_index=i)
+                else:
+                    self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer)
+
             self.update()  # update the models
             self.policy.save(rollout)  # save model weights as checkpoints
 
             # testing: run testing workers on the validation scenario
             with torch.no_grad():
                 for i in range(self.n_testing_workers):
-                    testing_agents[i].rollout(policy=self.policy, buffer=None)  # these logs will be saved by the worker.
+                    self.testing_agents[i].rollout(policy=self.policy, buffer=None)  # these logs will be saved by the worker.
 
             # update the total number of completed interactions.
             completed_interactions += (self.args.n_step * self.n_training_workers)
@@ -91,7 +109,6 @@ class Agent:
             experiment_done = True if completed_interactions > self.total_interactions else False
 
             # logging
-            #wandb.log({"Training Progress": (completed_interactions/self.total_interactions)*100})
             print('\n---------------------------------------------------------')
             print('Training Progress: {:.2f}%, Elapsed time: {:.4f} minutes.'.format(min(100.00, (completed_interactions/self.total_interactions)*100),
                                                                                      (time.perf_counter() - tstart)/60))
@@ -107,11 +124,10 @@ class Agent:
     def evaluate(self):
         print('\n---------------------------------------------------------')
         print('===> Starting Validation Trials ....')
-        validation_agents = [Worker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + self.validation_agent_id_offset)
-                             for i in range(self.n_val_trials)]
+        
         with torch.no_grad():
             for i in range(self.n_val_trials):
-                validation_agents[i].rollout(policy=self.policy, buffer=None)
+                self.validation_agents[i].rollout(policy=self.policy, buffer=None)
 
             # calculate the final metrics.
             cohort_res, summary_stats = [], []
@@ -139,10 +155,11 @@ class Agent:
             exit()
 
     def decay_lr(self):
-        self.entropy_coef = 0  # self.entropy_coef / 100
-        self.pi_lr = self.pi_lr / 10
-        self.vf_lr = self.vf_lr / 10
-        for param_group in self.optimizer_Actor.param_groups:
-            param_group['lr'] = self.pi_lr
-        for param_group in self.optimizer_Critic.param_groups:
-            param_group['lr'] = self.vf_lr
+        return
+        # self.entropy_coef = 0  # self.entropy_coef / 100
+        # self.pi_lr = self.pi_lr / 10
+        # self.vf_lr = self.vf_lr / 10
+        # for param_group in self.optimizer_Actor.param_groups:
+        #     param_group['lr'] = self.pi_lr
+        # for param_group in self.optimizer_Critic.param_groups:
+        #     param_group['lr'] = self.vf_lr
