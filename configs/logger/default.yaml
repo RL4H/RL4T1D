@@ -1,0 +1,50 @@
+log: True
+
+# there 2 log types
+experiment_logs:
+  - 'experiment_summary'
+
+worker_logs:
+  - 'worker_episode'
+  - 'worker_episode_summary'
+
+# fields associated with the logs
+
+experiment_summary:
+  - 'policy_grad'
+  - 'value_grad'
+  - 'val_loss'
+  - 'explained_var'
+  - 'true_var'
+  - 'policy_loss'
+  - 'avg_rew'
+
+worker_episode:
+  - 'episode'
+  - 't'
+  - 'cgm'
+  - 'meal'
+  - 'ins'
+  - 'rew'
+  - 'rl_ins'
+  - 'mu'
+  - 'sigma'
+  - 'prob'
+  - 'state_val'
+  - 'day_hour'
+  - 'day_min'
+
+worker_episode_summary:
+  - 'epi'
+  - 't'
+  - 'reward'
+  - 'normo'
+  - 'hypo'
+  - 'sev_hypo'
+  - 'hyper'
+  - 'lgbi'
+  - 'hgbi'
+  - 'ri'
+  - 'sev_hyper'
+  - 'aBGP_rmse'
+  - 'cBGP_rmse'

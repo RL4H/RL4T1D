@@ -20,18 +20,15 @@ class RolloutBuffer:
         self.feature_history = args.obs_window
         self.n_features = args.n_features
 
-        self.RolloutWorker = RolloutWorker(args)
+        self.Rollout = Rollout(args)
         self.shuffle_rollout = args.shuffle_rollout
         self.normalize_reward = args.normalize_reward
         self.reward_normaliser = RewardNormalizer(num_envs=self.n_training_workers, cliprew=10.0,
                                                   gamma=self.gamma, epsilon=1e-8, per_env=False)
 
-        self.rollout_buffer = {}
-
-        self.old_states = torch.rand(self.n_training_workers, self.n_step, self.feature_history, self.n_features, device=self.device)
-
-        self.old_actions = torch.rand(self.n_training_workers, self.n_step, device=self.device)
-        self.old_logprobs = torch.rand(self.n_training_workers, self.n_step, device=self.device)
+        self.states = torch.rand(self.n_training_workers, self.n_step, self.feature_history, self.n_features, device=self.device)
+        self.actions = torch.rand(self.n_training_workers, self.n_step, device=self.device)
+        self.actions_logprobs = torch.rand(self.n_training_workers, self.n_step, device=self.device)
         self.reward = torch.rand(self.n_training_workers, self.n_step, device=self.device)
         self.v_targ = torch.rand(self.n_training_workers, self.n_step, device=self.device)
         self.adv = torch.rand(self.n_training_workers, self.n_step, device=self.device)
@@ -39,10 +36,10 @@ class RolloutBuffer:
         self.first_flag = torch.rand(self.n_training_workers, self.n_step + 1, device=self.device)
 
     def save_rollout(self, training_agent_index):
-        data = self.RolloutWorker.get()
-        self.old_states[training_agent_index] = data['obs']
-        self.old_actions[training_agent_index] = data['act']
-        self.old_logprobs[training_agent_index] = data['logp']
+        data = self.Rollout.get()
+        self.states[training_agent_index] = data['obs']
+        self.actions[training_agent_index] = data['act']
+        self.actions_logprobs[training_agent_index] = data['logp']
         self.v_pred[training_agent_index] = data['v_pred']
         self.reward[training_agent_index] = data['reward']
         self.first_flag[training_agent_index] = data['first_flag']
@@ -77,11 +74,10 @@ class RolloutBuffer:
             self.reward = self.reward_normaliser(self.reward, self.first_flag, type='average')
             self.adv, self.v_targ = self.compute_gae()
 
-
         '''concat data from different workers'''
-        s_hist = self.old_states.view(-1, self.feature_history, self.n_features)
-        act = self.old_actions.view(-1, 1)
-        logp = self.old_logprobs.view(-1, 1)
+        s_hist = self.states.view(-1, self.feature_history, self.n_features)
+        act = self.actions.view(-1, 1)
+        logp = self.actions_logprobs.view(-1, 1)
         v_targ = self.v_targ.view(-1)
         adv = self.adv.view(-1)
         first_flag = self.first_flag.view(-1)
@@ -95,11 +91,13 @@ class RolloutBuffer:
             v_targ = v_targ[rand_perm]  # torch.Size([batch])
             adv = adv[rand_perm]  # torch.Size([batch])
 
-        self.rollout_buffer = dict(states=s_hist, action=act, log_prob_action=logp, value_target=v_targ, advantage=adv, len=buffer_len)
-        return self.rollout_buffer
+        return dict(states=s_hist, action=act, log_prob_action=logp, value_target=v_targ, advantage=adv, len=buffer_len)
+
+    def get(self):
+        return self.prepare_rollout_buffer()
 
 
-class RolloutWorker:
+class Rollout:
     def __init__(self, args):
         self.size = args.n_step
         self.device = args.device
@@ -119,14 +117,13 @@ class RolloutWorker:
 
     def store(self, obs, act, rew, val, logp, cgm_target, is_first):
         assert self.ptr < self.max_size
-        scaled_cgm = linear_scaling(x=cgm_target, x_min=self.args.glucose_min, x_max=self.args.glucose_max)
         self.state[self.ptr] = obs
         self.actions[self.ptr] = act
         self.rewards[self.ptr] = rew
         self.state_values[self.ptr] = val
         self.logprobs[self.ptr] = logp
         self.first_flag[self.ptr] = is_first
-        self.cgm_target[self.ptr] = scaled_cgm
+        self.cgm_target[self.ptr] = linear_scaling(x=cgm_target, x_min=self.args.glucose_min, x_max=self.args.glucose_max)
         self.ptr += 1
 
     def finish_path(self, final_v):

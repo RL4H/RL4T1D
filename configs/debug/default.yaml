@@ -1,0 +1,13 @@
+# these parameters override agent params,
+# so that we can run the experiment in a smaller scale for debugging
+
+# common to all agents
+n_testing_workers: 2
+n_training_workers: 2
+total_interactions: 4000
+n_interactions_lr_decay: 2000
+n_val_trials: 3
+
+# for sac
+batch_size: 32
+replay_buffer_size: 1024

@@ -2,26 +2,17 @@ import torch
 import torch.nn as nn
 
 from agents.algorithm.agent import Agent
-from utils.offpolicy_buffers import ReplayMemory, Transition
+from utils.buffers.offpolicy_buffers import ReplayMemory, Transition
 from agents.models.actor_critic_sac import ActorCritic
-
-from utils.logger import LogExperiment
 
 
 class SAC(Agent):
-    def __init__(self, args, env_args, load_model, actor_path, critic_path):
-        super(SAC, self).__init__(args, env_args=env_args, type="OffPolicy")
+    def __init__(self, args, env_args, logger, load_model, actor_path, critic_path):
+        super(SAC, self).__init__(args, env_args=env_args,  logger=logger, type="OffPolicy")
 
         self.args = args
         self.gamma = args.gamma
         self.device = args.device
-        self.n_step = args.n_step
-
-        self.grad_clip = args.grad_clip
-
-        self.replay_buffer_size = args.replay_buffer_size if not args.debug else 1024
-        self.batch_size = args.batch_size if not args.debug else 32
-        self.sample_size = args.sample_size if not args.debug else 64
 
         self.target_update_interval = 1  # 100
         self.n_updates = 0
@@ -33,8 +24,6 @@ class SAC(Agent):
         self.pi_lr = args.pi_lr
         self.grad_clip = args.grad_clip
 
-        self.shuffle_rollout = args.shuffle_rollout
-
         self.entropy_coef = args.entropy_coef
         self.target_entropy = args.target_entropy
         self.entropy_lr = args.entropy_lr
@@ -44,7 +33,6 @@ class SAC(Agent):
         self.weight_decay = args.weight_decay
 
         self.policy = ActorCritic(args, load_model, actor_path, critic_path, args.device).to(self.device)
-        self.buffer = ReplayMemory(self.replay_buffer_size)
 
         print('Policy Parameters: {}'.format(sum(p.numel() for p in self.policy.policy_net.parameters() if p.requires_grad)))
         print('Q1 Parameters: {}'.format(sum(p.numel() for p in self.policy.soft_q_net1.parameters() if p.requires_grad)))
@@ -72,13 +60,8 @@ class SAC(Agent):
             for p in self.policy.value_net_target.parameters():
                 p.requires_grad = False
 
-        # logging
-        self.model_logs = torch.zeros(9, device=self.args.device)
-        self.LogExperiment = LogExperiment(self.args)
-
-
     def update(self):
-        if len(self.buffer) < self.sample_size * 10:
+        if len(self.buffer) < self.args.batch_size * 10:
             return
 
         print('Running network update...')
@@ -90,9 +73,7 @@ class SAC(Agent):
 
         for i in range(self.train_pi_iters):
             # sample from buffer
-
-            transitions = self.buffer.sample(self.sample_size)
-            batch = Transition(*zip(*transitions))
+            batch = self.buffer.get()
 
             cur_state_batch = torch.cat(batch.state)
             actions_batch = torch.cat(batch.action).unsqueeze(1)
@@ -196,15 +177,8 @@ class SAC(Agent):
             ql2 += q_value_loss2.detach()
 
         # logging
-        self.model_logs[0] = cl  # value loss or coeff loss
-        self.model_logs[1] = pl
-        self.model_logs[2] = ql1
-        self.model_logs[3] = ql2
-        self.model_logs[4] = self.entropy_coef
-        self.model_logs[5] = pi_grad
-        self.model_logs[6] = q1_grad
-        self.model_logs[7] = q2_grad
-        self.model_logs[8] = coeff_grad  # value loss grad or coeff loss grad
-        print('success')
+        data = dict(policy_grad=pi_grad, policy_loss=pl, q1_grad=q1_grad, q2_grad=q2_grad, q1_loss=ql1, q2_loss=ql2,
+                    coeff_loss=cl, coeff_grad=coeff_grad, entropy_coef=self.entropy_coef)
+        return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}
 
 

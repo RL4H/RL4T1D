@@ -3,7 +3,7 @@ hydra:
     dir: ../results/${experiment.name}
 
 mlflow:
-  track: False
+  track: True
   tracking_uri: ../results/mlflow # http://127.0.0.1:5000
 
 experiment:
@@ -11,7 +11,6 @@ experiment:
   run_name:
   folder: ${experiment.name}
   experiment_dir: ../results/${experiment.name}
-
   device: 'cpu'
   verbose: True
   seed: 0
@@ -19,6 +18,8 @@ experiment:
 defaults:
   - env: env
   - agent: ppo
+  - logger: default
+  - debug: default
   - _self_
 
 # TODO: think about refactoring the following params, so both env and agent can use without duplication ?
@@ -34,8 +35,15 @@ agent:
   device: ${experiment.device}
   verbose: ${experiment.verbose}
   seed: ${experiment.seed}
+  debug_params: ${debug}
   control_space_type: 'exponential'
   mlflow_track: ${mlflow.track}
+
+  training_agent_id_offset: 5  # 5, 6, 7, ... (5+n_training_workers)
+  testing_agent_id_offset: 5000  # 5000, 5001, 5002, ... (5000+n_testing_workers)
+  validation_agent_id_offset: 6000  # 6000, 6001, 6002, ... (6000+n_val_trials)
+  # The offset params above are for visual convenience of raw logs when going through worker logs which are saved as:
+  # e.g., worker_10.csv, worker_5000.csv, workers with 5000+ are testing; workers with 6000+ are validation
 
 # python run_RL_agent.py experiment.name=test33 experiment.device=cpu agent=ppo agent.debug=True hydra/job_logging=disabled
 # kill -9 $(lsof -t -i:5000)

@@ -3,13 +3,11 @@ import torch.nn as nn
 
 from agents.algorithm.agent import Agent
 from agents.models.actor_critic import ActorCritic
-from utils.onpolicy_buffers import RolloutBuffer
-from utils.logger import LogExperiment
 
 
 class PPO(Agent):
-    def __init__(self, args, env_args, load_model, actor_path, critic_path):
-        super(PPO, self).__init__(args, env_args=env_args, type="OnPolicy")
+    def __init__(self, args, env_args, logger, load_model, actor_path, critic_path):
+        super(PPO, self).__init__(args, env_args=env_args, logger=logger, type="OnPolicy")
         self.device = args.device
         self.completed_interactions = 0
 
@@ -29,18 +27,11 @@ class PPO(Agent):
         self.optimizer_Critic = torch.optim.Adam(self.policy.Critic.parameters(), lr=self.vf_lr)
         self.value_criterion = nn.MSELoss()
 
-        self.buffer = RolloutBuffer(self.args)
-        self.rollout_buffer = {}
-
         # ppo params
         self.grad_clip = args.grad_clip
         self.entropy_coef = args.entropy_coef
         self.eps_clip = args.eps_clip
         self.target_kl = args.target_kl
-
-        # logging
-        self.model_logs = torch.zeros(7, device=self.args.device)
-        self.LogExperiment = LogExperiment(self.args)
 
     def train_pi(self):
         print('Running Policy Update...')
@@ -126,10 +117,12 @@ class PPO(Agent):
         return value_grad / val_count, val_loss_log, explained_var / val_count, true_var / val_count
 
     def update(self):
-        self.rollout_buffer = self.buffer.prepare_rollout_buffer()
-        self.model_logs[0], self.model_logs[5] = self.train_pi()
-        self.model_logs[1], self.model_logs[2], self.model_logs[3], self.model_logs[4] = self.train_vf()
-        self.LogExperiment.save(log_name='/model_log', data=[self.model_logs.detach().cpu().flatten().numpy()])
+        self.rollout_buffer = self.buffer.get()
+        pi_grad, pi_loss = self.train_pi()
+        vf_grad, vf_loss, explained_var, true_var = self.train_vf()
+        data = dict(policy_grad=pi_grad, policy_loss=pi_loss, value_grad=vf_grad, value_loss=vf_loss,
+                    explained_var=explained_var, true_var=true_var)
+        return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}
 
 
 
