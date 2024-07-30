@@ -59,6 +59,7 @@ class PPO(Agent):
                 actions_batch = self.rollout_buffer['action'][start_idx:end_idx, :]
                 logprobs_batch = self.rollout_buffer['log_prob_action'][start_idx:end_idx, :]
                 advantages_batch = self.rollout_buffer['advantage'][start_idx:end_idx]
+                
                 advantages_batch = (advantages_batch - advantages_batch.mean()) / (advantages_batch.std() + 1e-5)
 
                 self.optimizer_Actor.zero_grad()
@@ -68,7 +69,7 @@ class PPO(Agent):
                 r_theta = ratios * advantages_batch
                 r_theta_clip = torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages_batch
                 policy_loss = -torch.min(r_theta, r_theta_clip).mean() - self.entropy_coef * dist_entropy.mean()
-
+                # constraint_loss  = 
                 # early stop: approx kl calculation
                 log_ratio = logprobs_prediction - logprobs_batch
                 approx_kl = torch.mean((torch.exp(log_ratio) - 1) - log_ratio).detach().cpu().numpy()

@@ -73,3 +73,22 @@ class ActorCritic(nn.Module):
         torch.save(self.Actor, actor_path)
         torch.save(self.Critic, critic_path)
 
+    def get_fim(self, x): 
+        # calculate fisher information matrix and return matrix, mu, info
+        #pdb.set_trace()
+        mean, _, _ = self.forward(x)
+        #vec of len = No. of states*size of action e.g. cov_inv.shape = 2085*6
+        cov_inv = self.action_log_std.exp().pow(-2).squeeze(0).repeat(x.size(0)) 
+        param_count = 0
+        std_index = 0
+        id = 0
+        for name, param in self.named_parameters():
+            if name == "action_log_std":
+                std_id = id
+                std_index = param_count
+            param_count += param.view(-1).shape[0]
+            id += 1
+        #pdb.set_trace()
+        return cov_inv.detach(), mean, {'std_id': std_id, 'std_index': std_index}
+
+

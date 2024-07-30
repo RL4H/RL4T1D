@@ -43,6 +43,9 @@ max_test_epi_len: 288  # testing conducted for 1 day: 12 steps/hr * 24 hours
 # validation
 n_val_trials: 500
 
+# constants
+# define the value of damping
+
 
 
 
