@@ -95,12 +95,12 @@ class RolloutBuffer:
         assert first.dim() == 2
         nenv, nstep = cost.shape
         assert first.shape == (nenv, nstep+1)
-        constraint_value = torch.tensor(nenv)
+        constraint_value_ = torch.tensor(nenv)
         
         j = 1
         traj_num = 1
         for i in range(self.cost.size(0)):
-            constraint_value = constraint_value + self.cost[i] * self.gamma**(j-1)
+            constraint_value_ = constraint_value_ + self.cost[i] * self.gamma**(j-1)
             notlast = 1.0 - first[:, i + 1]
             if notlast == 0:
                 j = 1 #reset
@@ -108,7 +108,7 @@ class RolloutBuffer:
             else: 
                 j = j+1
                 
-        constraint_value = constraint_value/traj_num
+        constraint_value = torch.sum(constraint_value_)/traj_num
         constraint_value = constraint_value.to(device = orig_device)
         return constraint_value
 

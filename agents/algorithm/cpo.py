@@ -84,14 +84,18 @@ class CPO(Agent):
         mu_MJv = (MJv * mu).sum()
         JTMJv = compute_flat_grad(mu_MJv,  self.policy.parameters(), filter_input_ids=filter_input_ids).detach()
         JTMJv /= states_batch.shape[0]
-        if not self.policy.is_disc_action:
-            std_index = info['std_index']
-            JTMJv[std_index: std_index + M.shape[0]] += 2 * v[std_index: std_index + M.shape[0]]
+        std_index = info['std_index']
+        JTMJv[std_index: std_index + M.shape[0]] += 2 * v[std_index: std_index + M.shape[0]]
         return JTMJv + v * self.damping
+    
+    # JTMJv - product of the approximated Hessian (using the Fisher Information Matrix) and a vector v
+    # v - added damping term to ensure numerical stability
     
     def train_pi(self):
         print('Running Policy Update...')
         temp_loss_log = torch.zeros(1, device=self.device)
+        temp_cost_loss_log = torch.zeros(1, device=self.device)
+
         policy_grad, pol_count = torch.zeros(1, device=self.device), torch.zeros(1, device=self.device)
         continue_pi_training, buffer_len = True, self.rollout_buffer['len']
         for i in range(self.train_pi_iters):
@@ -114,8 +118,10 @@ class CPO(Agent):
                 ratios = torch.exp(logprobs_prediction - logprobs_batch)
                 ratios = ratios.squeeze()
                 r_theta = ratios * advantages_batch
-                r_theta_clip = torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages_batch
-                policy_loss = -torch.min(r_theta, r_theta_clip).mean() - self.entropy_coef * dist_entropy.mean()
+                c_theta = ratios*cost_advantages_batch
+                # r_theta_clip = torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages_batch
+                policy_loss = -torch.min(r_theta).mean() - self.entropy_coef * dist_entropy.mean()
+                cost_loss = -torch.min(c_theta).mean() - self.entropy_coef * dist_entropy.mean()
                 # constraint_loss  = 
                 # early stop: approx kl calculation
                 log_ratio = logprobs_prediction - logprobs_batch
@@ -129,7 +135,9 @@ class CPO(Agent):
                     print('policy loss: {}'.format(policy_loss))
                     exit()
                 temp_loss_log += policy_loss.detach()
+                temp_cost_loss_log += cost_loss.detach()
                 policy_loss.backward()
+                cost_loss.backward()
                 policy_grad += torch.nn.utils.clip_grad_norm_(self.policy.Actor.parameters(), self.grad_clip)  # clip gradients before optimising
                 pol_count += 1
                 self.optimizer_Actor.step()
@@ -139,7 +147,7 @@ class CPO(Agent):
                 break
         mean_pi_grad = policy_grad / pol_count if pol_count != 0 else 0
         print('The policy loss is: {}'.format(temp_loss_log))
-        return mean_pi_grad, temp_loss_log
+        return mean_pi_grad, temp_loss_log, temp_cost_loss_log
 
     def train_vf(self):
         print('Running Value Function Update...')
@@ -178,7 +186,7 @@ class CPO(Agent):
 
     def update(self):
         self.rollout_buffer = self.RolloutBuffer.prepare_rollout_buffer()
-        self.model_logs[0], self.model_logs[5] = self.train_pi()
+        self.model_logs[0], self.model_logs[5], self.model_logs[6] = self.train_pi()
         self.model_logs[1], self.model_logs[2], self.model_logs[3], self.model_logs[4] = self.train_vf()
         self.LogExperiment.save(log_name='/model_log', data=[self.model_logs.detach().cpu().flatten().numpy()])
 
