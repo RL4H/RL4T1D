@@ -5,6 +5,7 @@ from agents.algorithm.agent import Agent
 from agents.models.actor_critic import ActorCritic
 from utils.onpolicy_buffers import RolloutBuffer
 from utils.logger import LogExperiment
+from utils.core import get_flat_params_from, set_flat_params_to, compute_flat_grad
 
 
 class PPO(Agent):
@@ -41,19 +42,14 @@ class PPO(Agent):
         self.target_kl = args.target_kl
         self.d_k = args.d_k
         self.max_kl = args.max_kl
+        self.damping = args.damping
         self.constraint = self.rollout_buffer['constraint']
 
         # logging
         self.model_logs = torch.zeros(7, device=self.args.device)
         self.LogExperiment = LogExperiment(args)
-
-    def Fvp_fim(v):
-        # implement later
-        return 0
     
-    def Fvp_direct(v):
-        # implement later
-        return 0
+
 
     def conjugate_gradients(Avp_f, b, nsteps, rdotr_tol=1e-10):
         x = torch.zeros(b.size(), device=b.device)
@@ -75,6 +71,39 @@ class PPO(Agent):
 
     def train_pi(self):
         print('Running Policy Update...')
+        # implementing fisher information matrix
+        def Fvp_direct(self, v):
+            kl = self.policy.Actor.get_kl(states_batch)
+            kl = kl.mean()
+
+            grads = torch.autograd.grad(kl, self.policy.Actor.parameters(), create_graph=True)
+            flat_grad_kl = torch.cat([grad.view(-1) for grad in grads])
+
+            kl_v = (flat_grad_kl * v).sum()
+            grads = torch.autograd.grad(kl_v, self.policy.Actor.parameters())
+            flat_grad_grad_kl = torch.cat([grad.contiguous().view(-1) for grad in grads]).detach()
+
+            return flat_grad_grad_kl + v * self.damping
+    
+        def Fvp_fim(v):
+            M, mu, info = self.policy.Actor.get_fim(states_batch)
+            #pdb.set_trace()
+            mu = mu.view(-1)
+            filter_input_ids = set([info['std_id']])
+
+            t = torch.ones(mu.size(), requires_grad=True, device=mu.device)
+            mu_t = (mu * t).sum()
+            Jt = compute_flat_grad(mu_t, self.policy.Actor.parameters(), filter_input_ids=filter_input_ids, create_graph=True)
+            Jtv = (Jt * v).sum()
+            Jv = torch.autograd.grad(Jtv, t)[0]
+            MJv = M * Jv.detach()
+            mu_MJv = (MJv * mu).sum()
+            JTMJv = compute_flat_grad(mu_MJv, self.policy.Actor.parameters(), filter_input_ids=filter_input_ids).detach()
+            JTMJv /= states_batch.shape[0]
+            std_index = info['std_index']
+            JTMJv[std_index: std_index + M.shape[0]] += 2 * v[std_index: std_index + M.shape[0]]
+            return JTMJv + v * self.damping
+
         temp_loss_log = torch.zeros(1, device=self.device)
         policy_grad, pol_count = torch.zeros(1, device=self.device), torch.zeros(1, device=self.device)
         continue_pi_training, buffer_len = True, self.rollout_buffer['len']
@@ -120,7 +149,7 @@ class PPO(Agent):
                 # implement gradient normalizing if want here
 
                 # finding the step direction / add direct hessian finding function here later. get the parameter from args
-                Fvp = self.Fvp_fim
+                Fvp = Fvp_fim
                 stepdir = self.conjugate_gradients(Fvp, -loss_grad, 10)
                 # if gradient normalizing, normalize the step dir here
 
@@ -144,12 +173,56 @@ class PPO(Agent):
                 cc = self.constraint - self.d_k
                 lamda = 2*self.max_kl
 
+                #find optimal lambda_a and  lambda_b
+                A = torch.sqrt((q - (r**2)/s)/(self.max_kl - (cc**2)/s))
+                B = torch.sqrt(q/self.max_kl)
+                if cc>0:
+                    opt_lam_a = torch.max(r/cc,A)
+                    opt_lam_b = torch.max(0*A,torch.min(B,r/cc))
+                else: 
+                    opt_lam_b = torch.max(r/cc,B)
+                    opt_lam_a = torch.max(0*A,torch.min(A,r/cc))
+                
+                #define f_a(\lambda) and f_b(\lambda)
+                def f_a_lambda(lamda):
+                    a = ((r**2)/s - q)/(2*lamda)
+                    b = lamda*((cc**2)/s - self.max_kl)/2
+                    c = - (r*cc)/s
+                    return a+b+c
+                
+                def f_b_lambda(lamda):
+                    a = -(q/lamda + lamda*self.max_kl)/2
+                    return a   
+                
+                #find values of optimal lambdas 
+                opt_f_a = f_a_lambda(opt_lam_a)
+                opt_f_b = f_b_lambda(opt_lam_b)
+
+                if opt_f_a > opt_f_b:
+                    opt_lambda = opt_lam_a
+                else:
+                    opt_lambda = opt_lam_b
+                        
+                #find optimal nu
+                nu = (opt_lambda*cc - r)/s
+                if nu>0:
+                    opt_nu = nu 
+                else:
+                    opt_nu = 0
+
+                # finding optimal step direction
+                if ((cc**2)/s - self.max_kl) > 0 and cc>0:
+                    opt_stepdir = torch.sqrt(2*self.max_kl/s)*Fvp(cost_stepdir)
+                else:
+                    opt_stepdir = (stepdir - opt_nu*cost_stepdir)/opt_lambda
+                
+                # trying without line search
+                prev_params = get_flat_params_from(self.policy.Actor)
+                new_params = prev_params + opt_stepdir
+                set_flat_params_to(self.policy.Actor, new_params)
+
                 #######
-                temp_loss_log += policy_loss.detach()
-                policy_loss.backward()
-                policy_grad += torch.nn.utils.clip_grad_norm_(self.policy.Actor.parameters(), self.grad_clip)  # clip gradients before optimising
                 pol_count += 1
-                self.optimizer_Actor.step()
                 start_idx += self.batch_size
 
             if not continue_pi_training:
