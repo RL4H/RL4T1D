@@ -1,0 +1,3 @@
+- experiment.device=cuda
+- agent=ppo
+- agent.debug=True

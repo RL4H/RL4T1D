@@ -9,6 +9,7 @@ class RolloutBuffer:
     def __init__(self, args):
         self.size = args.n_step
         self.device = args.device
+        self.constraint_value = 0.0
 
         # discounted vs average reward RL
         self.return_type = args.return_type
@@ -35,6 +36,8 @@ class RolloutBuffer:
         self.reward = torch.rand(self.n_training_workers, self.n_step, device=self.device)
         self.v_targ = torch.rand(self.n_training_workers, self.n_step, device=self.device)
         self.adv = torch.rand(self.n_training_workers, self.n_step, device=self.device)
+        self.cost = torch.rand(self.n_training_workers, self.n_step, device=self.device)
+        self.cadv = torch.rand(self.n_training_workers, self.n_step, device=self.device)
         self.v_pred = torch.rand(self.n_training_workers, self.n_step + 1, device=self.device)
         self.first_flag = torch.rand(self.n_training_workers, self.n_step + 1, device=self.device)
 
@@ -48,6 +51,7 @@ class RolloutBuffer:
         self.v_pred[training_agent_index] = data['v_pred']
         self.reward[training_agent_index] = data['reward']
         self.first_flag[training_agent_index] = data['first_flag']
+        self.cost[training_agent_index] = data['cost']
 
     def compute_gae(self):  # TODO: move to different script, optimise/resolve moving across devices back and forth.
         orig_device = self.v_pred.device
@@ -68,25 +72,24 @@ class RolloutBuffer:
         vtarg = vpred[:, :-1] + adv
         return adv.to(device=orig_device), vtarg.to(device=orig_device)
     
-    def compute_constraint_adv(self):
+    def computer_gcae(self):
         orig_device = self.v_pred.device
-        assert orig_device == self.reward.device == self.first_flag.device
+        assert orig_device == self.cost.device == self.first_flag.device
         vpred, cost, first = (x.cpu() for x in (self.v_pred, self.cost, self.first_flag))
         first = first.to(dtype=torch.float32)
         assert first.dim() == 2
-        nenv, nstep = cost.shape
-        assert vpred.shape == first.shape == (nenv, nstep + 1)
-        adv = torch.zeros(nenv, nstep, dtype=torch.float32)
-        lastgaelam = 0
-        for t in reversed(range(nstep)):
-            notlast = 1.0 - first[:, t + 1]
-            nextvalue = vpred[:, t + 1]
-            # notlast: whether next timestep is from the same episode
-            delta = cost[:, t] + notlast * self.gamma * nextvalue - vpred[:, t]
-            adv[:, t] = lastgaelam = delta + notlast * self.gamma * self.lambda_ * lastgaelam
-        return adv.to(device=orig_device)
-          
-# define the compute cost function
+        nenv, nsteps = cost.shape
+        assert vpred.shape == first.shape == (nenv, nsteps + 1)
+        cadv = torch.zeros(nenv, nsteps, dtype=torch.float32)
+        lastcgaelam = 0
+        for t in reversed(range(nsteps)):
+            notlast = 1.0 - first[:, t+1]
+            nextvalue = vpred[:, t+1]
+            delta = cost[:, t] + notlast*self.gamma*nextvalue - vpred[:, t]
+            cadv[:, t] = lastcgaelam = delta + notlast* self.gamma * self.lambda_ *lastcgaelam
+        return cadv.to(device=orig_device)
+    
+    # define the compute cost function
     def estimate_constraint_value(self):
         orig_device = self.cost.device
         assert orig_device == self.first_flag.device
@@ -96,19 +99,11 @@ class RolloutBuffer:
         nenv, nstep = cost.shape
         assert first.shape == (nenv, nstep+1)
         constraint_value_ = torch.tensor(nenv)
+        for i in range(nstep-1):
+            constraint_value_ = constraint_value_ + self.costs[:,i] * self.gamma**(i)
         
-        j = 1
-        traj_num = 1
-        for i in range(self.cost.size(0)):
-            constraint_value_ = constraint_value_ + self.cost[i] * self.gamma**(j-1)
-            notlast = 1.0 - first[:, i + 1]
-            if notlast == 0:
-                j = 1 #reset
-                traj_num = traj_num + 1
-            else: 
-                j = j+1
-                
-        constraint_value = torch.sum(constraint_value_)/traj_num
+        constraint_value = torch.sum(constraint_value_)
+        constraint_value = constraint_value/nenv
         constraint_value = constraint_value.to(device = orig_device)
         return constraint_value
 
@@ -118,15 +113,15 @@ class RolloutBuffer:
             if self.normalize_reward:  # reward normalisation
                 self.reward = self.reward_normaliser(self.reward, self.first_flag)
             self.adv, self.v_targ = self.compute_gae()  # # calc returns
-            self.cost_adv = self.compute_constraint_adv()
-            self.constraint_value = self.estimate_constraint_value()
+            self.cadv = self.computer_gcae()
 
         if self.return_type == 'average':
             self.reward = self.reward_normaliser(self.reward, self.first_flag, type='average')
             self.adv, self.v_targ = self.compute_gae()
-            self.cost_adv = self.compute_constraint_adv()
-            self.constraint_value = self.estimate_constraint_value()
+            self.cadv = self.computer_gcae()
 
+        #get the constraint value
+        self.constraint_value = self.estimate_constraint_value()
 
         '''concat data from different workers'''
         s_hist = self.old_states.view(-1, self.feature_history, self.n_features)
@@ -134,7 +129,7 @@ class RolloutBuffer:
         logp = self.old_logprobs.view(-1, 1)
         v_targ = self.v_targ.view(-1)
         adv = self.adv.view(-1)
-        cost_adv = self.cost_adv.view(-1)
+        cadv = self.cadv.view(-1)
         first_flag = self.first_flag.view(-1)
         buffer_len = s_hist.shape[0]
 
@@ -145,9 +140,9 @@ class RolloutBuffer:
             logp = logp[rand_perm, :]  # torch.Size([batch, 1])
             v_targ = v_targ[rand_perm]  # torch.Size([batch])
             adv = adv[rand_perm]  # torch.Size([batch])
-            cost_adv = cost_adv[rand_perm]
+            cadv = cadv[rand_perm]
 
-        self.rollout_buffer = dict(states=s_hist, action=act, log_prob_action=logp, value_target=v_targ, advantage=adv, cost_advantage = cost_adv, len=buffer_len)
+        self.rollout_buffer = dict(states=s_hist, action=act, log_prob_action=logp, value_target=v_targ, advantage=adv, len=buffer_len, cost_advantage = cadv, constraint = self.constraint_value)
         return self.rollout_buffer
 
 
@@ -163,6 +158,7 @@ class RolloutWorker:
         self.state = np.zeros(core.combined_shape(self.size, (self.feature_hist, self.features)), dtype=np.float32)
         self.actions = np.zeros(self.size, dtype=np.float32)
         self.rewards = np.zeros(self.size, dtype=np.float32)
+        self.cost = np.zeros(self.size, dtype=np.float32)
         self.state_values = np.zeros(self.size + 1, dtype=np.float32)
         self.logprobs = np.zeros(self.size, dtype=np.float32)
         self.first_flag = np.zeros(self.size + 1, dtype=np.bool_)
@@ -189,6 +185,6 @@ class RolloutWorker:
         assert self.ptr == self.max_size
         self.ptr, self.path_start_idx = 0, 0
         data = dict(obs=self.state, act=self.actions, v_pred=self.state_values,
-                    logp=self.logprobs, first_flag=self.first_flag, reward=self.rewards, cgm_target=self.cgm_target)
+                    logp=self.logprobs, first_flag=self.first_flag, reward=self.rewards, cost = self.cost, cgm_target=self.cgm_target)
         return {k: torch.as_tensor(v, dtype=torch.float32, device=self.device) for k, v in data.items()}
 
