@@ -6,4 +6,3 @@ results/
 .env
 experiments/nci/help.txt
 mykeys/
-*.yaml

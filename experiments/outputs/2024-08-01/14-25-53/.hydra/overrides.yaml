@@ -1,0 +1,3 @@
+- experiment.device=suda0
+- agent=ppo
+- agent.debug=True
