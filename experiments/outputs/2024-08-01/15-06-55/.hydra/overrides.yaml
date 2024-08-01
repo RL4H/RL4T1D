@@ -1,0 +1,3 @@
+- experiment.device=cpu
+- agent=cpo
+- agent.debug=True
