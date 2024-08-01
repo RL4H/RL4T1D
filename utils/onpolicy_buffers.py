@@ -41,8 +41,6 @@ class RolloutBuffer:
         self.v_pred = torch.rand(self.n_training_workers, self.n_step + 1, device=self.device)
         self.first_flag = torch.rand(self.n_training_workers, self.n_step + 1, device=self.device)
 
-        self.cost = torch.rand(self.n_training_workers, self.n_step+1, device=self.device) # CPO changes
-
     def save_rollout(self, training_agent_index):
         data = self.RolloutWorker.get()
         self.old_states[training_agent_index] = data['obs']
@@ -100,7 +98,7 @@ class RolloutBuffer:
         assert first.shape == (nenv, nstep+1)
         constraint_value_ = torch.tensor(nenv)
         for i in range(nstep-1):
-            constraint_value_ = constraint_value_ + self.costs[:,i] * self.gamma**(i)
+            constraint_value_ = constraint_value_ + self.cost[:,i] * self.gamma**(i)
         
         constraint_value = torch.sum(constraint_value_)
         constraint_value = constraint_value/nenv
@@ -142,7 +140,7 @@ class RolloutBuffer:
             adv = adv[rand_perm]  # torch.Size([batch])
             cadv = cadv[rand_perm]
 
-        self.rollout_buffer = dict(states=s_hist, action=act, log_prob_action=logp, value_target=v_targ, advantage=adv, len=buffer_len, cost_advantage = cadv, constraint = self.constraint_value)
+        self.rollout_buffer = dict(states=s_hist, action=act, log_prob_action=logp, value_target=v_targ, advantage=adv, len=buffer_len, cost_advantage=cadv, constraint=self.constraint_value)
         return self.rollout_buffer
 
 
@@ -187,4 +185,3 @@ class RolloutWorker:
         data = dict(obs=self.state, act=self.actions, v_pred=self.state_values,
                     logp=self.logprobs, first_flag=self.first_flag, reward=self.rewards, cost = self.cost, cgm_target=self.cgm_target)
         return {k: torch.as_tensor(v, dtype=torch.float32, device=self.device) for k, v in data.items()}
-
