@@ -8,9 +8,9 @@ from utils.logger import LogExperiment
 from utils.core import get_flat_params_from, set_flat_params_to, compute_flat_grad
 
 
-class PPO(Agent):
+class CPO(Agent):
     def __init__(self, args, env_args, load_model, actor_path, critic_path):
-        super(PPO, self).__init__(args, env_args=env_args)
+        super(CPO, self).__init__(args, env_args=env_args)
         self.args = args
         self.env_args = env_args
         self.device = args.device
@@ -43,7 +43,7 @@ class PPO(Agent):
         self.d_k = args.d_k
         self.max_kl = args.max_kl
         self.damping = args.damping
-        self.constraint = self.rollout_buffer['constraint']
+        # self.constraint = self.rollout_buffer['constraint']
 
         # logging
         self.model_logs = torch.zeros(7, device=self.args.device)

@@ -98,7 +98,7 @@ class RolloutBuffer:
         assert first.shape == (nenv, nstep+1)
         constraint_value_ = torch.tensor(nenv)
         for i in range(nstep-1):
-            constraint_value_ = constraint_value_ + self.costs[:,i] * self.gamma**(i)
+            constraint_value_ = constraint_value_ + self.cost[:,i] * self.gamma**(i)
         
         constraint_value = torch.sum(constraint_value_)
         constraint_value = constraint_value/nenv
@@ -140,7 +140,7 @@ class RolloutBuffer:
             adv = adv[rand_perm]  # torch.Size([batch])
             cadv = cadv[rand_perm]
 
-        self.rollout_buffer = dict(states=s_hist, action=act, log_prob_action=logp, value_target=v_targ, advantage=adv, len=buffer_len, cost_advantage = cadv, constraint = self.constraint_value)
+        self.rollout_buffer = dict(states=s_hist, action=act, log_prob_action=logp, value_target=v_targ, advantage=adv, len=buffer_len, cost_advantage=cadv, constraint=self.constraint_value)
         return self.rollout_buffer
 
 

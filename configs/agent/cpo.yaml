@@ -1,5 +1,5 @@
 # NN model parameters
-agent: 'ppo'
+agent: 'cpo'
 debug: False
 
 n_rnn_hidden: 16
@@ -16,11 +16,15 @@ lambda_: 0.95
 normalize_reward: True  # reward received is normalised
 shuffle_rollout: True  # rollout trajectory data is shuffled
 
-# ppo parameters
+# cpo parameters
 entropy_coef: 0.001
 grad_clip: 20
 eps_clip: 0.1
 target_kl: 0.01
+# change the following cpo parameters ( used for policy update)
+d_k: 40
+max_kl: 0.01
+damping: 0.1
 
 # train
 n_step: 256
