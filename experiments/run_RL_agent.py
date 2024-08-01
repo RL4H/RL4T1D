@@ -9,7 +9,7 @@ sys.path.insert(1, MAIN_PATH)
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
-import wandb
+# import wandb
 
 warnings.simplefilter('ignore', Warning)
 
