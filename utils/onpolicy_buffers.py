@@ -156,7 +156,7 @@ class RolloutWorker:
         self.state = np.zeros(core.combined_shape(self.size, (self.feature_hist, self.features)), dtype=np.float32)
         self.actions = np.zeros(self.size, dtype=np.float32)
         self.rewards = np.zeros(self.size, dtype=np.float32)
-        self.cost = np.zeros(self.size, dtype=np.float32)
+        self.cost = np.ones(self.size, dtype=np.float32)
         self.state_values = np.zeros(self.size + 1, dtype=np.float32)
         self.logprobs = np.zeros(self.size, dtype=np.float32)
         self.first_flag = np.zeros(self.size + 1, dtype=np.bool_)
