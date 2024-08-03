@@ -17,6 +17,36 @@ class ActorNetwork(nn.Module):
         lstmOut = self.FeatureExtractor.forward(s)
         mu, sigma, action, log_prob = self.PolicyModule.forward(lstmOut)
         return mu, sigma, action, log_prob
+    
+    def get_fim(self, x):
+        mu, sigma, _, _ = self.forward(x)
+
+        if sigma.dim() == 1:
+            sigma = sigma.unsqueeze(0)
+
+        cov_inv = sigma.pow(-2).repeat(x.size(0), 1)
+
+        param_count = 0
+        std_index = 0
+        id = 0
+        std_id = id
+        for name, param in self.named_parameters():
+            if name == "sigma.weight":
+                std_id = id
+                std_index = param_count
+            param_count += param.view(-1).shape[0]
+            id += 1
+
+        return cov_inv.detach(), mu, {'std_id': std_id, 'std_index': std_index}
+    
+    def get_kl(self, x):
+        mu1, sigma1, _, _ = self.forward(x)
+
+        mu0 = mu1.detach()
+        sigma0 = sigma1.detach()
+
+        kl = sigma1.log() - sigma0.log() + (sigma0.pow(2) + (mu0 - mu1).pow(2)) / (2.0 * sigma1.pow(2)) - 0.5
+        return kl.sum(1, keepdim=True)
 
 
 class CriticNetwork(nn.Module):
