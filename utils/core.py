@@ -112,7 +112,7 @@ def set_flat_params_to(model, flat_params):
             flat_params[prev_ind:prev_ind + flat_size].view(param.size()))
         prev_ind += flat_size
 
-def compute_flat_grad(output, inputs, filter_input_ids=set(), retain_graph=False, create_graph=False):
+def compute_flat_grad(output, inputs, filter_input_ids=set(), retain_graph=True, create_graph=False):
     if create_graph:
         retain_graph = True
 
@@ -122,15 +122,18 @@ def compute_flat_grad(output, inputs, filter_input_ids=set(), retain_graph=False
         if i not in filter_input_ids:
             params.append(param)
 
-    grads = torch.autograd.grad(output, params, retain_graph=retain_graph, create_graph=create_graph)
+    grads = torch.autograd.grad(output, params, retain_graph=retain_graph, create_graph=create_graph, allow_unused=True)
 
     j = 0
     out_grads = []
     for i, param in enumerate(inputs):
-        if i in filter_input_ids:
-            out_grads.append(zeros(param.view(-1).shape, device=param.device, dtype=param.dtype))
+        if (i in filter_input_ids):
+            out_grads.append(torch.zeros(param.view(-1).shape, device=param.device, dtype=param.dtype))
         else:
-            out_grads.append(grads[j].view(-1))
+            if (grads[j] == None):
+                out_grads.append(torch.zeros(param.view(-1).shape, device=param.device, dtype=param.dtype))
+            else:
+                out_grads.append(grads[j].view(-1))
             j += 1
     grads = torch.cat(out_grads)
 

@@ -50,29 +50,30 @@ class CPO(Agent):
         self.LogExperiment = LogExperiment(args)
     
 
-
-    def conjugate_gradients(Avp_f, b, nsteps, rdotr_tol=1e-10):
-        x = torch.zeros(b.size(), device=b.device)
-        r = b.clone()
-        p = b.clone()
-        rdotr = torch.dot(r, r)
-        for i in range(nsteps):
-            Avp = Avp_f(p)
-            alpha = rdotr / torch.dot(p, Avp)
-            x += alpha * p
-            r -= alpha * Avp
-            new_rdotr = torch.dot(r, r)
-            betta = new_rdotr / rdotr
-            p = r + betta * p
-            rdotr = new_rdotr
-            if rdotr < rdotr_tol:
-                break
-        return x
-
     def train_pi(self):
         print('Running Policy Update...')
+
+        # conjugate gradient decent
+        def conjugate_gradients(Avp_f, b, nsteps, rdotr_tol=1e-10):
+            x = torch.zeros(b.size(), device=b.device)
+            r = b.clone()
+            p = b.clone()
+            rdotr = torch.dot(r, r)
+            for i in range(nsteps):
+                Avp = Avp_f(p)
+                alpha = rdotr / torch.dot(p, Avp)
+                x += alpha * p
+                r -= alpha * Avp
+                new_rdotr = torch.dot(r, r)
+                betta = new_rdotr / rdotr
+                p = r + betta * p
+                rdotr = new_rdotr
+                if rdotr < rdotr_tol:
+                    break
+            return x
+    
         # implementing fisher information matrix
-        def Fvp_direct(self, v):
+        def Fvp_direct(v):
             kl = self.policy.Actor.get_kl(states_batch)
             kl = kl.mean()
 
@@ -86,28 +87,30 @@ class CPO(Agent):
             return flat_grad_grad_kl + v * self.damping
     
         def Fvp_fim(v):
-            M, mu, info = self.policy.Actor.get_fim(states_batch)
-            #pdb.set_trace()
-            mu = mu.view(-1)
-            filter_input_ids = set([info['std_id']])
+            with torch.backends.cudnn.flags(enabled=False):
+                M, mu, info = self.policy.Actor.get_fim(states_batch)
+                #pdb.set_trace()
+                mu = mu.view(-1)
+                filter_input_ids = set([info['std_id']])
 
-            t = torch.ones(mu.size(), requires_grad=True, device=mu.device)
-            mu_t = (mu * t).sum()
-            Jt = compute_flat_grad(mu_t, self.policy.Actor.parameters(), filter_input_ids=filter_input_ids, create_graph=True)
-            Jtv = (Jt * v).sum()
-            Jv = torch.autograd.grad(Jtv, t)[0]
-            MJv = M * Jv.detach()
-            mu_MJv = (MJv * mu).sum()
-            JTMJv = compute_flat_grad(mu_MJv, self.policy.Actor.parameters(), filter_input_ids=filter_input_ids).detach()
-            JTMJv /= states_batch.shape[0]
-            std_index = info['std_index']
-            JTMJv[std_index: std_index + M.shape[0]] += 2 * v[std_index: std_index + M.shape[0]]
-            return JTMJv + v * self.damping
+                t = torch.ones(mu.size(), requires_grad=True, device=mu.device)
+                mu_t = (mu * t).sum()
+                Jt = compute_flat_grad(mu_t, self.policy.Actor.parameters(), filter_input_ids=filter_input_ids, create_graph=True)
+                Jtv = (Jt * v).sum()
+                Jv = torch.autograd.grad(Jtv, t)[0]
+                MJv = M * Jv.detach()
+                mu_MJv = (MJv * mu).sum()
+                JTMJv = compute_flat_grad(mu_MJv, self.policy.Actor.parameters(), filter_input_ids=filter_input_ids, create_graph=True).detach()
+                JTMJv /= states_batch.shape[0]
+                std_index = info['std_index']
+                JTMJv[std_index: std_index + M.shape[0]] += 2 * v[std_index: std_index + M.shape[0]]
+                return JTMJv + v * self.damping
 
         temp_loss_log = torch.zeros(1, device=self.device)
         policy_grad, pol_count = torch.zeros(1, device=self.device), torch.zeros(1, device=self.device)
         continue_pi_training, buffer_len = True, self.rollout_buffer['len']
         constraint = self.rollout_buffer['constraint']
+        policy_grad_ = 0
         for i in range(self.train_pi_iters):
             start_idx, n_batch = 0, 0
             while start_idx < buffer_len:
@@ -144,13 +147,13 @@ class CPO(Agent):
                 temp_loss_log += policy_loss.detach()
                 policy_grad = torch.nn.utils.clip_grad_norm_(self.policy.Actor.parameters(), self.grad_clip)
                 policy_grad_ += policy_grad # used to returing mean_pi_gradient at the end
-                grads = torch.autograd.grad(policy_loss, self.policy.Actor.parameters())
+                grads = torch.autograd.grad(policy_loss, self.policy.Actor.parameters(), retain_graph=True)
                 loss_grad = torch.cat([grad.view(-1) for grad in grads])
                 # implement gradient normalizing if want here
 
                 # finding the step direction / add direct hessian finding function here later. get the parameter from args
                 Fvp = Fvp_fim
-                stepdir = self.conjugate_gradients(Fvp, -loss_grad, 10)
+                stepdir = conjugate_gradients(Fvp, -loss_grad, 10)
                 # if gradient normalizing, normalize the step dir here
 
                 # findign cost loss
@@ -158,10 +161,10 @@ class CPO(Agent):
                 cost_loss = -c_theta.mean() - self.entropy_coef * dist_entropy.mean()
 
                 #finding the cost step direction
-                cost_grads = torch.autograd.grad(cost_loss, self.policy.Actor.parameters(), allow_unused=True)
-                cost_loss_grad = torch.cat([grad.view(-1) for grad in cost_grads]).detach() #a
+                cost_grads = torch.autograd.grad(cost_loss, self.policy.Actor.parameters())
+                cost_loss_grad = torch.cat([grad.view(-1) for grad in cost_grads]) #a
                 cost_loss_grad = cost_loss_grad/torch.norm(cost_loss_grad)
-                cost_stepdir = self.conjugate_gradients(Fvp, -cost_loss_grad, 10)
+                cost_stepdir = conjugate_gradients(Fvp, -cost_loss_grad, 10)
 
                 # Define q, r, s
                 p = -cost_loss_grad.dot(stepdir) #a^T.H^-1.g
@@ -169,8 +172,8 @@ class CPO(Agent):
                 r = loss_grad.dot(cost_stepdir) #g^T.H^-1.a
                 s = -cost_loss_grad.dot(cost_stepdir) #a^T.H^-1.a 
 
-                self.d_k = torch.tensor(self.d_k).to(self.constraint.dtype).to(self.constraint.device)
-                cc = self.constraint - self.d_k
+                self.d_k = torch.tensor(self.d_k).to(constraint.dtype).to(constraint.device)
+                cc = constraint - self.d_k
                 lamda = 2*self.max_kl
 
                 #find optimal lambda_a and  lambda_b

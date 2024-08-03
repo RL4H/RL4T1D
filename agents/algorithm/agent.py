@@ -24,6 +24,9 @@ class Agent:
         # workers run the simulations. For each worker an env is created, and the worker ID should be unique.
         self.n_training_workers = args.n_training_workers
         self.n_testing_workers = args.n_testing_workers
+        self.total_interactions = args.total_interactions
+        self.n_interactions_lr_decay = args.n_interactions_lr_decay
+        self.n_val_trials = args.n_val_trials
 
         # The offset params above are for visual convenience of raw logs when going through worker logs which are saved as:
         # e.g., worker_10.csv, worker_5000.csv, workers with 5000+ are testing; workers with 6000+ are validation
