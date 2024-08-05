@@ -124,6 +124,7 @@ class CPO(Agent):
                 cost_advantages_batch = self.rollout_buffer['cost_advantage'][start_idx:end_idx]
                 cost_advantages_batch = (cost_advantages_batch - cost_advantages_batch.mean()) / (cost_advantages_batch.std() + 1e-5)
 
+                print(i)
                 logprobs_prediction, dist_entropy = self.policy.evaluate_actor(states_batch, actions_batch)
                 ratios = torch.exp(logprobs_prediction - logprobs_batch)
                 ratios = ratios.squeeze()
@@ -131,13 +132,13 @@ class CPO(Agent):
                 policy_loss = -r_theta.mean() - self.entropy_coef * dist_entropy.mean()
 
                 # early stop: approx kl calculation
-                log_ratio = logprobs_prediction - logprobs_batch
-                approx_kl = torch.mean((torch.exp(log_ratio) - 1) - log_ratio).detach().cpu().numpy()
-                if approx_kl > 1.5 * self.target_kl:
-                    if self.args.verbose:
-                        print('Early stop => Epoch {}, Batch {}, Approximate KL: {}.'.format(i, n_batch, approx_kl))
-                    continue_pi_training = False
-                    break
+                # log_ratio = logprobs_prediction - logprobs_batch
+                # approx_kl = torch.mean((torch.exp(log_ratio) - 1) - log_ratio).detach().cpu().numpy()
+                # if approx_kl > 1.5 * self.target_kl:
+                #     if self.args.verbose:
+                #         print('Early stop => Epoch {}, Batch {}, Approximate KL: {}.'.format(i, n_batch, approx_kl))
+                #     continue_pi_training = False
+                #     break
 
                 if torch.isnan(policy_loss):  # for debugging only!
                     print('policy loss: {}'.format(policy_loss))
@@ -171,6 +172,15 @@ class CPO(Agent):
                 r = loss_grad.dot(cost_stepdir) #g^T.H^-1.a
                 s = -cost_loss_grad.dot(cost_stepdir) #a^T.H^-1.a 
 
+                print("p")
+                print(p)
+                print("q")
+                print(q)
+                print("r")
+                print(r)
+                print("s")
+                print(s)
+
                 self.d_k = torch.tensor(self.d_k).to(constraint.dtype).to(constraint.device)
                 cc = constraint - self.d_k
                 lamda = 2*self.max_kl
@@ -178,6 +188,8 @@ class CPO(Agent):
                 #find optimal lambda_a and  lambda_b
                 A = torch.sqrt((q - (r**2)/s)/(self.max_kl - (cc**2)/s))
                 B = torch.sqrt(q/self.max_kl)
+                # print("cc - \n")
+                # print(cc)
                 if cc>0:
                     opt_lam_a = torch.max(r/cc,A)
                     opt_lam_b = torch.max(0*A,torch.min(B,r/cc))
@@ -187,12 +199,18 @@ class CPO(Agent):
                 
                 #define f_a(\lambda) and f_b(\lambda)
                 def f_a_lambda(lamda):
+                    # print("s inside falamda - \n")
+                    # print(s)
+                    # print("lamda inside falamda - \n")
+                    # print(lamda)
                     a = ((r**2)/s - q)/(2*lamda)
                     b = lamda*((cc**2)/s - self.max_kl)/2
                     c = - (r*cc)/s
                     return a+b+c
                 
                 def f_b_lambda(lamda):
+                    # print("lamda inside fblamda - \n")
+                    # print(lamda)
                     a = -(q/lamda + lamda*self.max_kl)/2
                     return a   
                 
@@ -206,6 +224,8 @@ class CPO(Agent):
                     opt_lambda = opt_lam_b
                         
                 #find optimal nu
+                # print("s in nu- \n")
+                # print(s)
                 nu = (opt_lambda*cc - r)/s
                 if nu>0:
                     opt_nu = nu 
@@ -213,12 +233,16 @@ class CPO(Agent):
                     opt_nu = 0
 
                 # finding optimal step direction
+                # print("s instepdir- \n")
+                # print(s)
                 if ((cc**2)/s - self.max_kl) > 0 and cc>0:
                     opt_stepdir = torch.sqrt(2*self.max_kl/s)*Fvp(cost_stepdir)
                 else:
                     opt_stepdir = (stepdir - opt_nu*cost_stepdir)/opt_lambda
                 
                 # trying without line search
+                # print("opt_stepdir - \n")
+                # print(opt_stepdir)
                 prev_params = get_flat_params_from(self.policy.Actor)
                 new_params = prev_params + opt_stepdir
                 set_flat_params_to(self.policy.Actor, new_params)
