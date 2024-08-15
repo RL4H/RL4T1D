@@ -36,27 +36,29 @@ Using the project
 * Install [Simglucosev0.2.2](https://github.com/jxx123/simglucose) which is an open source version of the UVA/PADOVA 2008 model approved by the FDA. <br>
 * You can also install from the source (Recommended to install using <code>pip install -e .</code>, the simglucose 0.2.2 source code is available in the environments folder). The simulation environment and scenarios used in this project are extended from the original environment.
 
-<h4>Quick Start</h4>
+<h4>Quick Start - Running RL algorithms</h4>
 
 Running a **Proximal Policy Optimisation (PPO)** algorithm for glucose control. More information related to state-action space, reward formulations: [Paper](https://ieeexplore.ieee.org/abstract/document/9871054) .
 ```
 cd experiments 
-python run_RL_agent.py experiment.name=test33 experiment.device=cpu agent=ppo agent.debug=True hydra/job_logging=disabled
+python run_RL_agent.py experiment.name=test1 experiment.device=cpu agent=ppo agent.debug=True hydra/job_logging=disabled
 ```
 Running a **Soft Actor Critic (SAC)** algorithm for glucose control. 
 ```
 cd experiments 
-python run_RL_agent.py experiment.name=test33 experiment.device=cpu agent=sac agent.debug=True hydra/job_logging=disabled
+python run_RL_agent.py experiment.name=test2 experiment.device=cpu agent=sac agent.debug=True hydra/job_logging=disabled
 ```
 Start mlflow
 ```
 mlflow ui --backend-store-uri results/mlflow 
 ```
 
-TODO: FIX: Broken due to env state space update. Running a clinical treatment strategy based on a clinical treatment strategy: **Basal-Bolus (BB)**. More info: [Paper](https://ieeexplore.ieee.org/abstract/document/9871054) .
+<h4>Quick Start - Running clinical treatment algorithms</h4>
+
+Running a **clinical treatment** algorithm: **Basal-Bolus (BB)**. The parameters if the BB treatment can be updated via <code>clinical_treatment.yaml</code> file. More info: [Paper](https://ieeexplore.ieee.org/abstract/document/9871054)  . 
 ```
 cd experiments
-python run_clinical_treatment.py --folder_id temp --carb_estimation_method real
+python run_clinical_treatment.py experiment.name=test3 agent=clinical_treatment hydra/job_logging=disabled
 ```
 
 <h4>Google Colab</h4> 
@@ -67,9 +69,6 @@ RoadMap and Notes
 * Now you can use mlflow to organise: <experiments, experiment_runs (e.g., for hyperparams, new ideas)>. <br>
 * We have legacy custom visualisation scripts <jupyter notebooks> used to debug experiments while running - integrate with new flow<br>
 * Think/Complete logging. Duplicated with mlflow logs and legacy custom logging patterns <br>
-  * experiment args
-  * training logs (loss, gradients, etc)
-  * worker logs (train, test, validate)
   * validation results.
 * Write test cases <br>
 * Add read docs like GluCoEnv. <br>

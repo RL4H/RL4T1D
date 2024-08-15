@@ -8,7 +8,7 @@ PATIENT_PARA_FILE = pkg_resources.resource_filename('simglucose', 'params/vpatie
 
 
 class BasalBolusController:
-    def __init__(self, args, patient_name=None, use_bolus=True, use_cf=True):
+    def __init__(self, args, patient_name=None, sampling_rate=1):
         quest = pd.read_csv(CONTROL_QUEST)
         patient_params = pd.read_csv(PATIENT_PARA_FILE)
         params = patient_params[patient_params.Name.str.match(patient_name)]
@@ -19,7 +19,7 @@ class BasalBolusController:
         self.use_bolus = args.use_bolus
         self.use_cf = args.use_cf
         self.target = args.target_glucose
-        self.sample_time = args.sampling_rate
+        self.sample_time = sampling_rate
         self.cf_target = args.glucose_cf_target
 
         self.past_meal_memory = deque(36 * [0], 36)  # 3 hours # todo: if not using 5 min sample rate

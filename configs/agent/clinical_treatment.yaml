@@ -1,4 +1,6 @@
----
+agent: 'clinical_treatment'
+debug: False
+
 # sbb algorithm training settings.
 target_glucose: 140.0 # main glucose target
 glucose_cf_target: 150.0  # glucose correction target, correction bolus only when glucose > this target
@@ -11,8 +13,8 @@ carb_estimation_method: 'real'  # 'linear, quadratic, real, rand')
 # TODO: t_meal is also required for bb, currently passed as an env param so that RL can also use if needed.
 
 # validation simulations
-n_trials: 1  #500
-duration: 288  # 288 = 1-day
+n_trials: 3  #500
+max_test_epi_len: 288  # testing conducted for 1 day: 12 steps/hr * 24 hours
 
-
+use_cf: False  # param for BB: unsused right now
 
