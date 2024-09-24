@@ -7,6 +7,8 @@ import sys
 from decouple import config
 from collections import deque
 
+from clinical.carb_counting import carb_estimate
+from utils import core
 
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
@@ -74,11 +76,6 @@ class ActorCritic: #changed n_obs <- n_state
         """
         loss_Actor = 0
         loss_Critic = 0
-        # print("inputs:")
-        # print(returns)
-        # print(log_probs)
-        # print(state_values)
-        # print(trajectories)
         for log_prob, value, Gt in zip(log_probs, state_values, returns):
             advantage = Gt - value.item()
             policy_loss = - log_prob * advantage
@@ -140,8 +137,8 @@ class ActorCritic: #changed n_obs <- n_state
 
 #Performs one training pass
 #changed, left original code commented out for reference
-def actor_critic(env=None, estimator=None,controlspace = None, n_episode=20, episode_length=1000, gamma=1.0, trajectories=1,
-                 feature_history=40, calibration=1, STD_BASAL=0, action_stop_horizon=1, folder_id='None', penalty=10):
+def actor_critic(args = None, env=None, estimator=None,controlspace = None, n_episode=1, episode_length=1000, gamma=1.0, trajectories=1,
+                 k =2,clinical_agent = None, patients = None,feature_history=40, calibration=1, STD_BASAL=0, action_stop_horizon=1, folder_id='None', penalty=10):
     """
     continuous Actor Critic algorithm
     @param env: Gym environment
@@ -266,34 +263,62 @@ def actor_critic(env=None, estimator=None,controlspace = None, n_episode=20, epi
     # estimator.save()
     #
     # return total_reward_episode
-    returns = []
-    log_probs = []
-    state_values = []
 
-    for _ in range(trajectories):
-        observation = env.reset()
-        observation = torch.tensor([x[0] for x in observation])
+    for _ in range(n_episode): #how many times we update the network
+        returns = []
+        log_probs = []
+        state_values = []
+        for _ in range(trajectories): #how many trajectories used to update
+            observation = env.reset()
 
-        discount = 1
-        for _ in range(episode_length):
-            rl_action, log_prob, state_val = estimator.get_action(observation)  # get RL action
-            pump_action = controlspace.map(agent_action=rl_action)
-            log_probs.append(log_prob)
-            state_values.append(state_val)
-            observation, _, _, info = env.step(pump_action)
+            glucose, meal = core.inverse_linear_scaling(y=observation[-1][0], x_min=args.env.glucose_min,
+                                                        x_max=args.env.glucose_max), 0
+            history = []
+            for _ in range(k-1):#getting the initial history before any rl action
+                action = clinical_agent.get_action(meal=meal, glucose=glucose)  # insulin action of BB treatment
+                observation, reward, is_done, info = env.step(action[0])  # take an env step
+
+                # clinical algorithms require "manual meal announcement and carbohydrate estimation."
+                if args.env.t_meal == 0:  # no meal announcement: take action for the meal as it happens.
+                    meal = info['meal'] * info['sample_time']
+                elif args.env.t_meal == info[
+                    'remaining_time_to_meal']:  # meal announcement: take action "t_meal" minutes before the actual meal.
+                    meal = info['future_carb']
+                else:
+                    meal = 0
+                if meal != 0:  # simulate the human carbohydrate estimation error or ideal scenario.
+                    meal = carb_estimate(meal, info['day_hour'], patients[id],
+                                         type=args.agent.carb_estimation_method)
+                glucose = info['cgm'].CGM
+                history.append(glucose)
+
+            #Now we have the (initial) history, can perform as normal
             observation = torch.tensor([x[0] for x in observation])
-            #print("info:",info["cgm"].CGM )
-            w = estimator.w
-            # print(w)
-            returns.append(discount * w * info["cgm"].CGM)
-            discount = discount * gamma
 
-    # Now have the info, use that to update the policy
-    #print("returns: ", returns)
-    returns = torch.tensor(returns)
-    returns = (returns - returns.mean()) / (returns.std() + 1e-9)
-    estimator.update(returns, log_probs, state_values, trajectories)
-    #estimator.save()
+            discount = 1
+            #Probably should be renamed but length of each trajectory
+            for _ in range(episode_length):
+                rl_action, log_prob, state_val = estimator.get_action(observation)  # get RL action
+                pump_action = controlspace.map(agent_action=rl_action)
+                log_probs.append(log_prob)
+                state_values.append(state_val)
+                observation, _, _, info = env.step(pump_action)
+                observation = torch.tensor([x[0] for x in observation])
+                #print("info:",info["cgm"].CGM )
+                glucose = info['cgm'].CGM
+                feature = np.array(history + [glucose])
+                history = history[1:] + [glucose]
+                w = estimator.w
+                # print(w)
+                returns.append(discount * np.matmul(w,  feature))
+                discount = discount * gamma
+
+        # Now have the info, use that to update the policy
+        #print("returns: ", returns)
+        returns = torch.tensor(returns)
+        returns = (returns - returns.mean()) / (returns.std() + 1e-9)
+        estimator.update(returns, log_probs, state_values, trajectories)
+        #estimator.save()
 
 
 # class StateSpace:
