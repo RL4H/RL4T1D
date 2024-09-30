@@ -19,12 +19,12 @@ import matplotlib.pyplot as plt
 
 traj_len = 3
 n_samples = 2
-k = 2  #feature size
+k = 12  #feature size -> observation already has past incorporated
 
 #expert_samples = np.zeros((traj_len, n_samples))
 print("Gathering expert samples")
 expert_samples = []
-#TODO check everything with arguments
+
 args = load_arguments(
     overrides=["experiment.name=test2", "agent=clinical_treatment", "env.patient_id=0", "agent.debug=True",
                "hydra/job_logging=disabled"])
@@ -40,30 +40,10 @@ glucose, meal = core.inverse_linear_scaling(y=observation[-1][0], x_min=args.env
 # clinical algorithms uses the glucose value, rather than the observation-space of RL algorithms, which is normalised for training stability.
 
 for _ in range(n_samples):  #samples, each of length traj_len
-    previous = []  #the previous k - 1 glucose values
     observation = env_clin.reset()  # observation is the state-space (features x history) of the RL algorithm.
     glucose, meal = core.inverse_linear_scaling(y=observation[-1][0], x_min=args.env.glucose_min,
                                                 x_max=args.env.glucose_max), 0
-    #getting the first k - 1 values to be used as history
-    for _ in range(k - 1):
-        action = clinical_agent.get_action(meal=meal, glucose=glucose)  # insulin action of BB treatment
-        observation, reward, is_done, info = env_clin.step(action[0])  # take an env step
-
-        # clinical algorithms require "manual meal announcement and carbohydrate estimation."
-        if args.env.t_meal == 0:  # no meal announcement: take action for the meal as it happens.
-            meal = info['meal'] * info['sample_time']
-        elif args.env.t_meal == info[
-            'remaining_time_to_meal']:  # meal announcement: take action "t_meal" minutes before the actual meal.
-            meal = info['future_carb']
-        else:
-            meal = 0
-        if meal != 0:  # simulate the human carbohydrate estimation error or ideal scenario.
-            meal = carb_estimate(meal, info['day_hour'], patients[id], type=args.agent.carb_estimation_method)
-        glucose = info['cgm'].CGM
-        previous.append(glucose)
-        print("previous init: ", previous)
-
-    traj = []
+    traj = [[x[0] for x in observation]]
     for _ in range(traj_len):
 
         action = clinical_agent.get_action(meal=meal, glucose=glucose)  # insulin action of BB treatment
@@ -80,11 +60,8 @@ for _ in range(n_samples):  #samples, each of length traj_len
         if meal != 0:  # simulate the human carbohydrate estimation error or ideal scenario.
             meal = carb_estimate(meal, info['day_hour'], patients[id], type=args.agent.carb_estimation_method)
         glucose = info['cgm'].CGM
-        #print("Testing prev: ", previous, previous[1:] + [glucose])
 
-        #print("previous: ", previous)
-        traj.append(previous + [glucose])
-        previous = previous[1:] + [glucose]  # updating the history
+        traj.append([x[0] for x in observation])
         print(f'Latest glucose level: {info["cgm"].CGM:.2f} mg/dL, administered insulin: {action[0]:.2f} U.')
     expert_samples.append(traj)
 print('Gathered expert samples')
@@ -101,3 +78,4 @@ print("Finished training irl agent")
 plt.scatter([i for i in range(iters)], data)
 plt.show()
 rwd_param = irl_agent.get_rwd_param()  #final output
+#TODO look at other visualisations

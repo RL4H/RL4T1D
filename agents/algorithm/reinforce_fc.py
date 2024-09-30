@@ -137,8 +137,9 @@ class ActorCritic: #changed n_obs <- n_state
 
 #Performs one training pass
 #changed, left original code commented out for reference
+
 def actor_critic(args = None, env=None, estimator=None,controlspace = None, n_episode=1, episode_length=1000, gamma=1.0, trajectories=1,
-                 k =2,clinical_agent = None, patients = None,feature_history=40, calibration=1, STD_BASAL=0, action_stop_horizon=1, folder_id='None', penalty=10):
+                 feature_history=40, calibration=1, STD_BASAL=0, action_stop_horizon=1, folder_id='None', penalty=10):
     """
     continuous Actor Critic algorithm
     @param env: Gym environment
@@ -270,31 +271,6 @@ def actor_critic(args = None, env=None, estimator=None,controlspace = None, n_ep
         state_values = []
         for _ in range(trajectories): #how many trajectories used to update
             observation = env.reset()
-
-            glucose, meal = core.inverse_linear_scaling(y=observation[-1][0], x_min=args.env.glucose_min,
-                                                        x_max=args.env.glucose_max), 0
-            history = []
-            for _ in range(k-1):#getting the initial history before any rl action
-                action = clinical_agent.get_action(meal=meal, glucose=glucose)  # insulin action of BB treatment
-                observation, reward, is_done, info = env.step(action[0])  # take an env step
-
-                # clinical algorithms require "manual meal announcement and carbohydrate estimation."
-                if args.env.t_meal == 0:  # no meal announcement: take action for the meal as it happens.
-                    meal = info['meal'] * info['sample_time']
-                elif args.env.t_meal == info[
-                    'remaining_time_to_meal']:  # meal announcement: take action "t_meal" minutes before the actual meal.
-                    meal = info['future_carb']
-                else:
-                    meal = 0
-                if meal != 0:  # simulate the human carbohydrate estimation error or ideal scenario.
-                    meal = carb_estimate(meal, info['day_hour'], patients[id],
-                                         type=args.agent.carb_estimation_method)
-                glucose = info['cgm'].CGM
-                history.append(glucose)
-
-            #Now we have the (initial) history, can perform as normal
-            observation = torch.tensor([x[0] for x in observation])
-
             discount = 1
             #Probably should be renamed but length of each trajectory
             for _ in range(episode_length):
@@ -302,19 +278,21 @@ def actor_critic(args = None, env=None, estimator=None,controlspace = None, n_ep
                 pump_action = controlspace.map(agent_action=rl_action)
                 log_probs.append(log_prob)
                 state_values.append(state_val)
-                observation, _, _, info = env.step(pump_action)
-                observation = torch.tensor([x[0] for x in observation])
+                observation, _, is_done, info = env.step(pump_action)
+                observation = torch.tensor(observation)
                 #print("info:",info["cgm"].CGM )
                 glucose = info['cgm'].CGM
-                feature = np.array(history + [glucose])
-                history = history[1:] + [glucose]
+                feature = np.array([x[0] for x in observation])
                 w = estimator.w
                 # print(w)
                 returns.append(discount * np.matmul(w,  feature))
                 discount = discount * gamma
+                if is_done ==1:
+                    break
 
         # Now have the info, use that to update the policy
         #print("returns: ", returns)
+        #TODO: make sure returns is correct
         returns = torch.tensor(returns)
         returns = (returns - returns.mean()) / (returns.std() + 1e-9)
         estimator.update(returns, log_probs, state_values, trajectories)
