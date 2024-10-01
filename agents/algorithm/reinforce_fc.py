@@ -135,10 +135,9 @@ class ActorCritic: #changed n_obs <- n_state
     def get_reward(self):
         return self.w
 
-#Performs one training pass
 #changed, left original code commented out for reference
 
-def actor_critic(args = None, env=None, estimator=None,controlspace = None, n_episode=1, episode_length=1000, gamma=1.0, trajectories=1,
+def train_actor_critic(args = None, env=None, estimator=None,controlspace = None, n_episode=1, episode_length=1000, gamma=1.0, trajectories=1,
                  feature_history=40, calibration=1, STD_BASAL=0, action_stop_horizon=1, folder_id='None', penalty=10):
     """
     continuous Actor Critic algorithm
@@ -281,8 +280,9 @@ def actor_critic(args = None, env=None, estimator=None,controlspace = None, n_ep
                 observation, _, is_done, info = env.step(pump_action)
                 observation = torch.tensor(observation)
                 feature = np.array([x[0] for x in observation])
+                scaled_feature = min_max_norm(feature)
                 # print(w)
-                rewards.append(np.matmul(w,  feature))
+                rewards.append(np.matmul(w,  scaled_feature))
                 if is_done == 1: #i.e patient dies
                     break
             #Now convert trajectory rewards into returns
@@ -300,13 +300,17 @@ def actor_critic(args = None, env=None, estimator=None,controlspace = None, n_ep
 
         # Now have the info, use that to update the policy
         #print("returns: ", returns)
-        #TODO: make sure returns is correct
         returns = torch.tensor(returns)
         returns = (returns - returns.mean()) / (returns.std() + 1e-9)
         estimator.update(returns, log_probs, state_values, trajectories)
         #estimator.save()
 
 
+def min_max_norm(vec): #assumes vec is a np array
+    min_val = np.min(vec)
+    max_val = np.max(vec)
+    diff = max_val - min_val
+    return (vec - min_val)/diff
 # class StateSpace:
 #     def __init__(self, args):
 #         self.feature_history = args.feature_history

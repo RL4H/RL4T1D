@@ -6,7 +6,7 @@ from environment.t1denv import T1DEnv
 
 from utils.control_space import ControlSpace
 from agents.algorithm.reinforce_fc import ActorCritic
-from agents.algorithm.reinforce_fc import actor_critic
+from agents.algorithm.reinforce_fc import train_actor_critic, min_max_norm
 
 from clinical.carb_counting import carb_estimate
 from utils import core
@@ -95,13 +95,14 @@ class MaxMarginProjection:
         for _ in range(self.n_traj):
             observation = self.env.reset()
 
-            traj = [[x[0] for x in observation]]
+            traj = [min_max_norm(np.array([x[0] for x in observation]))]
             for _ in range(self.traj_len):
                 rl_action, _, _ = self.rl_agent.get_action(observation)  # get RL action
                 pump_action = self.controlspace.map(agent_action=rl_action)
                 observation, _, is_done, info = self.env.step(pump_action)
-                traj.append([x[0] for x in observation])  # saving the feature vector to the traj
-                if is_done ==1: #i.e the patient dies
+                scaled_feature = min_max_norm(np.array([x[0] for x in observation]))#scaled
+                traj.append(scaled_feature)  # saving the feature vector to the traj
+                if is_done == 1: #i.e the patient dies
                     break
             samples.append(traj)
 
@@ -121,7 +122,7 @@ class MaxMarginProjection:
         self.w = expert_exp - self.proj
         self.rl_agent.update_reward(self.w)  # update reward function
         # Now use RL algorithm to find a new policy
-        actor_critic(args=self.args, env=self.env, estimator=self.rl_agent, controlspace=self.controlspace,
+        train_actor_critic(args=self.args, env=self.env, estimator=self.rl_agent, controlspace=self.controlspace,
                      episode_length=self.traj_len,
                      gamma=self.discount_factor,
                      trajectories=self.n_traj)  # i think currently only does one pass
@@ -139,7 +140,7 @@ class MaxMarginProjection:
             #print("w in mmp: ", self.w)
             self.rl_agent.update_reward(self.w)  #update reward function
             #Now use RL algorithm to find a new policy
-            actor_critic(args=self.args, env=self.env, estimator=self.rl_agent, controlspace=self.controlspace,
+            train_actor_critic(args=self.args, env=self.env, estimator=self.rl_agent, controlspace=self.controlspace,
                          episode_length=self.traj_len,
                          gamma=self.discount_factor,
                          trajectories=self.n_traj)  #i think currently only does one pass
@@ -149,3 +150,7 @@ class MaxMarginProjection:
 
     def get_rwd_param(self):
         return self.w
+
+
+
+
