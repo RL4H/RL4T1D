@@ -264,14 +264,14 @@ def actor_critic(args = None, env=None, estimator=None,controlspace = None, n_ep
     # estimator.save()
     #
     # return total_reward_episode
-
+    w = estimator.w
     for _ in range(n_episode): #how many times we update the network
         returns = []
         log_probs = []
         state_values = []
         for _ in range(trajectories): #how many trajectories used to update
+            rewards = [] #immediate rewards for each step of traj
             observation = env.reset()
-            discount = 1
             #Probably should be renamed but length of each trajectory
             for _ in range(episode_length):
                 rl_action, log_prob, state_val = estimator.get_action(observation)  # get RL action
@@ -280,15 +280,23 @@ def actor_critic(args = None, env=None, estimator=None,controlspace = None, n_ep
                 state_values.append(state_val)
                 observation, _, is_done, info = env.step(pump_action)
                 observation = torch.tensor(observation)
-                #print("info:",info["cgm"].CGM )
-                glucose = info['cgm'].CGM
                 feature = np.array([x[0] for x in observation])
-                w = estimator.w
                 # print(w)
-                returns.append(discount * np.matmul(w,  feature))
-                discount = discount * gamma
-                if is_done ==1:
+                rewards.append(np.matmul(w,  feature))
+                if is_done == 1: #i.e patient dies
                     break
+            #Now convert trajectory rewards into returns
+            #code copied from old method
+            trajectory_returns = []
+            Gt = 0
+            pw = 0
+            for reward in rewards[::-1]:
+                Gt = reward + Gt * (gamma**pw)
+                pw += 1
+                trajectory_returns.append(Gt)
+            trajectory_returns = trajectory_returns[::-1]
+            trajectory_returns = [float(i) for i in trajectory_returns]
+            returns = returns + trajectory_returns
 
         # Now have the info, use that to update the policy
         #print("returns: ", returns)
