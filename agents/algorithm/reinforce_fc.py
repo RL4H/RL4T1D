@@ -12,6 +12,8 @@ from utils import core
 
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
+
+
 #from utils.time_in_range import time_in_range
 #from utils.plot import plot_simulation_results
 #from utils.stateSpace import StateSpace
@@ -52,19 +54,20 @@ class ValueNetwork(nn.Module):
         return value
 
 
-class ActorCritic: #changed n_obs <- n_state
-    def __init__(self, n_obs, n_action, n_hidden, lr=0.001, load=False):
-        self.Actor = PolicyNetwork(n_obs, n_action, n_hidden)
-        self.Critic = ValueNetwork(n_obs, n_action, n_hidden)
+class ActorCritic:  #changed n_obs <- n_state
+    def __init__(self, n_obs, n_action, n_hidden, device='cpu', lr=0.001, load=False):
+        self.device = device
+        self.Actor = PolicyNetwork(n_obs, n_action, n_hidden).to(self.device)
+        self.Critic = ValueNetwork(n_obs, n_action, n_hidden).to(self.device)
         self.actor_path = '../saved_models/A2C_MC_FC_Actor.pth'
         self.critic_path = '../saved_models/A2C_MC_FC_Critic.pth'
         if load:
-            self.Actor = torch.load(self.actor_path)
-            self.Critic = torch.load(self.critic_path)
+            self.Actor = torch.load(self.actor_path).to(self.device)
+            self.Critic = torch.load(self.critic_path).to(self.device)
         self.optimizer_Actor = torch.optim.Adam(self.Actor.parameters(), lr)
         self.optimizer_Critic = torch.optim.Adam(self.Critic.parameters(), lr)
         self.distribution = torch.distributions.Normal
-        self.w = 1 #Just a placeholder value currently
+        self.w = 1  #Just a placeholder value currently
 
     #kept as is, should be fine
     def update(self, returns, log_probs, state_values, trajectories):
@@ -106,7 +109,7 @@ class ActorCritic: #changed n_obs <- n_state
         s = s.flatten()
         self.Actor.training = False
         self.Critic.training = False
-        return self.Actor(torch.Tensor(s)), self.Critic(torch.Tensor(s))
+        return self.Actor(torch.Tensor(s).to(self.device)), self.Critic(torch.Tensor(s).to(self.device))
 
     def get_action(self, s):
         """
@@ -135,10 +138,13 @@ class ActorCritic: #changed n_obs <- n_state
     def get_reward(self):
         return self.w
 
+
 #changed, left original code commented out for reference
 
-def train_actor_critic(args = None, env=None, estimator=None,controlspace = None, n_episode=1, episode_length=1000, gamma=1.0, trajectories=1,
-                 feature_history=40, calibration=1, STD_BASAL=0, action_stop_horizon=1, folder_id='None', penalty=10):
+def train_actor_critic(args=None, env=None, estimator=None, controlspace=None, n_episode=5, episode_length=1000,
+                       gamma=1.0, trajectories=1, device='cpu',
+                       feature_history=40, calibration=1, STD_BASAL=0, action_stop_horizon=1, folder_id='None',
+                       penalty=10):
     """
     continuous Actor Critic algorithm
     @param env: Gym environment
@@ -264,26 +270,26 @@ def train_actor_critic(args = None, env=None, estimator=None,controlspace = None
     #
     # return total_reward_episode
     w = estimator.w
-    for _ in range(n_episode): #how many times we update the network
+    for _ in range(n_episode):  #how many times we update the network
         returns = []
         log_probs = []
         state_values = []
-        for _ in range(trajectories): #how many trajectories used to update
-            rewards = [] #immediate rewards for each step of traj
+        for _ in range(trajectories):  #how many trajectories used to update
+            rewards = []  #immediate rewards for each step of traj
             observation = env.reset()
             #Probably should be renamed but length of each trajectory
             for _ in range(episode_length):
-                rl_action, log_prob, state_val = estimator.get_action(observation)  # get RL action
+                rl_action, log_prob, state_val = estimator.get_action(torch.tensor(observation).to(device))  # get RL action
                 pump_action = controlspace.map(agent_action=rl_action)
                 log_probs.append(log_prob)
                 state_values.append(state_val)
                 observation, _, is_done, info = env.step(pump_action)
                 observation = torch.tensor(observation)
-                feature = np.array([x[0] for x in observation])
-                scaled_feature = min_max_norm(feature)
+                feature = torch.tensor([x[0] for x in observation]).to(device)
+
                 # print(w)
-                rewards.append(np.matmul(w,  scaled_feature))
-                if is_done == 1: #i.e patient dies
+                rewards.append(np.matmul(w, feature))
+                if is_done == 1:  #i.e patient dies
                     break
             #Now convert trajectory rewards into returns
             #code copied from old method
@@ -291,7 +297,7 @@ def train_actor_critic(args = None, env=None, estimator=None,controlspace = None
             Gt = 0
             pw = 0
             for reward in rewards[::-1]:
-                Gt = reward + Gt * (gamma**pw)
+                Gt = reward + Gt * (gamma ** pw)
                 pw += 1
                 trajectory_returns.append(Gt)
             trajectory_returns = trajectory_returns[::-1]
@@ -306,11 +312,6 @@ def train_actor_critic(args = None, env=None, estimator=None,controlspace = None
         #estimator.save()
 
 
-def min_max_norm(vec): #assumes vec is a np array
-    min_val = np.min(vec)
-    max_val = np.max(vec)
-    diff = max_val - min_val
-    return (vec - min_val)/diff
 # class StateSpace:
 #     def __init__(self, args):
 #         self.feature_history = args.feature_history

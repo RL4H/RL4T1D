@@ -6,7 +6,7 @@ from environment.t1denv import T1DEnv
 
 from utils.control_space import ControlSpace
 from agents.algorithm.reinforce_fc import ActorCritic
-from agents.algorithm.reinforce_fc import train_actor_critic, min_max_norm
+from agents.algorithm.reinforce_fc import train_actor_critic
 
 from clinical.carb_counting import carb_estimate
 from utils import core
@@ -42,14 +42,16 @@ n_hidden = 25
 
 #Class that does the main irl
 class MaxMarginProjection:
-    def __init__(self, args, exp_samples, n_traj, traj_len, clin_agent, patients, discount_factor=0.9, tol=1e-10,
+    def __init__(self, args, exp_samples, n_traj, traj_len, rl_updates,device='cpu', discount_factor=0.9, tol=1e-10,
                  env=None, k=2):
-        self.rl_agent = ActorCritic(n_obs, n_action, n_hidden)
+        self.device = device
+        self.rl_agent = ActorCritic(n_obs, n_action, n_hidden, device=self.device)
         self.expert = exp_samples
         self.discount_factor = discount_factor
         self.tol = tol
         self.n_traj = n_traj
         self.traj_len = traj_len
+        self.rl_updates = rl_updates
         #self.env = T1DEnv(args=args.env, mode='testing', worker_id=1)
         self.env = env  #I think want the sam environment
         self.w = 1
@@ -77,12 +79,12 @@ class MaxMarginProjection:
         m = len(demo)
         #m, n, k = demo.shape()
         #k = 1  #currently only using glucose as feature
-        res = np.zeros(self.k)
+        res = torch.zeros(self.k)
         for i in range(m):
             n = len(demo[i])
             discount = 1
             for j in range(n):
-                res += discount * np.array(demo[i][j])
+                res += discount * torch.tensor(demo[i][j])
                 discount = discount * gamma
 
         return res / m
@@ -95,12 +97,12 @@ class MaxMarginProjection:
         for _ in range(self.n_traj):
             observation = self.env.reset()
 
-            traj = [min_max_norm(np.array([x[0] for x in observation]))]
+            traj = [np.array([x[0] for x in observation])]
             for _ in range(self.traj_len):
-                rl_action, _, _ = self.rl_agent.get_action(observation)  # get RL action
+                rl_action, _, _ = self.rl_agent.get_action(torch.tensor(observation).to(self.device))  # get RL action
                 pump_action = self.controlspace.map(agent_action=rl_action)
                 observation, _, is_done, info = self.env.step(pump_action)
-                scaled_feature = min_max_norm(np.array([x[0] for x in observation]))#scaled
+                scaled_feature = np.array([x[0] for x in observation])#scaled
                 traj.append(scaled_feature)  # saving the feature vector to the traj
                 if is_done == 1: #i.e the patient dies
                     break
@@ -108,25 +110,26 @@ class MaxMarginProjection:
 
         #Now we have our trajectories, can approximate feature using mc
         feature_exp = self.mc_exp(samples)
-        return samples, feature_exp
+        return feature_exp
 
     def train(self, max_iters=5):
         iters = 0
         data = []  #used for plotting
         #get expert feature expectation
         expert_exp = self.mc_exp(self.expert)
-        samples, pol_exp = self.policy_expectations()  #with a randomly initialised policy
+        pol_exp = self.policy_expectations()  #with a randomly initialised policy
         converged = False
         #First iteration (i = 1)
         self.proj = pol_exp
         self.w = expert_exp - self.proj
-        self.rl_agent.update_reward(self.w)  # update reward function
+        self.rl_agent.update_reward(self.w.to(self.device))  # update reward function
         # Now use RL algorithm to find a new policy
         train_actor_critic(args=self.args, env=self.env, estimator=self.rl_agent, controlspace=self.controlspace,
-                     episode_length=self.traj_len,
-                     gamma=self.discount_factor,
-                     trajectories=self.n_traj)  # i think currently only does one pass
-        samples, pol_exp = self.policy_expectations()
+                     episode_length=self.traj_len, n_episode=self.rl_updates,
+                     gamma=self.discount_factor, device=self.device,
+                     trajectories=self.n_traj)
+
+        pol_exp = self.policy_expectations() #torch tensor of scalars
         while not converged:
             #perform projection
             p, w, t = self.projection(expert_exp, pol_exp, self.proj)
@@ -141,10 +144,10 @@ class MaxMarginProjection:
             self.rl_agent.update_reward(self.w)  #update reward function
             #Now use RL algorithm to find a new policy
             train_actor_critic(args=self.args, env=self.env, estimator=self.rl_agent, controlspace=self.controlspace,
-                         episode_length=self.traj_len,
+                         episode_length=self.traj_len, n_episode=self.rl_updates,
                          gamma=self.discount_factor,
                          trajectories=self.n_traj)  #i think currently only does one pass
-            samples, pol_exp = self.policy_expectations()  #expectations of new policy
+            pol_exp = self.policy_expectations()  #expectations of new policy
 
         return iters, data
 
