@@ -6,8 +6,8 @@ from decouple import config
 import numpy as np
 import time
 
-MAIN_PATH = config('MAIN_PATH')
-sys.path.insert(1, MAIN_PATH)
+# MAIN_PATH = config('MAIN_PATH')
+# sys.path.insert(1, MAIN_PATH)
 
 # Running a Clinical Treatment Algorithm
 from environment.t1denv import T1DEnv
