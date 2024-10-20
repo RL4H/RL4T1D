@@ -44,12 +44,12 @@ k = 12  #feature size -> observation already has past incorporated
 
 if torch.cuda.is_available():
     device = 'cuda'
-    print('cuda is available')
+    #print('cuda is available')
 else:
     device = 'cpu'
 
 #expert_samples = np.zeros((traj_len, n_samples))
-print("Gathering expert samples")
+#print("Gathering expert samples")
 start = time.time()
 expert_samples = []
 
@@ -66,10 +66,9 @@ observation = env_clin.reset()  # observation is the state-space (features x his
 glucose, meal = core.inverse_linear_scaling(y=observation[-1][0], x_min=args.env.glucose_min,
                                             x_max=args.env.glucose_max), 0
 # clinical algorithms uses the glucose value, rather than the observation-space of RL algorithms, which is normalised for training stability.
-
+print("expert")
 for _ in range(n_samples):  #samples, each of length traj_len
     observation = env_clin.reset()  # observation is the state-space (features x history) of the RL algorithm.
-    print("first here:", observation[-1][0])
     glucose, meal = core.inverse_linear_scaling(y=observation[-1][0], x_min=args.env.glucose_min,
                                                 x_max=args.env.glucose_max), 0
     traj = [np.array([x[0] for x in observation])]
@@ -91,22 +90,24 @@ for _ in range(n_samples):  #samples, each of length traj_len
         glucose = info['cgm'].CGM
 
         traj.append(np.array([x[0] for x in observation]))
-        print(f'Latest glucose level: {info["cgm"].CGM:.2f} mg/dL, administered insulin: {action[0]:.2f} U.')
+        #print(f'Latest glucose level: {info["cgm"].CGM:.2f} mg/dL, administered insulin: {action[0]:.2f} U.')
     expert_samples.append(traj)
 
 #expert_samples.to(device)
-finish = time.time()
-print('Gathered expert samples in ', finish - start, "seconds")
-start = time.time()
+print(expert_samples)
+print('expert_fin')
+# finish = time.time()
+# print('Gathered expert samples in ', finish - start, "seconds")
+# start = time.time()
 
 #Now we have the expert samples, try to get the RL environment working
-print("Trying to initialise irl agent")
+#print("Trying to initialise irl agent")
 irl_agent = MaxMarginProjection(args=args, exp_samples=expert_samples, n_traj=sim_samples,
                                 traj_len=sim_length,rl_updates = rl_updates, env=env_clin, k=k, device=device)  #create the irl agent
-print("Begin training irl agent")
+#print("Begin training irl agent")
 iters, data = irl_agent.train(max_iters=irl_max_iters)  #train the irl agent and gain data for plotting
 finish = time.time()
-print("Finished training irl agent in ", finish - start, 'seconds')
+#print("Finished training irl agent in ", finish - start, 'seconds')
 # ax = plt.subplot()
 # ax.scatter([i for i in range(iters)], data)
 # plt.show()

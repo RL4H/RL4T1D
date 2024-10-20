@@ -116,25 +116,31 @@ class MaxMarginProjection:
         iters = 0
         data = []  #used for plotting
         #get expert feature expectation
+        print("expert_exp")
         expert_exp = self.mc_exp(self.expert)
+        print(expert_exp)
+        print("expert_exp_fin")
         pol_exp = self.policy_expectations()  #with a randomly initialised policy
         converged = False
         #First iteration (i = 1)
         self.proj = pol_exp
         self.w = expert_exp - self.proj
+        print('irl: ', iters, self.proj, self.w)
         self.rl_agent.update_reward(self.w.to(self.device))  # update reward function
         # Now use RL algorithm to find a new policy
+        print('rl_train')
         train_actor_critic(args=self.args, env=self.env, estimator=self.rl_agent, controlspace=self.controlspace,
                      episode_length=self.traj_len, n_episode=self.rl_updates,
                      gamma=self.discount_factor, device=self.device,
                      trajectories=self.n_traj)
-
+        print('rl_train_fin')
         pol_exp = self.policy_expectations() #torch tensor of scalars
         while not converged:
             #perform projection
             p, w, t = self.projection(expert_exp, pol_exp, self.proj)
             data.append(t)
             iters += 1
+            print("irl: ",iters, p, w, t)
             self.proj = p
             self.w = w
             converged = t <= self.tol or iters == max_iters
@@ -143,11 +149,16 @@ class MaxMarginProjection:
             #print("w in mmp: ", self.w)
             self.rl_agent.update_reward(self.w)  #update reward function
             #Now use RL algorithm to find a new policy
+            print("rl_train")
             train_actor_critic(args=self.args, env=self.env, estimator=self.rl_agent, controlspace=self.controlspace,
                          episode_length=self.traj_len, n_episode=self.rl_updates,
                          gamma=self.discount_factor,
                          trajectories=self.n_traj)  #i think currently only does one pass
+            print("rl_train_fin")
+            print("pol_exp")
             pol_exp = self.policy_expectations()  #expectations of new policy
+            print(pol_exp)
+            print("pol_exp_fin")
 
         return iters, data
 
