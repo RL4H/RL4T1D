@@ -44,6 +44,7 @@ k = 12  #feature size -> observation already has past incorporated
 
 if torch.cuda.is_available():
     device = 'cuda'
+    print('cuda is available')
 else:
     device = 'cpu'
 
