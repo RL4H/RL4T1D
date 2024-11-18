@@ -1,5 +1,6 @@
 import sys
 import argparse
+import os
 
 import torch.cuda
 from decouple import config
@@ -20,15 +21,15 @@ from agents.algorithm.mmp_proj import MaxMarginProjection
 import matplotlib.pyplot as plt
 
 # import numpy as np
-
 #arguments (hyperparameters)
 parser = argparse.ArgumentParser()
-parser.add_argument("--n_expert", type = int, default=5) #Number of expert trajs
-parser.add_argument("--l_expert", type=int, default=10) #Max length of expert traj
+parser.add_argument("--n_expert", type = int, default=3) #Number of expert trajs
+parser.add_argument("--l_expert", type=int, default=5) #Max length of expert traj
 parser.add_argument("--i_irl", type=int,default=5) #iterations irl
-parser.add_argument("--i_update", type=int,default=5)#updates per rl train
-parser.add_argument("--n_sim", type=int, default=5) #Number of sim traj
-parser.add_argument("--l_sim", type=int, default=10)#max length of sim traj
+parser.add_argument("--i_update", type=int,default=2)#updates per rl train
+parser.add_argument("--n_sim", type=int, default=3) #Number of sim traj
+parser.add_argument("--l_sim", type=int, default=5)#max length of sim traj
+parser.add_argument("--dvc", default = "cpu", type=str, choices=['cpu','cuda'] )#device for pytorch
 
 input_args = parser.parse_args()
 
@@ -39,14 +40,15 @@ irl_max_iters = input_args.i_irl
 rl_updates = input_args.i_update
 sim_samples = input_args.n_sim #might wan to split in rl update sim and mc sim
 sim_length = input_args.l_sim
+device = input_args.dvc
 
 k = 12  #feature size -> observation already has past incorporated
 
-if torch.cuda.is_available():
-    device = 'cuda'
-    #print('cuda is available')
-else:
-    device = 'cpu'
+# if torch.cuda.is_available():
+#     device = 'cuda'
+#     #print('cuda is available')
+# else:
+#     device = 'cpu'
 
 #expert_samples = np.zeros((traj_len, n_samples))
 #print("Gathering expert samples")
@@ -66,7 +68,7 @@ observation = env_clin.reset()  # observation is the state-space (features x his
 glucose, meal = core.inverse_linear_scaling(y=observation[-1][0], x_min=args.env.glucose_min,
                                             x_max=args.env.glucose_max), 0
 # clinical algorithms uses the glucose value, rather than the observation-space of RL algorithms, which is normalised for training stability.
-print("expert")
+#print("expert")
 for _ in range(n_samples):  #samples, each of length traj_len
     observation = env_clin.reset()  # observation is the state-space (features x history) of the RL algorithm.
     glucose, meal = core.inverse_linear_scaling(y=observation[-1][0], x_min=args.env.glucose_min,
@@ -86,7 +88,7 @@ for _ in range(n_samples):  #samples, each of length traj_len
         else:
             meal = 0
         if meal != 0:  # simulate the human carbohydrate estimation error or ideal scenario.
-            meal = carb_estimate(meal, info['day_hour'], patients[id], type=args.agent.carb_estimation_method)
+            meal = carb_estimate(meal, info['day_hour'], patients[args.env.patient_id], type=args.agent.carb_estimation_method)
         glucose = info['cgm'].CGM
 
         traj.append(np.array([x[0] for x in observation]))
@@ -94,7 +96,7 @@ for _ in range(n_samples):  #samples, each of length traj_len
     expert_samples.append(traj)
 
 #expert_samples.to(device)
-print(expert_samples)
+#print(expert_samples)
 print('expert_fin')
 # finish = time.time()
 # print('Gathered expert samples in ', finish - start, "seconds")

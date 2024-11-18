@@ -271,14 +271,14 @@ def train_actor_critic(args=None, env=None, estimator=None, controlspace=None, n
     # return total_reward_episode
     w = estimator.w
     for _ in range(n_episode):  #how many times we update the network
-        print('rl_ep')
+        #print('rl_ep')
         returns = []
         log_probs = []
         state_values = []
         for i in range(trajectories):  #how many trajectories used to update
             rewards = []  #immediate rewards for each step of traj
             observation = env.reset()
-            print(i, observation)
+            #print(i, observation)
             #Probably should be renamed but length of each trajectory
             for _ in range(episode_length):
                 rl_action, log_prob, state_val = estimator.get_action(torch.tensor(observation).to(device))  # get RL action
@@ -292,7 +292,7 @@ def train_actor_critic(args=None, env=None, estimator=None, controlspace=None, n
                 # print(w)
                 reward = np.matmul(w, feature)
                 rewards.append(reward)
-                print(rl_action, log_prob, state_val, new_glucose, reward)
+                #print(rl_action, log_prob, state_val, new_glucose, reward)
                 if is_done == 1:  #i.e patient dies
                     break
             #Now convert trajectory rewards into returns
@@ -313,7 +313,7 @@ def train_actor_critic(args=None, env=None, estimator=None, controlspace=None, n
         returns = torch.tensor(returns)
         returns = (returns - returns.mean()) / (returns.std() + 1e-9)
         estimator.update(returns, log_probs, state_values, trajectories)
-        print('rl_ep_fin')
+        #print('rl_ep_fin')
         #estimator.save()
 
 
