@@ -59,8 +59,8 @@ class MaxMarginProjection:
         self.k = k
         self.args = args
         self.iters = 0
-        self.irl_path = os.path.abspath('../results/mmp_proj_test/irl')
-        self.rl_path = os.path.abspath('../results/mmp_proj_test/rl')
+        self.irl_path = os.path.abspath('results/mmp_proj_test/irl')
+        self.rl_path = os.path.abspath('results/mmp_proj_test/rl')
         self.controlspace = ControlSpace(control_space_type=self.args.agent.control_space_type,
                                          insulin_min=self.env.action_space.low[0],
                                          insulin_max=self.env.action_space.high[0])
@@ -131,7 +131,7 @@ class MaxMarginProjection:
         # irl_path = os.path.abspath('../..results/mmp_proj_test/irl')
         #rl_path = os.path.abspath('../..results/mmp_proj_test/rl')
         # open(irl_path, 'w').close()
-        open(self.rl_path, 'w').close()
+        open(self.rl_path, 'w').close() #-- needs to be uncommented
         iters = 0
         data = []  #used for plotting
         #get expert feature expectation
@@ -156,11 +156,13 @@ class MaxMarginProjection:
                      episode_length=self.traj_len, n_episode=self.rl_updates,
                      gamma=self.discount_factor, device=self.device,
                      trajectories=self.n_traj)
-        #print('rl_train_fin')
+        print('rl_train_fin first time')
         pol_exp = self.policy_expectations() #torch tensor of scalars
         while not converged:
             #perform projection
             p, w, t = self.projection(expert_exp, pol_exp, self.proj)
+            p.to(self.device)
+            w.to(self.device)
             data.append(t)
             iters += 1
             #print("irl: ",iters, p, w, t)
@@ -175,10 +177,10 @@ class MaxMarginProjection:
             #print("w in mmp: ", self.w)
             self.rl_agent.update_reward(self.w)  #update reward function
             #Now use RL algorithm to find a new policy
-            #print("rl_train")
+            print("rl_train second time")
             train_actor_critic(args=self.args, env=self.env, estimator=self.rl_agent, controlspace=self.controlspace,
                          episode_length=self.traj_len, n_episode=self.rl_updates,
-                         gamma=self.discount_factor,
+                         gamma=self.discount_factor, device = self.device,
                          trajectories=self.n_traj)  #i think currently only does one pass
             #print("rl_train_fin")
             #print("pol_exp")

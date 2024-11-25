@@ -77,6 +77,7 @@ class ActorCritic:  #changed n_obs <- n_state
         @param log_probs: log probability for each step
         @param state_values: state-value for each step
         """
+        print("entered function")
         loss_Actor = 0
         loss_Critic = 0
         for log_prob, value, Gt in zip(log_probs, state_values, returns):
@@ -123,7 +124,7 @@ class ActorCritic:  #changed n_obs <- n_state
         normal = self.distribution(0, 1)
         z = normal.sample()
         action = mean + std * z
-        action = action.detach().numpy()
+        action = action.detach().cpu().numpy()
         action[0] = np.clip(action[0], 0, 10)
         log_prob = self.distribution(mean, std).log_prob(mean + std * z)  # - torch.log(1 - action.pow(2) + epsilon)
         return action[0], log_prob, state_value
@@ -133,7 +134,7 @@ class ActorCritic:  #changed n_obs <- n_state
         torch.save(self.Critic, self.critic_path)
 
     def update_reward(self, w):
-        self.w = w
+        self.w = w.to(self.device)
 
     def get_reward(self):
         return self.w
@@ -289,8 +290,7 @@ def train_actor_critic(args=None, env=None, estimator=None, controlspace=None, n
                 observation = torch.tensor(observation)
                 feature = torch.tensor([x[0] for x in observation]).to(device)
                 new_glucose = round(info["cgm"].CGM, 2)
-                # print(w)
-                reward = np.matmul(w, feature)
+                reward = torch.matmul(w, feature)
                 rewards.append(reward)
                 #print(rl_action, log_prob, state_val, new_glucose, reward)
                 if is_done == 1:  #i.e patient dies
@@ -310,7 +310,7 @@ def train_actor_critic(args=None, env=None, estimator=None, controlspace=None, n
 
         # Now have the info, use that to update the policy
         #print("returns: ", returns)
-        returns = torch.tensor(returns)
+        returns = torch.tensor(returns).to(device)
         returns = (returns - returns.mean()) / (returns.std() + 1e-9)
         estimator.update(returns, log_probs, state_values, trajectories)
         #print('rl_ep_fin')

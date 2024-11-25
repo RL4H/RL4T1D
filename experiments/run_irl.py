@@ -26,10 +26,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--n_expert", type = int, default=3) #Number of expert trajs
 parser.add_argument("--l_expert", type=int, default=5) #Max length of expert traj
 parser.add_argument("--i_irl", type=int,default=5) #iterations irl
-parser.add_argument("--i_update", type=int,default=2)#updates per rl train
-parser.add_argument("--n_sim", type=int, default=3) #Number of sim traj
+parser.add_argument("--i_update", type=int,default=3)#updates per rl train
+parser.add_argument("--n_sim", type=int, default=2) #Number of sim traj
 parser.add_argument("--l_sim", type=int, default=5)#max length of sim traj
-parser.add_argument("--dvc", default = "cpu", type=str, choices=['cpu','cuda'] )#device for pytorch
+parser.add_argument("--dvc", default = 'cuda', type=str, choices=['cpu','cuda'] )#device for pytorch
 
 input_args = parser.parse_args()
 
@@ -44,14 +44,15 @@ device = input_args.dvc
 
 k = 12  #feature size -> observation already has past incorporated
 
-# if torch.cuda.is_available():
+if torch.cuda.is_available():
 #     device = 'cuda'
-#     #print('cuda is available')
-# else:
+    print('cuda is available')
+else:
+    print("CUDA not available")
 #     device = 'cpu'
 
 #expert_samples = np.zeros((traj_len, n_samples))
-#print("Gathering expert samples")
+print("Gathering expert samples")
 start = time.time()
 expert_samples = []
 
@@ -106,8 +107,9 @@ print('expert_fin')
 #print("Trying to initialise irl agent")
 irl_agent = MaxMarginProjection(args=args, exp_samples=expert_samples, n_traj=sim_samples,
                                 traj_len=sim_length,rl_updates = rl_updates, env=env_clin, k=k, device=device)  #create the irl agent
-#print("Begin training irl agent")
+print("Begin training irl agent")
 iters, data = irl_agent.train(max_iters=irl_max_iters)  #train the irl agent and gain data for plotting
+print("Concluded training")
 finish = time.time()
 #print("Finished training irl agent in ", finish - start, 'seconds')
 # ax = plt.subplot()
