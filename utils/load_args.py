@@ -1,12 +1,4 @@
-import sys
-import torch
-import random
 import warnings
-import numpy as np
-from decouple import config
-MAIN_PATH = config('MAIN_PATH')
-sys.path.insert(1, MAIN_PATH)
-
 from hydra import compose, initialize
 from omegaconf import OmegaConf
 from utils.logger import setup_folders

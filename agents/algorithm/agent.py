@@ -8,9 +8,6 @@ from utils.buffers import onpolicy_buffers, offpolicy_buffers
 from metrics.metrics import time_in_range
 from metrics.statistics import calc_stats
 
-from decouple import config
-MAIN_PATH = config('MAIN_PATH')
-
 import pandas as pd
 from omegaconf import OmegaConf, open_dict
 
@@ -114,10 +111,10 @@ class Agent:
             secondary_columns = ['epi', 't', 'reward', 'normo', 'hypo', 'sev_hypo', 'hyper', 'lgbi',
                              'hgbi', 'ri', 'sev_hyper', 'aBGP_rmse', 'cBGP_rmse']
             data = []
-            FOLDER_PATH = '/results/'+self.args.experiment_folder+'/testing/'
+            FOLDER_PATH = self.args.experiment_folder+'/testing/'
             for i in range(0, self.args.n_val_trials):
                 test_i = 'worker_episode_'+str(self.args.validation_agent_id_offset+i)+'.csv'
-                df = pd.read_csv(MAIN_PATH +FOLDER_PATH+ '/'+test_i)
+                df = pd.read_csv(FOLDER_PATH+ '/'+test_i)
                 normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper = time_in_range(df['cgm'])
                 reward_val = df['rew'].sum()*(100/288)
                 e = [[i, df.shape[0], reward_val, normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper, 0, 0]]
