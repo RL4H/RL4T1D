@@ -23,20 +23,24 @@ import matplotlib.pyplot as plt
 # import numpy as np
 #arguments (hyperparameters)
 parser = argparse.ArgumentParser()
+parser.add_argument("--patient_id", type=int, default = 0)#patient id
 parser.add_argument("--n_expert", type = int, default=3) #Number of expert trajs
 parser.add_argument("--l_expert", type=int, default=5) #Max length of expert traj
 parser.add_argument("--i_irl", type=int,default=5) #iterations irl
+parser.add_argument("--i_update_init", type=int, default = 3)#updates used to initally train rl agent
 parser.add_argument("--i_update", type=int,default=3)#updates per rl train
 parser.add_argument("--n_sim", type=int, default=2) #Number of sim traj
 parser.add_argument("--l_sim", type=int, default=5)#max length of sim traj
-parser.add_argument("--dvc", default = 'cuda', type=str, choices=['cpu','cuda'] )#device for pytorch
+parser.add_argument("--dvc", default = 'cpu', type=str, choices=['cpu','cuda'] )#device for pytorch
 
 input_args = parser.parse_args()
 
 #Hyperparameters of experiment
+patient_id = input_args.patient_id
 traj_len = input_args.l_expert
 n_samples = input_args.n_expert
 irl_max_iters = input_args.i_irl
+rl_u_init = input_args.i_update_init
 rl_updates = input_args.i_update
 sim_samples = input_args.n_sim #might wan to split in rl update sim and mc sim
 sim_length = input_args.l_sim
@@ -57,7 +61,7 @@ start = time.time()
 expert_samples = []
 
 args = load_arguments(
-    overrides=["experiment.name=test2", "agent=clinical_treatment", "env.patient_id=0", "agent.debug=True",
+    overrides=["experiment.name=test2", "agent=clinical_treatment", "env.patient_id="+str(patient_id), "agent.debug=True",
                "hydra/job_logging=disabled"])
 patients, env_ids = get_patient_env()
 
@@ -106,7 +110,8 @@ print('expert_fin')
 #Now we have the expert samples, try to get the RL environment working
 #print("Trying to initialise irl agent")
 irl_agent = MaxMarginProjection(args=args, exp_samples=expert_samples, n_traj=sim_samples,
-                                traj_len=sim_length,rl_updates = rl_updates, env=env_clin, k=k, device=device)  #create the irl agent
+                                traj_len=sim_length, rl_u_init=rl_u_init,
+                                rl_updates=rl_updates, env=env_clin, k=k, device=device)  #create the irl agent
 print("Begin training irl agent")
 iters, data = irl_agent.train(max_iters=irl_max_iters)  #train the irl agent and gain data for plotting
 print("Concluded training")
