@@ -14,5 +14,5 @@
 
 module load pytorch/1.9.0
 
-python3 /scratch/sj53/jt3998/RL4T1D/experiments/run_irl.py --n_expert 100 --l_expert 256 --i_irl 50 --i_update 100 --n_sim 100 --l_sim 256
+python3 /scratch/sj53/jt3998/RL4T1D/experiments/run_irl.py --patient_id 0 --n_expert 100 --l_expert 256 --i_irl 50 --i_update_init 100 --i_update 25 --n_sim 100 --l_sim 256
 wait
