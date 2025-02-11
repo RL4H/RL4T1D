@@ -110,7 +110,7 @@ class ActorCritic:  #changed n_obs <- n_state
         s = s.flatten()
         self.Actor.training = False
         self.Critic.training = False
-        return self.Actor(torch.Tensor(s).to(self.device)), self.Critic(torch.Tensor(s).to(self.device))
+        return self.Actor(torch.tensor(s).to(self.device)), self.Critic(torch.tensor(s).to(self.device))
 
     def get_action(self, s):
         """

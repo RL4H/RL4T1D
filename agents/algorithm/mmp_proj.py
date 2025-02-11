@@ -43,7 +43,7 @@ n_hidden = 25
 
 #Class that does the main irl
 class MaxMarginProjection:
-    def __init__(self, args, exp_samples, n_traj, traj_len, rl_updates,device='cpu', discount_factor=0.9, tol=1e-10,
+    def __init__(self, args, exp_samples, n_traj, traj_len, rl_u_init,rl_updates,device='cpu', discount_factor=0.9, tol=1e-10,
                  env=None, k=2):
         self.device = device
         self.rl_agent = ActorCritic(n_obs, n_action, n_hidden, device=self.device)
@@ -52,6 +52,7 @@ class MaxMarginProjection:
         self.tol = tol
         self.n_traj = n_traj
         self.traj_len = traj_len
+        self.rl_u_init = rl_u_init
         self.rl_updates = rl_updates
         #self.env = T1DEnv(args=args.env, mode='testing', worker_id=1)
         self.env = env  #I think want the sam environment
@@ -59,9 +60,8 @@ class MaxMarginProjection:
         self.k = k
         self.args = args
         self.iters = 0
-        self.irl_path = os.path.abspath('results/mmp_proj_test/irl')
-        print(os.path.dirname(os.path.abspath(__file__)))
-        self.rl_path = os.path.abspath('results/mmp_proj_test/rl')
+        self.irl_path = os.path.abspath('results/mmp_proj_test/irl.txt')
+        self.rl_path = os.path.abspath('results/mmp_proj_test/rl.txt')
         self.controlspace = ControlSpace(control_space_type=self.args.agent.control_space_type,
                                          insulin_min=self.env.action_space.low[0],
                                          insulin_max=self.env.action_space.high[0])
@@ -154,7 +154,7 @@ class MaxMarginProjection:
         # Now use RL algorithm to find a new policy
         #print('rl_train')
         train_actor_critic(args=self.args, env=self.env, estimator=self.rl_agent, controlspace=self.controlspace,
-                     episode_length=self.traj_len, n_episode=self.rl_updates,
+                     episode_length=self.traj_len, n_episode=self.rl_u_init,
                      gamma=self.discount_factor, device=self.device,
                      trajectories=self.n_traj)
         print('rl_train_fin first time')
