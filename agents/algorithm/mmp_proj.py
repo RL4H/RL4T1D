@@ -147,7 +147,7 @@ class MaxMarginProjection:
         self.w = expert_exp - self.proj
         #wrting to results
         f1 = open(self.irl_path, 'w')
-        f1.write(", ".join([str(iters), str(self.proj), str(self.w)])+"\n")
+        f1.write(", ".join(['_'+str(iters), str(self.proj), str(self.w)])+"\n")
         f1.close()
         #print('irl: ', iters, self.proj, self.w)
         self.rl_agent.update_reward(self.w.to(self.device))  # update reward function
@@ -170,7 +170,7 @@ class MaxMarginProjection:
             self.proj = p
             self.w = w
             file = open(self.irl_path, 'a')
-            file.write(", ".join([str(iters), str(self.proj), str(self.w),str(t) ])+"\n")
+            file.write(", ".join(['_'+str(iters), str(self.proj), str(self.w),str(t) ])+"\n")
             file.close()
             converged = t <= self.tol or iters == max_iters
             if converged:
