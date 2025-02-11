@@ -60,6 +60,7 @@ class MaxMarginProjection:
         self.args = args
         self.iters = 0
         self.irl_path = os.path.abspath('results/mmp_proj_test/irl')
+        print(os.path.dirname(os.path.abspath(__file__)))
         self.rl_path = os.path.abspath('results/mmp_proj_test/rl')
         self.controlspace = ControlSpace(control_space_type=self.args.agent.control_space_type,
                                          insulin_min=self.env.action_space.low[0],
