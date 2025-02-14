@@ -35,6 +35,10 @@ class RolloutBuffer:
         self.v_pred = torch.rand(self.n_training_workers, self.n_step + 1, device=self.device)
         self.first_flag = torch.rand(self.n_training_workers, self.n_step + 1, device=self.device)
 
+        self.agent_id = args.agent
+        if self.agent_id == "g2p2c":
+            self.cgm_target = torch.rand(self.n_training_workers, self.n_step, device=self.device)
+
     def save_rollout(self, training_agent_index):
         data = self.Rollout.get()
         self.states[training_agent_index] = data['obs']
@@ -43,6 +47,9 @@ class RolloutBuffer:
         self.v_pred[training_agent_index] = data['v_pred']
         self.reward[training_agent_index] = data['reward']
         self.first_flag[training_agent_index] = data['first_flag']
+
+        if self.agent_id == "g2p2c":
+            self.cgm_target[training_agent_index] = data['cgm_target']
 
     def compute_gae(self):  # TODO: move to different script, optimise/resolve moving across devices back and forth.
         orig_device = self.v_pred.device
@@ -63,7 +70,7 @@ class RolloutBuffer:
         vtarg = vpred[:, :-1] + adv
         return adv.to(device=orig_device), vtarg.to(device=orig_device)
 
-    def prepare_rollout_buffer(self):
+    def prepare_rollout_buffer(self, AuxiliaryBuffer=None):
 
         if self.return_type == 'discount':
             if self.normalize_reward:  # reward normalisation
@@ -83,6 +90,10 @@ class RolloutBuffer:
         first_flag = self.first_flag.view(-1)
         buffer_len = s_hist.shape[0]
 
+        if self.agent_id == "g2p2c":
+            cgm_target = self.cgm_target.view(-1)
+            AuxiliaryBuffer.update(s_hist, cgm_target, act, first_flag)
+
         if self.shuffle_rollout:
             rand_perm = torch.randperm(buffer_len)
             s_hist = s_hist[rand_perm, :, :]  # torch.Size([batch, n_steps, features])
@@ -93,8 +104,8 @@ class RolloutBuffer:
 
         return dict(states=s_hist, action=act, log_prob_action=logp, value_target=v_targ, advantage=adv, len=buffer_len)
 
-    def get(self):
-        return self.prepare_rollout_buffer()
+    def get(self, AuxiliaryBuffer=None):
+        return self.prepare_rollout_buffer(AuxiliaryBuffer)
 
 
 class Rollout:

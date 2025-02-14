@@ -39,6 +39,14 @@ agent:
   control_space_type: 'exponential'
   mlflow_track: ${mlflow.track}
 
+  t_meal: ${env.t_meal}  # only for g2p2c need to refactor
+  action_scale: ${env.insulin_max}  # only for g2p2c need to refactor
+  insulin_min: ${env.insulin_min} # only for g2p2c need to refactor
+  insulin_max: ${env.insulin_max} # only for g2p2c need to refactor
+  feature_history: ${env.obs_window}  # only for g2p2c need to refactor
+  glucose_min: ${env.glucose_min}
+  glucose_max: ${env.glucose_max}
+
   training_agent_id_offset: 5  # 5, 6, 7, ... (5+n_training_workers)
   testing_agent_id_offset: 5000  # 5000, 5001, 5002, ... (5000+n_testing_workers)
   validation_agent_id_offset: 6000  # 6000, 6001, 6002, ... (6000+n_val_trials)

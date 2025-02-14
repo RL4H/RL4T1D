@@ -11,3 +11,6 @@ n_val_trials: 3
 # for sac
 batch_size: 32
 replay_buffer_size: 1024
+
+# for g2p2c
+aux_buffer_max: 1024

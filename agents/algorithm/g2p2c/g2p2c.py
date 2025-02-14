@@ -23,6 +23,7 @@ class G2P2C:
 
         self.completed_interactions = 0
 
+
         self.start_planning = False
         self.distribution = torch.distributions.Normal
 

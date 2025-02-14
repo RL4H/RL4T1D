@@ -30,7 +30,9 @@ n_vf_epochs: 5
 # phase2: aux model learning
 aux_mode: 'dual'  # refactor
 aux_buffer_max: 25000 # must be larger than steps at one update
+
 aux_frequency: 1  # frequency of updates
+
 aux_vf_coef: 0.01
 aux_pi_coef: 0.01
 aux_batch_size: 1024
@@ -58,6 +60,8 @@ max_test_epi_len: 288  # testing conducted for 1 day: 12 steps/hr * 24 hours
 
 # validation
 n_val_trials: 500
+
+
 
 # TODO: deprecated, refactor
 kl: 1 # experimenting KL implementation
