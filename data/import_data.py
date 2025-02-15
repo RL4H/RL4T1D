@@ -8,22 +8,21 @@ import pickle
 import json
 from omegaconf import OmegaConf
 
-AGE_VALUES = ["adolescent", "adult"]
+AGE_VALUES = ["adolescent", "adult"] 
+
 MODEL_TYPES = ["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC"]
 
+# stores which encoding version is used for each model's data
 FOLDER_TYPE_MODELS = ["A2C", "AUXML", "G2P2C", "PPO", "SAC"]
 CSV_TYPE_MODELS = ["BBHE", "BBI"]
 
+# stores where object is saved to when run as main
 OBJECT_SAVE_FILE = "../data" + "/object_save/data_dictionary.pkl"
 
-
-"""
-Ideas:
-- Might want to add a column for patient id
-
-"""
+# stores which file names are excluded for csv type model data folders
 EXCLUDE_FILES = ["quadratic.csv", "real.csv"]
 
+# stores which words are exclusionary to be contained in file names for the folder type data, within the testing/data/ and training/data/ subfolders.
 EXCLUDE_IN_FILES = "summary"
 
 def import_all_data(
@@ -33,6 +32,18 @@ def import_all_data(
         csv_type_list = CSV_TYPE_MODELS,
         folder_type_list = FOLDER_TYPE_MODELS
         ):
+    """ Imports simulation data from a given folder.
+
+    Args:
+        dest (str, optional): The folder to search through. Defaults to "../data".
+        age_range (_type_, optional): The list of ages to retrieve data from. Defaults to AGE_VALUES.
+        model_range (_type_, optional): The models to retrieve data from. Defaults to MODEL_TYPES.
+        csv_type_list (_type_, optional): The list of model names encoded as csv type data. Defaults to CSV_TYPE_MODELS.
+        folder_type_list (_type_, optional): The list of model names encoded as folder type data. Defaults to FOLDER_TYPE_MODELS.
+
+    Returns:
+        _type_: A layered dictionary contains numpy arrays of simulation data as columns in each trial.
+    """
     
     data_dict = dict() #consider file type for this! will be very slow
 
@@ -156,41 +167,43 @@ if __name__ == "__main__":
     READ_FROM_PICKLE = False
 
     if READ_FROM_PICKLE:
-        start_time = datetime.now()
+        start_time = datetime.now() #start the read timer
 
 
         file_dest="../data/object_save/data_dictionary.pkl"
         print("Starting read from file",file_dest)
-        data = import_from_obj(file_dest)
+        data = import_from_obj(file_dest) #import data from pickle object
 
-        end_time = datetime.now()
+        end_time = datetime.now() #end the read timer
         duration = end_time - start_time
         print("Executed in",duration.total_seconds(), "seconds")
-        file_size = os.path.getsize(file_dest)
+
+        file_size = os.path.getsize(file_dest) #obtain file size of read file
         print(f"Read file has size {file_size / (1024 * 1024):.2f}MB")
 
     else:
-        start_time = datetime.now()
+        start_time = datetime.now() #start the write timer
         file_dest="../data/object_save/data_dictionary.pkl"
         
-        data = import_all_data("../data")
+        data = import_all_data("../data") #import data from files
         print("\nSuccesfully imported.")
 
-        end_time = datetime.now()
+        end_time = datetime.now() #end the read timer
         duration = end_time - start_time
         print(f"Executed in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s")
 
-        obj_size = sys.getsizeof(data)
+        obj_size = sys.getsizeof(data) #get size of object #FIXME doesn't seem to work correctly
         obj_size_mb = obj_size / (1024 ** 2)
         print("Returned object is",round(obj_size_mb,10),"MB")
-        for age_k in data:
+
+        for age_k in data: #display length of data by age group and model name
             print("Age:",age_k)
             for model_k in data[age_k]:
                 print("\tModel:", model_k, "with length", len(data[age_k][model_k]))
         
         if SAVE_TO_PICKLE:
             save_to_obj_file(data, file_dest)
-            file_size = os.path.getsize(file_dest)
-            print(f"Object saved to {file_dest} with size {file_size / (1024 * 1024):.2f}MB")
+            file_size = os.path.getsize(file_dest) #calculate size of saved file
+            print(f"Object saved to {file_dest} with size {file_size / (1024 * 1024):.2f}MB") 
         
 
