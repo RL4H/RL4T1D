@@ -2,6 +2,7 @@
 import numpy as np
 import torch
 import os
+import time
 
 from environment.t1denv import T1DEnv
 
@@ -153,15 +154,21 @@ class MaxMarginProjection:
         self.rl_agent.update_reward(self.w.to(self.device))  # update reward function
         # Now use RL algorithm to find a new policy
         #print('rl_train')
+
+        t_0 = time.perf_counter()
         train_actor_critic(args=self.args, env=self.env, estimator=self.rl_agent, controlspace=self.controlspace,
                      episode_length=self.traj_len, n_episode=self.rl_u_init,
                      gamma=self.discount_factor, device=self.device,
                      trajectories=self.n_traj)
-        print('rl_train_fin first time')
+        t_1 = time.perf_counter()
+        print('RL: ', (t_1 - t_0)/60)
+        
         pol_exp = self.policy_expectations() #torch tensor of scalars
         while not converged:
             #perform projection
+            t_0 = time.perf_counter()
             p, w, t = self.projection(expert_exp, pol_exp, self.proj)
+        
             p.to(self.device)
             w.to(self.device)
             data.append(t)
@@ -177,15 +184,23 @@ class MaxMarginProjection:
                 break
             #print("w in mmp: ", self.w)
             self.rl_agent.update_reward(self.w)  #update reward function
+            t_1= time.perf_counter()
+            print("IRL: ", (t_1 - t_0)/60)
             #Now use RL algorithm to find a new policy
             print("rl_train second time")
+            t_0 = time.perf_counter()
             train_actor_critic(args=self.args, env=self.env, estimator=self.rl_agent, controlspace=self.controlspace,
                          episode_length=self.traj_len, n_episode=self.rl_updates,
                          gamma=self.discount_factor, device = self.device,
                          trajectories=self.n_traj)  #i think currently only does one pass
+            t_1= time.perf_counter()
+            print("RL: ", (t_1 - t_0)/60)
             #print("rl_train_fin")
             #print("pol_exp")
+            t_0 = time.perf_counter()
             pol_exp = self.policy_expectations()  #expectations of new policy
+            t_1= time.perf_counter()
+            print("Expectation: ", (t_1 - t_0)/60)
             #print(pol_exp)
             #print("pol_exp_fin")
 
