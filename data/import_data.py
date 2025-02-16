@@ -10,11 +10,33 @@ from omegaconf import OmegaConf
 
 AGE_VALUES = ["adolescent", "adult"] 
 
+
+
+
 MODEL_TYPES = ["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC"]
 
 # stores which encoding version is used for each model's data
 FOLDER_TYPE_MODELS = ["A2C", "AUXML", "G2P2C", "PPO", "SAC"]
+FOLDER_TYPE_EXPERTS = ["training","testing","evaluation"]
+
 CSV_TYPE_MODELS = ["BBHE", "BBI"]
+CSV_TYPE_EXPERTS = ["clinical"]
+
+
+ADOLESCENT_INDIVIDUAL_NUMBER = 10
+ADULT_INDIVIDUAL_NUMBER = 10
+
+ADULT_INDIVIDUALS = ["adult" + str(num) for num in range(ADULT_INDIVIDUAL_NUMBER)]
+ADOLESCENT_INDIVIDUALS = ["adolescent" + str(num) for num in range(ADOLESCENT_INDIVIDUAL_NUMBER)]
+
+CLINICAL_INDIVIDUALS = []
+for model in CSV_TYPE_MODELS:
+    for age in AGE_VALUES:
+        CLINICAL_INDIVIDUALS.append(age + '_' + model + "_clinical_0")
+
+INDIVIDUALS = ADULT_INDIVIDUALS + ADOLESCENT_INDIVIDUALS + CLINICAL_INDIVIDUALS
+
+
 
 # stores where object is saved to when run as main
 OBJECT_SAVE_FILE = "../data" + "/object_save/data_dictionary.pkl"
@@ -29,106 +51,119 @@ def import_all_data(
         dest="../data", 
         age_range = AGE_VALUES,
         model_range = MODEL_TYPES,
+        individual_range = INDIVIDUALS,
         csv_type_list = CSV_TYPE_MODELS,
-        folder_type_list = FOLDER_TYPE_MODELS
+        folder_type_list = FOLDER_TYPE_MODELS,
+        show_progress = False
         ):
     """ Imports simulation data from a given folder.
 
     Args:
         dest (str, optional): The folder to search through. Defaults to "../data".
-        age_range (_type_, optional): The list of ages to retrieve data from. Defaults to AGE_VALUES.
-        model_range (_type_, optional): The models to retrieve data from. Defaults to MODEL_TYPES.
-        csv_type_list (_type_, optional): The list of model names encoded as csv type data. Defaults to CSV_TYPE_MODELS.
-        folder_type_list (_type_, optional): The list of model names encoded as folder type data. Defaults to FOLDER_TYPE_MODELS.
+        age_range (list[str], optional): The list of ages to retrieve data from. Defaults to AGE_VALUES.
+        model_range (list[str], optional): The models to retrieve data from. Defaults to MODEL_TYPES.
+        individual_range (list[str], optional): The individuals to retrieve data from for folder type data. Defaults to INDIVIDUALS.
+        csv_type_list (list[str], optional): The list of model names encoded as csv type data. Defaults to CSV_TYPE_MODELS.
+        folder_type_list (list[str], optional): The list of model names encoded as folder type data. Defaults to FOLDER_TYPE_MODELS.
+        show_progress (bool, optional): Decides if progress is printed to console. Defaults to False.
 
     Returns:
         _type_: A layered dictionary contains numpy arrays of simulation data as columns in each trial.
     """
     
     data_dict = dict() #consider file type for this! will be very slow
+    
+    #set up dictionary structure
+    # individual > expert > model > [trial data]
+    for individual in individual_range:
+        data_dict[individual] = dict()
+        for expert in CSV_TYPE_EXPERTS:
+            data_dict[individual][expert] = dict()
+            for model in CSV_TYPE_MODELS:
+                data_dict[individual][expert][model] = []
+        for expert in FOLDER_TYPE_EXPERTS:
+            data_dict[individual][expert] = dict()
+            for model in FOLDER_TYPE_MODELS:
+                data_dict[individual][expert][model] = []
 
     for age in age_range:
-        data_dict[age] = dict()
+        if show_progress: print("=Age:",age)
         for model in model_range:
             model_folder = dest + '/' + age + '/' + model + '/'
-            print(model_folder)
 
+            if show_progress: print(model_folder)
             if model in csv_type_list:
-                data_dict[age][model] = []
+                run_individual = age + '_' + model + "_clinical_0"
+                if run_individual in individual_range:
 
-                available_files = os.listdir(model_folder)
+                    available_files = os.listdir(model_folder)
 
-                for excl_file in EXCLUDE_FILES:
-                    if excl_file in available_files: 
-                        available_files.remove(excl_file)
-                        print("\t>>Excluded",excl_file,"from",model_folder)
+                    for excl_file in EXCLUDE_FILES:
+                        if excl_file in available_files: 
+                            available_files.remove(excl_file)
+                            if show_progress: print("\t>>Excluded",excl_file,"from",model_folder)
 
-                for file in available_files:
-                    run_individual = age.capitalize() + file.split('_')[2]
-                    expert_type = "clinical"
-                    file_dest = model_folder + file
-                    print('\t' + file_dest)
-                    data_dict[age][model].append(import_from_csv(file_dest))
+                    for file in available_files:
+                            expert_type = "clinical"
+                            file_dest = model_folder + file
+                            if show_progress: print('\t' + file_dest, run_individual)
+                            data_dict[run_individual][expert_type][model].append(import_from_csv_as_rows(file_dest))
 
                 # data_dict[age][model] = np.array(data_dict[age])
 
 
             elif model in folder_type_list:
                 available_folders = os.listdir(model_folder)
-                data_dict[age][model] = []
                 for folder in available_folders:
                     folder_dest = model_folder + folder
-                    print('\t' + folder_dest)
-                    args = open_arg_file(folder_dest + '/args.json')
                     run_seed = folder[-1]
-                    run_individual = age.capitalize() + folder[-3]
+                    run_individual = age + folder[-3]
+
+                    if run_individual in individual_range:
+                        if show_progress: print('\t' + folder_dest)
+                        args = open_arg_file(folder_dest + '/args.json')
+                        #taking validation and testing together in one list
+                        for trial_folder in ['/testing/data/', '/training/data/']:
+                            trial_folder_dest = folder_dest + trial_folder
+                            available_files = os.listdir(trial_folder_dest)
+                            for file in available_files:
+                                if not EXCLUDE_IN_FILES in file:
+                                    #decide expert type
+                                    worker_number = int(file.split('_')[2][:-4])
+                                    if trial_folder == "/training/data/": expert_type = "training"
+                                    elif 6000 > worker_number >= 5000: expert_type = "testing"
+                                    elif worker_number >= 6000: expert_type = "evaluation"
+
+                                    file_dest = trial_folder_dest + file
+                                    new_data_arrays = import_from_big_csv_as_rows(file_dest)
+                                    for new_data_array in new_data_arrays:
+                                        data_dict[run_individual][expert_type][model].append(new_data_array)
 
 
-                    #taking validation and testing together in one list
-                    for trial_folder in ['/testing/data/', '/training/data/']:
-                        trial_folder_dest = folder_dest + trial_folder
-                        available_files = os.listdir(trial_folder_dest)
-                        for file in available_files:
-                            if trial_folder == "/testing/data/": expert_type = "testing"
-                            elif 6000 > worker_number >= 5000: expert_type = "training"
-                            elif worker_number >= 6000: expert_type = "eval"
-                            if not EXCLUDE_IN_FILES in file:
-                                worker_number = int(file.split('_')[2][:-4])
-                                file_dest = trial_folder_dest + file
-                                new_data_dicts = import_from_big_csv(file_dest)
-                                for new_data_dict in new_data_dicts:
-                                    data_dict[age][model].append(new_data_dict)
-
-
-                # data_dict[age][model] = np.array(data_dict)
 
     return data_dict
 
 CSV_HEADERS = ["cgm", "carbs", "ins", "t"]
-def import_from_csv(file_dest, headers=CSV_HEADERS): #imports data from a csv file
+def import_from_csv_as_rows(file_dest, headers=CSV_HEADERS):
     df = pd.read_csv(file_dest, header=None, names=headers)
-    data_dict = {col: df[col].to_numpy(dtype=float) for col in headers}
-    return data_dict
+    data_array = df.to_numpy()
+    return data_array
 
-def import_from_big_csv(file_dest, columns=["cgm","meal","rl_ins","t"]):
-    df = pd.read_csv(file_dest, usecols=columns + ["epi"])
+def import_from_big_csv_as_rows(file_dest, columns=["cgm","meal","rl_ins","t"]):
+    use_columns = ["epi"] + columns
+    df = pd.read_csv(file_dest, usecols=use_columns)
+    df = df[use_columns] #reorders dataframe to same as other setup
+    data_array = df.to_numpy()
 
     end_episodes = max([int(float(i)) for i in df["epi"]])
     start_episode = min([int(float(i)) for i in df["epi"]])
     n_episodes = end_episodes - start_episode + 1
-    data_dicts = [dict() for n in range(n_episodes)]
+    episode_list = []
 
-    copy_dict = {col: df[col].to_numpy(dtype=float) for col in columns + ["epi"]}
-
-    copy_dict["ins"] = copy_dict["rl_ins"]
-    copy_dict["carbs"] = copy_dict["meal"]
-    del copy_dict["meal"]
-    del copy_dict["rl_ins"]
-
-     #obtain index boundaries for each episode
+    #obtain index boundaries for each episode
     episode_indices = [0]
     current_episode = start_episode
-    for c,row_episode in enumerate(copy_dict["epi"]):
+    for c,row_episode in enumerate(df["epi"]):
         if int(float(row_episode)) != current_episode:
             current_episode += 1
             episode_indices.append(c)
@@ -137,11 +172,9 @@ def import_from_big_csv(file_dest, columns=["cgm","meal","rl_ins","t"]):
     #assign rows for each episode
     for n in range(n_episodes):
         current_slice = slice(episode_indices[n], episode_indices[n+1])
-        for k in copy_dict: data_dicts[n][k] = copy_dict[k][current_slice]
+        episode_list.append( data_array[current_slice])
 
-
-    return data_dicts
-
+    return episode_list
 
 
 def import_from_obj(file_dest=OBJECT_SAVE_FILE):
@@ -160,32 +193,113 @@ def open_arg_file(file_dest):
         fp.close()
     return OmegaConf.create(args_dict)
     
+def convert_to_frames(data_obj):
+    pass
+
+
 if __name__ == "__main__":
 
+    SAVE_TO_PICKLE = False #decides if data imported from files is saved using pickle or not at all
+    IMPORT_MODE = "pickle" #can be `files` or `pickle`
+    SINGLE_INDIVIDUAL_FILES = True #decides if files are read per individual or all at once
 
-    SAVE_TO_PICKLE = True
-    READ_FROM_PICKLE = False
+    if IMPORT_MODE == "pickle": #reading data from pickle
 
-    if READ_FROM_PICKLE:
-        start_time = datetime.now() #start the read timer
+        if SINGLE_INDIVIDUAL_FILES: #read from the files for each individual
+            start_time = datetime.now() #start the read timer
+            overall_file_size = 0
 
+            overall_data_dict = dict()
+            for individual in INDIVIDUALS:
+                file_dest="../data/object_save/data_dictionary_" + individual + "_data.pkl"
+                print("Starting import for",individual,"from",file_dest)
+                
+                data = import_from_obj(file_dest) #import data from pickle object
+                file_size = os.path.getsize(file_dest) #obtain file size of read file
+                print(f"\t{file_dest} has size {file_size / (1024 * 1024):.2f}MB")
+                overall_file_size += file_size
 
-        file_dest="../data/object_save/data_dictionary.pkl"
-        print("Starting read from file",file_dest)
-        data = import_from_obj(file_dest) #import data from pickle object
+                overall_data_dict[individual] = data[individual]
 
-        end_time = datetime.now() #end the read timer
-        duration = end_time - start_time
-        print("Executed in",duration.total_seconds(), "seconds")
-
-        file_size = os.path.getsize(file_dest) #obtain file size of read file
-        print(f"Read file has size {file_size / (1024 * 1024):.2f}MB")
-
-    else:
-        start_time = datetime.now() #start the write timer
-        file_dest="../data/object_save/data_dictionary.pkl"
         
-        data = import_all_data("../data") #import data from files
+            end_time = datetime.now() #end the read timer
+            duration = end_time - start_time
+            print("Executed in",duration.total_seconds(), "seconds")
+            print(f"Overall files have size {overall_file_size / (1024 * 1024):.2f}MB")
+
+        elif not SINGLE_INDIVIDUAL_FILES: #read from the single overall file
+            start_time = datetime.now() #start the read timer
+
+            file_dest="../data/object_save/data_dictionary.pkl"
+            print("Starting read from file",file_dest)
+            data = import_from_obj(file_dest) #import data from pickle object
+
+            end_time = datetime.now() #end the read timer
+            duration = end_time - start_time
+            print("Executed in",duration.total_seconds(), "seconds")
+
+            file_size = os.path.getsize(file_dest) #obtain file size of read file
+            print(f"Read file has size {file_size / (1024 * 1024):.2f}MB")
+
+    elif IMPORT_MODE == "files" and SINGLE_INDIVIDUAL_FILES: #import data of each individuals seperately (useful if you have limited RAM on your computer)
+        overall_start_time = datetime.now()
+
+        total_importing_time = 0
+        total_saving_time = 0
+
+        for individual in INDIVIDUALS:
+            print("Starting import for",individual)
+            start_time = datetime.now() #start the write timer
+            file_dest="../data/object_save/data_dictionary_" + individual + "_data.pkl"
+            
+            data = import_all_data("../data", show_progress=False, individual_range=[individual]) #import data from files
+            print("\nSuccesfully imported.")
+
+            end_time = datetime.now() #end the read timer
+            duration = end_time - start_time
+            total_importing_time += duration.total_seconds()
+            print(f"Data for {individual} model imported in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s")
+
+            obj_size = sys.getsizeof(data) #get size of object #FIXME doesn't seem to work correctly
+            obj_size_mb = obj_size / (1024 ** 2)
+            print("Returned object is",round(obj_size_mb,10),"MB")
+
+            print("===Data Breakdown:===")
+            for individual in data:
+                print("Individual:",individual)
+                for expert in data[individual]:
+                    print("\t",expert,':',sep='')
+                    for model in data[individual][expert]:
+                        specific_length = len(data[individual][expert][model])
+                        print("\t\tModel", model,"with length",specific_length)
+                        if specific_length > 0:
+                            print("\t\t\tItem 0 has shape",data[individual][expert][model][0].shape)
+            
+            if SAVE_TO_PICKLE: #save the data to pickle
+                start_time = datetime.now() #start the write timer
+                print("Writing file object, this may take some time.")
+                save_to_obj_file(data, file_dest)
+                file_size = os.path.getsize(file_dest) #calculate size of saved file
+                print(f"Object saved to {file_dest} with size {file_size / (1024 * 1024):.2f}MB") \
+                
+                end_time = datetime.now() #end the read timer
+                duration = end_time - start_time
+                total_saving_time += duration.total_seconds()
+                print(f"Saved object in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s\n")
+            
+            del data #wipe data from memory to clear space
+
+        overall_end_time = datetime.now()
+        print(f"Whole procedure executed in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s")
+        print(f"Importing took {int(total_importing_time // 60)}m {total_importing_time % 60 :.1f}s")
+        print(f"Saving took {int(total_saving_time // 60)}m {total_saving_time % 60 :.1f}s")
+
+    elif IMPORT_MODE == "files" and not SINGLE_INDIVIDUAL_FILES: #read all data as single object and saves it as such
+
+        start_time = datetime.now() #start the write timer
+        file_dest="../data/object_save/data_dictionary_whole.pkl"
+        
+        data = import_all_data("../data", show_progress=True) #import data from files
         print("\nSuccesfully imported.")
 
         end_time = datetime.now() #end the read timer
@@ -202,8 +316,14 @@ if __name__ == "__main__":
                 print("\tModel:", model_k, "with length", len(data[age_k][model_k]))
         
         if SAVE_TO_PICKLE:
+            start_time = datetime.now() #start the write timer
+            print("Writing file object, this may take some time.")
             save_to_obj_file(data, file_dest)
             file_size = os.path.getsize(file_dest) #calculate size of saved file
-            print(f"Object saved to {file_dest} with size {file_size / (1024 * 1024):.2f}MB") 
+            print(f"Object saved to {file_dest} with size {file_size / (1024 * 1024):.2f}MB") \
+            
+            end_time = datetime.now() #end the read timer
+            duration = end_time - start_time
+            print(f"Saved object in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s")
         
 

@@ -7,3 +7,4 @@ results/
 experiments/nci/help.txt
 data/adult
 data/adolescent
+data/object_save
