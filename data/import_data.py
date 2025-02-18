@@ -107,7 +107,15 @@ def import_all_data(
                             expert_type = "clinical"
                             file_dest = model_folder + file
                             if show_progress: print('\t' + file_dest, run_individual)
-                            data_dict[run_individual][expert_type][model].append(import_from_csv_as_rows(file_dest))
+                            meta_col = '_'.join([
+                                model, 
+                                expert_type, 
+                                run_seed, 
+                                file.split('_')[-2], 
+                                file.split('_')[-1].split('.')[0],
+                                run_individual
+                            ])
+                            data_dict[run_individual][expert_type][model].append(import_from_csv_as_rows(file_dest), meta_col=meta_col)
 
                 # data_dict[age][model] = np.array(data_dict[age])
 
@@ -135,7 +143,15 @@ def import_all_data(
                                     elif worker_number >= 6000: expert_type = "evaluation"
 
                                     file_dest = trial_folder_dest + file
-                                    new_data_arrays = import_from_big_csv_as_rows(file_dest)
+                                    meta_col_func = (lambda epi : '_'.join([
+                                        model, 
+                                        expert_type, 
+                                        run_seed, 
+                                        str(worker_number), 
+                                        str(epi),
+                                        run_individual
+                                    ]))
+                                    new_data_arrays = import_from_big_csv_as_rows(file_dest, meta_col_func=meta_col_func)
                                     for new_data_array in new_data_arrays:
                                         data_dict[run_individual][expert_type][model].append(new_data_array)
 
@@ -144,15 +160,18 @@ def import_all_data(
     return data_dict
 
 CSV_HEADERS = ["cgm", "carbs", "ins", "t"]
-def import_from_csv_as_rows(file_dest, headers=CSV_HEADERS):
+def import_from_csv_as_rows(file_dest, headers=CSV_HEADERS, meta_col=""):
     df = pd.read_csv(file_dest, header=None, names=headers)
+    df["meta"] = meta_col
+    df = df[headers + ["meta"]] #makes order consistent to other imports
     data_array = df.to_numpy()
     return data_array
 
-def import_from_big_csv_as_rows(file_dest, columns=["cgm","meal","rl_ins","t"]):
+def import_from_big_csv_as_rows(file_dest, columns=["cgm","meal","rl_ins","t"], meta_col_func= lambda x : str(x)):
     use_columns = ["epi"] + columns
     df = pd.read_csv(file_dest, usecols=use_columns)
-    df = df[use_columns] #reorders dataframe to same as other setup
+    df["meta"] = df["epi"].apply(lambda epi : meta_col_func(str(int(float(epi))))) #adds meta column, including episode
+    df = df[use_columns + ["meta"]] #reorders dataframe to same as other setup
     data_array = df.to_numpy()
 
     end_episodes = max([int(float(i)) for i in df["epi"]])
