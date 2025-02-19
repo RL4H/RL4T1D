@@ -223,8 +223,8 @@ def open_arg_file(file_dest):
         fp.close()
     return OmegaConf.create(args_dict)
     
-def convert_to_frames(data_obj):
-    pass
+
+
 
 
 if __name__ == "__main__":
