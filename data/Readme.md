@@ -14,6 +14,9 @@ The data itself is too large to be stored in the repository, so to use it on you
         --- G2P2C
         --- PPO
         --- SAC
+        --- TD3
+        --- DPG
+        --- DDPG
     --- adult
         --- A2C
         --- AUXML
@@ -22,6 +25,7 @@ The data itself is too large to be stored in the repository, so to use it on you
         --- G2P2C
         --- PPO
         --- SAC
+        --- TD3
 ``` 
 
 Additionally, if the SAVE_TO_PICKLE variable is set to true when importing the data (running `import_data.py` as main), a pickled version of the data will be stored in `object_save/object_dictionary.pkl`.

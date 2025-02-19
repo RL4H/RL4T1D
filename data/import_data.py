@@ -13,11 +13,14 @@ AGE_VALUES = ["adolescent", "adult"]
 
 
 
-MODEL_TYPES = ["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC"]
+MODEL_TYPES = ["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC", "TD3", "DDPG", "DPG"]
 
 # stores which encoding version is used for each model's data
-FOLDER_TYPE_MODELS = ["A2C", "AUXML", "G2P2C", "PPO", "SAC"]
+FOLDER_TYPE_MODELS = ["A2C", "AUXML", "G2P2C", "PPO", "SAC", "DDPG", "TD3", "DPG"]
 FOLDER_TYPE_EXPERTS = ["training","testing","evaluation"]
+
+ONLY_ADOLESCENT_MODELS = ["DDPG", "DPG"]
+ONLY_ADULT_MODELS = []
 
 CSV_TYPE_MODELS = ["BBHE", "BBI"]
 CSV_TYPE_EXPERTS = ["clinical"]
@@ -29,12 +32,7 @@ ADULT_INDIVIDUAL_NUMBER = 10
 ADULT_INDIVIDUALS = ["adult" + str(num) for num in range(ADULT_INDIVIDUAL_NUMBER)]
 ADOLESCENT_INDIVIDUALS = ["adolescent" + str(num) for num in range(ADOLESCENT_INDIVIDUAL_NUMBER)]
 
-CLINICAL_INDIVIDUALS = []
-for model in CSV_TYPE_MODELS:
-    for age in AGE_VALUES:
-        CLINICAL_INDIVIDUALS.append(age + '_' + model + "_clinical_0")
-
-INDIVIDUALS = ADULT_INDIVIDUALS + ADOLESCENT_INDIVIDUALS + CLINICAL_INDIVIDUALS
+INDIVIDUALS = ADULT_INDIVIDUALS + ADOLESCENT_INDIVIDUALS
 
 
 
@@ -46,6 +44,8 @@ EXCLUDE_FILES = ["quadratic.csv", "real.csv"]
 
 # stores which words are exclusionary to be contained in file names for the folder type data, within the testing/data/ and training/data/ subfolders.
 EXCLUDE_IN_FILES = "summary"
+
+MAX_EPISODES_PER_FILE = 855 + 1
 
 def import_all_data(
         dest="../data", 
@@ -88,6 +88,13 @@ def import_all_data(
 
     for age in age_range:
         if show_progress: print("=Age:",age)
+        
+        #removed excluded models from range given age group
+        use_model_range = model_range[:] #copies list so it doesn't mutate the original object
+        for model in (ONLY_ADOLESCENT_MODELS if age == "adult" else ONLY_ADULT_MODELS):
+            use_model_range.remove(model)
+
+
         for model in model_range:
             model_folder = dest + '/' + age + '/' + model + '/'
 
@@ -104,15 +111,18 @@ def import_all_data(
                             if show_progress: print("\t>>Excluded",excl_file,"from",model_folder)
 
                     for file in available_files:
-                            expert_type = "clinical"
-                            file_dest = model_folder + file
+
+                        run_individual = age + file.split('_')[-2]
+                        trial_number = file.split('_')[-1].split('.')[0]
+                        expert_type = "clinical"
+                        file_dest = model_folder + file
+                        if run_individual in individual_range:
                             if show_progress: print('\t' + file_dest, run_individual)
                             meta_col = '_'.join([
                                 model, 
                                 expert_type, 
-                                run_seed, 
-                                file.split('_')[-2], 
-                                file.split('_')[-1].split('.')[0],
+                                0, #seed number
+                                trial_number,
                                 run_individual
                             ])
                             data_dict[run_individual][expert_type][model].append(import_from_csv_as_rows(file_dest), meta_col=meta_col)
@@ -145,10 +155,9 @@ def import_all_data(
                                     file_dest = trial_folder_dest + file
                                     meta_col_func = (lambda epi : '_'.join([
                                         model, 
-                                        expert_type, 
-                                        run_seed, 
-                                        str(worker_number), 
-                                        str(epi),
+                                        expert_type,
+                                        run_seed,
+                                        str(worker_number*MAX_EPISODES_PER_FILE + epi), 
                                         run_individual
                                     ]))
                                     new_data_arrays = import_from_big_csv_as_rows(file_dest, meta_col_func=meta_col_func)
