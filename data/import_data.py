@@ -45,8 +45,6 @@ EXCLUDE_FILES = ["quadratic.csv", "real.csv"]
 # stores which words are exclusionary to be contained in file names for the folder type data, within the testing/data/ and training/data/ subfolders.
 EXCLUDE_IN_FILES = "summary"
 
-MAX_EPISODES_PER_FILE = 855 + 1
-
 def import_all_data(
         dest="../data", 
         age_range = AGE_VALUES,
@@ -146,6 +144,8 @@ def import_all_data(
                             available_files = os.listdir(trial_folder_dest)
                             for file in available_files:
                                 if not EXCLUDE_IN_FILES in file:
+                                    running_trial_number = 0
+
                                     #decide expert type
                                     worker_number = int(file.split('_')[2][:-4])
                                     if trial_folder == "/training/data/": expert_type = "training"
@@ -157,12 +157,14 @@ def import_all_data(
                                         model, 
                                         expert_type,
                                         run_seed,
-                                        str(worker_number*MAX_EPISODES_PER_FILE + epi), 
+                                        str(running_trial_number + epi), 
                                         run_individual
                                     ]))
                                     new_data_arrays = import_from_big_csv_as_rows(file_dest, meta_col_func=meta_col_func)
                                     for new_data_array in new_data_arrays:
                                         data_dict[run_individual][expert_type][model].append(new_data_array)
+
+                                    running_trial_number += len(new_data_arrays) #update running trial number based on number of trials retrieved from file
 
 
 
