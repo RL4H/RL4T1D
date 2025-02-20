@@ -2,23 +2,29 @@ from datetime import datetime
 from import_data import import_from_obj, INDIVIDUALS
 import os
 import numpy as np
+from random import randrange
 
 def convert_to_frames(data_obj, window_size=16, default_starting_window=True, default_starting_value=0):
     #data_obj is a 2D numpy array , rows x columns. Columns are :  cgm, meal, ins, t, meta_data
-    rows, columns = data_obj.shape
-    ins_column = None
-    cgm_column = None
+    rows, _ = data_obj.shape
+    ins_column = data_obj[:, 2]
+    cgm_column = data_obj[:, 0]
+
+    assert rows > window_size
+    
+    data_frames = np.zeros((rows, 2, window_size)) if default_starting_window else np.zeros((rows-window_size, 2, window_size))
 
     for row in range(rows):
         if row < window_size and default_starting_window:
-            ins_window = np.array([default_starting_value]*(16-row)).concat(ins_column[0: row])
+            ins_window = np.append(np.array([default_starting_value]*(window_size-row)), ins_column[0: row])
+            cgm_window = np.append(np.array([default_starting_value]*(window_size-row)), cgm_column[0: row])
         else:
-            ins_window = ins_column[row-16: row]
+            ins_window = ins_column[row-window_size: row]
+            cgm_window = cgm_column[row-window_size: row]
 
-
-
+        data_frames[row] = np.array([ins_window, cgm_window])
     
-    raise NotImplementedError
+    return data_frames
 
 
 if __name__ == "__main__":
@@ -45,6 +51,24 @@ if __name__ == "__main__":
     print("Executed in",duration.total_seconds(), "seconds")
 
     ### Data Conversion
+    #Follows individual > expert > model > [trial data].
+    expert = "clinical"
+    model = "BBHE"
+    example_trials = data[individual][expert][model]
+    trial_len = len(example_trials)
+    print("Trials have length",trial_len)
+
+    trial_ind = randrange(0,trial_len)
+    chosen_trial = example_trials[trial_ind]
+    print("Chose trial",trial_ind,"with shape", chosen_trial.shape)
+
+    print(chosen_trial)
+
+    conv = convert_to_frames(chosen_trial)
+
+    print("Converted data")
+    print(conv)
+    
 
 
 

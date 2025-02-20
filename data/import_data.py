@@ -66,7 +66,7 @@ def import_all_data(
         show_progress (bool, optional): Decides if progress is printed to console. Defaults to False.
 
     Returns:
-        _type_: A layered dictionary contains numpy arrays of simulation data as columns in each trial.
+        _type_: A layered dictionary contains numpy arrays of simulation data as columns in each trial. Follows individual > expert > model > [trial data].
     """
     
     data_dict = dict() #consider file type for this! will be very slow
@@ -93,37 +93,35 @@ def import_all_data(
             use_model_range.remove(model)
 
 
-        for model in model_range:
+        for model in use_model_range:
             model_folder = dest + '/' + age + '/' + model + '/'
 
             if show_progress: print(model_folder)
             if model in csv_type_list:
-                run_individual = age + '_' + model + "_clinical_0"
-                if run_individual in individual_range:
 
-                    available_files = os.listdir(model_folder)
+                available_files = os.listdir(model_folder)
 
-                    for excl_file in EXCLUDE_FILES:
-                        if excl_file in available_files: 
-                            available_files.remove(excl_file)
-                            if show_progress: print("\t>>Excluded",excl_file,"from",model_folder)
+                for excl_file in EXCLUDE_FILES:
+                    if excl_file in available_files: 
+                        available_files.remove(excl_file)
+                        if show_progress: print("\t>>Excluded",excl_file,"from",model_folder)
 
-                    for file in available_files:
-
-                        run_individual = age + file.split('_')[-2]
-                        trial_number = file.split('_')[-1].split('.')[0]
-                        expert_type = "clinical"
-                        file_dest = model_folder + file
-                        if run_individual in individual_range:
-                            if show_progress: print('\t' + file_dest, run_individual)
-                            meta_col = '_'.join([
-                                model, 
-                                expert_type, 
-                                0, #seed number
-                                trial_number,
-                                run_individual
-                            ])
-                            data_dict[run_individual][expert_type][model].append(import_from_csv_as_rows(file_dest), meta_col=meta_col)
+                for file in available_files:
+                    individual_number = int(file.split('_')[-2]) - (20 if age == "adult" else 0)
+                    run_individual = age + str(individual_number)
+                    trial_number = file.split('_')[-1].split('.')[0]
+                    expert_type = "clinical"
+                    file_dest = model_folder + file
+                    if run_individual in individual_range:
+                        if show_progress: print('\t' + file_dest, run_individual)
+                        meta_col = '_'.join([
+                            model, 
+                            expert_type, 
+                            "0", #seed number
+                            trial_number,
+                            run_individual
+                        ])
+                        data_dict[run_individual][expert_type][model].append(import_from_csv_as_rows(file_dest, meta_col=meta_col))
 
                 # data_dict[age][model] = np.array(data_dict[age])
 
@@ -181,9 +179,8 @@ def import_from_csv_as_rows(file_dest, headers=CSV_HEADERS, meta_col=""):
 def import_from_big_csv_as_rows(file_dest, columns=["cgm","meal","rl_ins","t"], meta_col_func= lambda x : str(x)):
     use_columns = ["epi"] + columns
     df = pd.read_csv(file_dest, usecols=use_columns)
-    df["meta"] = df["epi"].apply(lambda epi : meta_col_func(str(int(float(epi))))) #adds meta column, including episode
+    df["meta"] = df["epi"].apply(lambda epi : meta_col_func(int(float(epi)))) #adds meta column, including episode
     df = df[use_columns + ["meta"]] #reorders dataframe to same as other setup
-    data_array = df.to_numpy()
 
     end_episodes = max([int(float(i)) for i in df["epi"]])
     start_episode = min([int(float(i)) for i in df["epi"]])
@@ -198,6 +195,9 @@ def import_from_big_csv_as_rows(file_dest, columns=["cgm","meal","rl_ins","t"], 
             current_episode += 1
             episode_indices.append(c)
     episode_indices.append(None)
+
+    del df["epi"] #remove episode from final object
+    data_array = df.to_numpy()
 
     #assign rows for each episode
     for n in range(n_episodes):
@@ -229,8 +229,8 @@ def open_arg_file(file_dest):
 
 if __name__ == "__main__":
 
-    SAVE_TO_PICKLE = False #decides if data imported from files is saved using pickle or not at all
-    IMPORT_MODE = "pickle" #can be `files` or `pickle`
+    SAVE_TO_PICKLE = True #decides if data imported from files is saved using pickle or not at all
+    IMPORT_MODE = "files" #can be `files` or `pickle`
     SINGLE_INDIVIDUAL_FILES = True #decides if files are read per individual or all at once
 
     if IMPORT_MODE == "pickle": #reading data from pickle

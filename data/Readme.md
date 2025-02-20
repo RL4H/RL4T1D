@@ -27,6 +27,11 @@ The data itself is too large to be stored in the repository, so to use it on you
         --- SAC
         --- TD3
 ``` 
+The BBHE and BBI folders contain csv files in the format `logs_worker_[individual number]_[trial number].csv`.
+
+All other folders contain sub folders following the format `[model name][individual number]_[seed number].csv`.
+
+If you are setting up the data for yourself, take care to remove other subfolders between the model folders and the files/folders specified above.
 
 Additionally, if the SAVE_TO_PICKLE variable is set to true when importing the data (running `import_data.py` as main), a pickled version of the data will be stored in `object_save/object_dictionary.pkl`.
 
