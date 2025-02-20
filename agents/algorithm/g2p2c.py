@@ -1,18 +1,21 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
 from agents.algorithm.ppo import PPO
+from agents.algorithm.agent import Agent
 from agents.models.actor_critic_g2p2c import ActorCritic
 from utils.buffers.auxilialry_buffers import AuxiliaryBuffer
 from utils.buffers.onpolicy_buffers import RolloutBuffer
-from utils.core import f_kl, r_kl
+from utils.core import f_kl, r_kl, inverse_linear_scaling
 
 # from utils.logger import LogExperiment
 
 
 class G2P2C(PPO):
     def __init__(self, args, env_args, logger, load_model, actor_path, critic_path):
-        super(G2P2C, self).__init__(args, env_args, logger, load_model, actor_path, critic_path)
+        Agent.__init__(self, args, env_args=env_args, logger=logger, type="OnPolicy")
+        #super(G2P2C, self).__init__(args, env_args, logger, load_model, actor_path, critic_path)
         self.device = args.device
         self.completed_interactions = 0
 
@@ -27,8 +30,10 @@ class G2P2C(PPO):
         self.vf_lr = args.vf_lr
 
         # load models and setup optimiser.
-        # TODO: printing the netork params of PPO instead; FIX.
         self.policy = ActorCritic(self.args, load_model, actor_path, critic_path).to(self.device)
+        if args.verbose:
+            print('PolicyNet Params: {}'.format(sum(p.numel() for p in self.policy.Actor.parameters() if p.requires_grad)))
+            print('ValueNet Params: {}'.format(sum(p.numel() for p in self.policy.Critic.parameters() if p.requires_grad)))
         self.optimizer_Actor = torch.optim.Adam(self.policy.Actor.parameters(), lr=self.pi_lr)
         self.optimizer_Critic = torch.optim.Adam(self.policy.Critic.parameters(), lr=self.vf_lr)
         self.value_criterion = nn.MSELoss()
@@ -117,6 +122,7 @@ class G2P2C(PPO):
                 logprob_old_batch = logprob_old[start_idx:end_idx]
                 actions_old_batch = actions_old[start_idx:end_idx]
 
+                # Trains the Glucose model in the critic.
                 if self.aux_mode == 'dual' or self.aux_mode == 'vf_only':
                     self.optimizer_aux_vf.zero_grad()
                     value_predict, cgm_mu, cgm_sigma, _ = self.policy.evaluate_critic(state_batch, actions_old_batch, cgm_pred=True)
@@ -129,17 +135,19 @@ class G2P2C(PPO):
                     aux_val_loss_log += aux_vf_loss.detach()
                     aux_val_count += 1
 
+                # Trains the Glucose model in the actor.
                 if self.aux_mode == 'dual' or self.aux_mode == 'pi_only':
                     self.optimizer_aux_pi.zero_grad()
                     logprobs, dist_entropy, cgm_mu, cgm_sigma, _ = self.policy.evaluate_actor(state_batch, actions_old_batch, mode="aux")
+
                     # debugging
                     if logprobs.shape[0] == 2:
                         print('debugging the error')
                         print(state_batch)
                         print(actions_old_batch)
-                        # print(handcraft_feat_batch)
                         print(state_batch.shape)
                         print(actions_old_batch.shape)
+
                     # experimenting with KL divegrence implementations, kl = 1 is used!
                     if self.args.kl == 0:
                         kl_div = f_kl(logprob_old_batch, logprobs)
@@ -164,26 +172,46 @@ class G2P2C(PPO):
             print('Successful Auxilliary Update.')
         return aux_val_grad / aux_val_count, aux_val_loss_log, aux_pi_grad / aux_pi_count, aux_pi_loss_log
 
+    def get_model_accuracy(self):
+        # The orginal G2P2C paper only use the CGM predicton of the model in the actor network, since its is used for planning.
+        # instead of 1-step cgm predictions; horizon predictions can be explored. Check origi G2P2C codebase: https://github.com/RL4H/G2P2C/tree/main
+        a_rmse_error = 0
+        states_batch = self.rollout_buffer['states']
+        actions_batch = self.rollout_buffer['action']
+        _, _, _, _, cgm_pred = self.policy.evaluate_actor(states_batch, actions_batch, mode="aux")
+
+        cgm_pred = cgm_pred.detach().cpu().flatten().numpy()
+        cgm_target = self.rollout_buffer['cgm_target'].detach().cpu().flatten().numpy()
+
+        assert len(cgm_pred) == len(cgm_target), "Error: CGM prediction and target length mismatch."
+
+        for i in range(0, len(cgm_target)):
+            pred = inverse_linear_scaling(y=cgm_pred[i], x_min=self.args.glucose_min, x_max=self.args.glucose_max)
+            target = inverse_linear_scaling(y=cgm_target[i], x_min=self.args.glucose_min, x_max=self.args.glucose_max)
+            a_rmse_error += (np.square(pred - target))
+
+        return np.sqrt(a_rmse_error / (len(cgm_target)))
+
     def update(self):
+        aux_val_grad, aux_val_loss, aux_pi_grad, aux_pi_loss, plan_pi_grad, plan_loss, RMSE = 0, 0, 0, 0, 0, 0, 0
         self.rollout_buffer = self.buffer.get(AuxiliaryBuffer=self.AuxiliaryBuffer)
+        RMSE = self.get_model_accuracy()
+
         pi_grad, pi_loss = self.train_pi()
         vf_grad, vf_loss, explained_var, true_var = self.train_vf()
 
-        # Note: aux mode trains the glucose models
-        if self.AuxiliaryBuffer.buffer_filled:
+        if self.AuxiliaryBuffer.buffer_filled:  # Note: aux mode trains the glucose models
             aux_val_grad, aux_val_loss, aux_pi_grad, aux_pi_loss = self.train_aux()  # if (rollout + 1) % self.aux_frequency == 0:
 
-        # TODO: incorrect; have to fix: in the original paper only when RMSE of CGM < 15mg/dL; is when start planning is true
-        # This is so that until the glucose models are sufficiently trained we dont run planning.
-        # Maybe look at the
-        self.start_planning = True
-
+        self.start_planning = True if (RMSE < 15) else False
+        print('The RMSE error is: {} mg/dL'.format(RMSE))
+        print('The RMSE error is > 15 mg/dL aborting planning phase')
         if self.start_planning:
             plan_pi_grad, plan_loss = self.train_MCTS_planning()
 
-        # TODO: not logging everything; add the G2P2 specific stuff
         data = dict(policy_grad=pi_grad, policy_loss=pi_loss, value_grad=vf_grad, value_loss=vf_loss,
-                    explained_var=explained_var, true_var=true_var)
-        return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}
+                    explained_var=explained_var, true_var=true_var, aux_val_grad=aux_val_grad, aux_val_loss= aux_val_loss,
+                    aux_pi_grad=aux_pi_grad, aux_pi_loss=aux_pi_loss, plan_pi_grad=plan_pi_grad, plan_loss=plan_loss, RMSE=RMSE)
+        return {k: (v.detach().cpu().flatten().numpy()[0] if isinstance(v, torch.Tensor) else v) for k, v in data.items()}
 
 

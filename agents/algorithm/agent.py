@@ -25,7 +25,12 @@ class Agent:
             self.args.glucose_max = env_args.glucose_max  # Note the selected sensors range would affect this
             self.args.glucose_min = env_args.glucose_min
             self.args.n_action = env_args.n_actions
+            self.args.insulin_min = env_args.insulin_min
+            self.args.insulin_max = env_args.insulin_max
+            self.args.action_scale = env_args.insulin_max
             self.args.patient_id = env_args.patient_id
+
+            self.args.feature_history = env_args.obs_window  # TODO: refactor G2P2C to use obs_window
 
         # initialise workers and buffers
         if type == "OnPolicy":

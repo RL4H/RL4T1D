@@ -43,12 +43,25 @@ Running a **Proximal Policy Optimisation (PPO)** algorithm for glucose control. 
 cd experiments 
 python run_RL_agent.py experiment.name=test1 experiment.device=cpu agent=ppo agent.debug=True hydra/job_logging=disabled
 ```
+Running a **Glucose Control by Glucose Prediction and Planning (G2P2C)** algorithm for glucose control. More information related to state-action space, reward formulations: [Paper](https://ieeexplore.ieee.org/abstract/document/9871054) .
+```
+cd experiments 
+python run_RL_agent.py experiment.name=test2 env.patient_id=1 experiment.device=cpu agent=g2p2c agent.debug=True hydra/job_logging=disabled
+```
 Running a **Soft Actor Critic (SAC)** algorithm for glucose control. 
 ```
 cd experiments 
-python run_RL_agent.py experiment.name=test2 experiment.device=cpu agent=sac agent.debug=True hydra/job_logging=disabled
+python run_RL_agent.py experiment.name=test3 experiment.device=cpu agent=sac agent.debug=True hydra/job_logging=disabled
 ```
-Start mlflow
+
+**Important Notes**
+* You can also set environment (i.e., patients) parameters through the terminal e.g., as in G2P2C above (<code>env.patient_id=1</code>)
+* There 4 types of configs; <code>agent</code>, <code>env</code>, <code>logging</code>, <code>debug</code>.
+* You can set additional paremeters for <code>logging</code>. e.g., check <code>configs/logger/default.yaml</code> G2P2C has additonal parameters for logging. And any custom logging variables can be integrated easily.
+* You can use the <code>debug</code> config and adjust main RL agent parameters to troubleshoot your algorithms (e.g., set smaller buffer sizes, run for less workers etc.) 
+* There are some parameters the agent requires from the environment (e.g., featurespace, observations, actions, and other values (e.g., glucose range, actions). This interface is carried out int he <code>Agent</code> class; you can add any additional parameters requiring for your algorithm here. 
+
+**Start mlflow**
 ```
 mlflow ui --backend-store-uri results/mlflow 
 ```
