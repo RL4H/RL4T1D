@@ -151,13 +151,7 @@ Check Docs/notebook.
 
 RoadMap and Notes
 --
-* Now you can use mlflow to organise: <experiments, experiment_runs (e.g., for hyperparams, new ideas)>. <br>
-* We have legacy custom visualisation scripts <jupyter notebooks> used to debug experiments while running - integrate with new flow<br>
-* Think/Complete logging. Duplicated with mlflow logs and legacy custom logging patterns <br>
-  * validation results.
-* Write test cases <br>
-* Add read docs like GluCoEnv. <br>
-* Improve handling offpolicy vs onpolicy workers. <br>
+* Duplicated mlflow logs and legacy custom logging patterns <br>
 * Issue running hydra from jupyter notebook. <br>
 * build batch scripts to run for mutiple seeds, envs. <br>
 * provide capability to run agents without using main script (integrate with other rl-libraries). <br>
