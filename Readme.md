@@ -41,7 +41,7 @@ Running a **Proximal Policy Optimisation (PPO)** algorithm for glucose control. 
 cd experiments 
 python run_RL_agent.py experiment.name=test1 experiment.device=cpu agent=ppo agent.debug=True hydra/job_logging=disabled
 ```
-Running a **Glucose Control by Glucose Prediction and Planning (G2P2C)** algorithm for glucose control. More information related to state-action space, reward formulations: [Paper](https://ieeexplore.ieee.org/abstract/document/9871054) .
+Running a **Glucose Control by Glucose Prediction and Planning (G2P2C)** algorithm for glucose control. More information related to state-action space, reward formulations: [Paper](https://www.sciencedirect.com/science/article/pii/S1746809423012727) .
 ```
 cd experiments 
 python run_RL_agent.py experiment.name=test2 env.patient_id=1 experiment.device=cpu agent=g2p2c agent.debug=True hydra/job_logging=disabled
