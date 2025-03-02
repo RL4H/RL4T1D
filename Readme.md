@@ -151,6 +151,7 @@ Check Docs/notebook.
 
 RoadMap and Notes
 --
+* Integrate DPG, DDPG, and TD3 algorithms from the legacy codebase. <br>
 * Duplicated mlflow logs and legacy custom logging patterns <br>
 * Issue running hydra from jupyter notebook. <br>
 * build batch scripts to run for mutiple seeds, envs. <br>
