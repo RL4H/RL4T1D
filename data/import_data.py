@@ -7,6 +7,7 @@ import sys
 import pickle
 import json
 from omegaconf import OmegaConf
+import gc
 
 AGE_VALUES = ["adolescent", "adult"] 
 
@@ -248,6 +249,28 @@ def import_pickle_files(file_dest_folder="../data/object_save/", file_name_start
     print("Executed in",duration.total_seconds(), "seconds")
     print(f"Overall files have size {overall_file_size / (1024 * 1024):.2f}MB")
 
+    
+def import_pickle_files_seperately(file_dest_folder="../data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
+    start_time = datetime.now() #start the read timer
+    overall_file_size = 0
+
+    for individual in INDIVIDUALS:
+        file_dest = file_dest_folder + file_name_start + individual + file_name_end + ".pkl"
+        print("Starting import for",individual,"from",file_dest)
+        
+        data = import_from_obj(file_dest) #import data from pickle object
+        file_size = os.path.getsize(file_dest) #obtain file size of read file
+        print(f"\t{file_dest} has size {file_size / (1024 * 1024):.2f}MB")
+        overall_file_size += file_size
+
+        print(file_dest, "Imported")
+        del data
+
+    end_time = datetime.now() #end the read timer
+    duration = end_time - start_time
+    print("Executed in",duration.total_seconds(), "seconds")
+    print(f"Overall files have size {overall_file_size / (1024 * 1024):.2f}MB")
+
 def import_raw_files(file_dest_folder="../data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
     overall_start_time = datetime.now()
 
@@ -318,17 +341,18 @@ class DataImporter:
         self.current_data = None
         self.current_index = 0
         self.current_individual = self.individuals[0]
+        self.verbose = verbose
         
     def start(self):
         self.current_index = -1
 
     def __iter__(self):
+        print("\t\tIter!!")
         self.start()
-        print("Starting!")
         return self
 
     def __next__(self):
-        print("next!")
+        print("\t\tNext!")
         self.current_index += 1
         if self.current_index < len(self.individuals):
             self.current_individual = self.individuals[self.current_index]
@@ -336,33 +360,57 @@ class DataImporter:
             return self.current_data
         else:
             self.current_individual = None
-            self.current_data = None
+            self.delete_current(self)
             raise StopIteration
+    
+    def delete_current(self):
+        #python doesn't seem to delete the object with just this, leading to memory issues. Fix in progress.
+        # del self.current_data 
+        for expert in self.current_data[self.current_individual].keys():
+            for model in self.current_data[self.current_individual][expert].keys():
+                del self.current_data[self.current_individual][expert][model]
+            del self.current_data[self.current_individual][expert]
+        del self.current_data[self.current_individual]
+        del self.current_data
+        self.current_data = None
+        gc.collect()
 
     def import_current(self):
+        if self.verbose: print("\tDeleting previous data.")
+        del self.current_data
+        if self.verbose: print("\tFinished deleting previous data.")
         if self.source == "pickle":
             #import file
             file_dest = self.source_folder + PICKLE_FILE_NAME_START + self.current_individual + PICKLE_FILE_NAME_END + ".pkl"
-            if self.verbose: print("Starting import for",self.current_individual,"from",file_dest)
+            if self.verbose: 
+                print("\tStarting import for",self.current_individual,"from",file_dest)
+                start_time = datetime.now() #start the write timer
         
             self.current_data = import_from_obj(file_dest) #import data from pickle object
             if self.verbose:
+                end_time = datetime.now() #end the read timer
+                duration = end_time - start_time
+                print(f"Read object in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s\n")
                 file_size = os.path.getsize(file_dest) #obtain file size of read file
                 print(f"\t{file_dest} has size {file_size / (1024 * 1024):.2f}MB")
 
         elif self.source == "files":
-            if self.verbose: print("Starting import for",self.current_individual)
+            if self.verbose: print("\tStarting import for",self.current_individual)
             self.current_data = import_all_data(self.source_folder, individual_range=[self.current_individual],model_range=self.models, show_progress=False)
-            if self.verbose: print("Import Completed")
+            if self.verbose: print("\tImport Completed")
 
         #strip irrelevant parts of imported object based on defined parameter ranges 
+        if self.verbose: print("\tStripping Irrelevant Sections")
         for expert in self.current_data[self.current_individual]:
             if not (expert in self.experts):
+                print("\t\tDeleted expert",expert)
                 del self.current_data[self.current_individual][expert]
             else:
                 for model in self.current_data[self.current_individual][expert]:
                     if not (model in self.models):
+                        print("\t\tDeleted model",model)
                         del self.current_data[self.current_individual][expert][model]
+        if self.verbose: print("\tFinished stripping sections.")
 
     def check_finished(self):
         return self.current_individual == None
@@ -371,12 +419,12 @@ class DataImporter:
 if __name__ == "__main__":
 
     SAVE_TO_PICKLE = True #decides if data imported from files is saved using pickle or not at all
-    IMPORT_MODE = "files" #can be `files` or `pickle`
+    IMPORT_MODE = "pickle" #can be `files` or `pickle`
     SINGLE_INDIVIDUAL_FILES = True #decides if files are read per individual or all at once
 
     if IMPORT_MODE == "pickle": #reading data from pickle
         if SINGLE_INDIVIDUAL_FILES: #read from the files for each individual
-            import_pickle_files()
+            import_pickle_files_seperately()
         elif not SINGLE_INDIVIDUAL_FILES: #read from the single overall file
             start_time = datetime.now() #start the read timer
 
