@@ -347,12 +347,10 @@ class DataImporter:
         self.current_index = -1
 
     def __iter__(self):
-        print("\t\tIter!!")
         self.start()
         return self
 
     def __next__(self):
-        print("\t\tNext!")
         self.current_index += 1
         if self.current_index < len(self.individuals):
             self.current_individual = self.individuals[self.current_index]
