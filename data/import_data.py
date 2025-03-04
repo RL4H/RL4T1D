@@ -25,6 +25,8 @@ ONLY_ADULT_MODELS = []
 CSV_TYPE_MODELS = ["BBHE", "BBI"]
 CSV_TYPE_EXPERTS = ["clinical"]
 
+EXPERTS = FOLDER_TYPE_EXPERTS + CSV_TYPE_EXPERTS
+
 
 ADOLESCENT_INDIVIDUAL_NUMBER = 10
 ADULT_INDIVIDUAL_NUMBER = 10
@@ -225,7 +227,7 @@ def open_arg_file(file_dest):
     
 
 
-def import_person_files(file_dest_folder="../data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
+def import_pickle_files(file_dest_folder="../data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
     start_time = datetime.now() #start the read timer
     overall_file_size = 0
 
@@ -246,7 +248,7 @@ def import_person_files(file_dest_folder="../data/object_save/", file_name_start
     print("Executed in",duration.total_seconds(), "seconds")
     print(f"Overall files have size {overall_file_size / (1024 * 1024):.2f}MB")
 
-def save_person_files(save_to_pickle=True,file_dest_folder="../data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
+def import_raw_files(file_dest_folder="../data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
     overall_start_time = datetime.now()
 
     total_importing_time = 0
@@ -280,17 +282,17 @@ def save_person_files(save_to_pickle=True,file_dest_folder="../data/object_save/
                     if specific_length > 0:
                         print("\t\t\tItem 0 has shape",data[individual][expert][model][0].shape)
         
-        if save_to_pickle: #save the data to pickle
-            start_time = datetime.now() #start the write timer
-            print("Writing file object, this may take some time.")
-            save_to_obj_file(data, file_dest)
-            file_size = os.path.getsize(file_dest) #calculate size of saved file
-            print(f"Object saved to {file_dest} with size {file_size / (1024 * 1024):.2f}MB") \
-            
-            end_time = datetime.now() #end the read timer
-            duration = end_time - start_time
-            total_saving_time += duration.total_seconds()
-            print(f"Saved object in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s\n")
+        #save the data to pickle
+        start_time = datetime.now() #start the write timer
+        print("Writing file object, this may take some time.")
+        save_to_obj_file(data, file_dest)
+        file_size = os.path.getsize(file_dest) #calculate size of saved file
+        print(f"Object saved to {file_dest} with size {file_size / (1024 * 1024):.2f}MB") \
+        
+        end_time = datetime.now() #end the read timer
+        duration = end_time - start_time
+        total_saving_time += duration.total_seconds()
+        print(f"Saved object in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s\n")
         
         del data #wipe data from memory to clear space
 
@@ -300,6 +302,72 @@ def save_person_files(save_to_pickle=True,file_dest_folder="../data/object_save/
     print(f"Importing took {int(total_importing_time // 60)}m {total_importing_time % 60 :.1f}s")
     print(f"Saving took {int(total_saving_time // 60)}m {total_saving_time % 60 :.1f}s")
 
+
+PICKLE_FILE_NAME_END = "_data"
+PICKLE_FILE_NAME_START = "data_dictionary_"
+class DataImporter:
+    def __init__(self, 
+            source = "pickle", 
+            data_folder="../data/",
+            verbose = True,
+            individuals = INDIVIDUALS, ages=AGE_VALUES, models = MODEL_TYPES, experts=EXPERTS,
+        ):
+        self.individuals, self.ages, self.models, self.experts = individuals, ages, models, experts
+        self.source = source
+        self.source_folder = (data_folder) if source == "files" else (data_folder + "object_save/")
+        self.current_data = None
+        self.current_index = 0
+        self.current_individual = self.individuals[0]
+        
+    def start(self):
+        self.current_index = -1
+
+    def __iter__(self):
+        self.start()
+        print("Starting!")
+        return self
+
+    def __next__(self):
+        print("next!")
+        self.current_index += 1
+        if self.current_index < len(self.individuals):
+            self.current_individual = self.individuals[self.current_index]
+            self.import_current()
+            return self.current_data
+        else:
+            self.current_individual = None
+            self.current_data = None
+            raise StopIteration
+
+    def import_current(self):
+        if self.source == "pickle":
+            #import file
+            file_dest = self.source_folder + PICKLE_FILE_NAME_START + self.current_individual + PICKLE_FILE_NAME_END + ".pkl"
+            if self.verbose: print("Starting import for",self.current_individual,"from",file_dest)
+        
+            self.current_data = import_from_obj(file_dest) #import data from pickle object
+            if self.verbose:
+                file_size = os.path.getsize(file_dest) #obtain file size of read file
+                print(f"\t{file_dest} has size {file_size / (1024 * 1024):.2f}MB")
+
+        elif self.source == "files":
+            if self.verbose: print("Starting import for",self.current_individual)
+            self.current_data = import_all_data(self.source_folder, individual_range=[self.current_individual],model_range=self.models, show_progress=False)
+            if self.verbose: print("Import Completed")
+
+        #strip irrelevant parts of imported object based on defined parameter ranges 
+        for expert in self.current_data[self.current_individual]:
+            if not (expert in self.experts):
+                del self.current_data[self.current_individual][expert]
+            else:
+                for model in self.current_data[self.current_individual][expert]:
+                    if not (model in self.models):
+                        del self.current_data[self.current_individual][expert][model]
+
+    def check_finished(self):
+        return self.current_individual == None
+
+
 if __name__ == "__main__":
 
     SAVE_TO_PICKLE = True #decides if data imported from files is saved using pickle or not at all
@@ -308,7 +376,7 @@ if __name__ == "__main__":
 
     if IMPORT_MODE == "pickle": #reading data from pickle
         if SINGLE_INDIVIDUAL_FILES: #read from the files for each individual
-            import_person_files()
+            import_pickle_files()
         elif not SINGLE_INDIVIDUAL_FILES: #read from the single overall file
             start_time = datetime.now() #start the read timer
 
@@ -323,7 +391,7 @@ if __name__ == "__main__":
             file_size = os.path.getsize(file_dest) #obtain file size of read file
             print(f"Read file has size {file_size / (1024 * 1024):.2f}MB")
     elif IMPORT_MODE == "files" and SINGLE_INDIVIDUAL_FILES: #import data of each individuals seperately (useful if you have limited RAM on your computer)
-        save_person_files(SAVE_TO_PICKLE)
+        import_raw_files()
     elif IMPORT_MODE == "files" and not SINGLE_INDIVIDUAL_FILES: #read all data as single object and saves it as such
 
         start_time = datetime.now() #start the write timer
