@@ -184,7 +184,7 @@ class DataImporter:
     def check_finished(self):
         return self.current_individual == None
 
-    def get_trials(self, individuals_override = None, ages_override=None, models_override= None, experts_override=None, flatten=False):
+    def get_trials(self, individuals_override = None, ages_override=None, models_override= None, experts_override=None):
         individuals = self.individuals if individuals_override == None else individuals_override
         ages = self.ages if ages_override == None else ages_override
         models = self.models if models_override == None else models_override
@@ -212,14 +212,7 @@ class DataImporter:
             trial_data[individual] = current_data[individual]
             del current_data
 
-        if flatten:
-            output_list = []
-            for expert in trial_data[individual]:
-                for model in trial_data[individual][expert]:
-                    output_list += trial_data[individual][expert][model]
-            return output_list
-        else:
-            return trial_data
+        return DataHandler(trial_data)
 
 
 class DataHandler:
@@ -243,6 +236,34 @@ class DataHandler:
                     else:
                         del data_dict[individual][expert][model]
                         if self.verbose: print("Pruned empty dictionary entry",individual,expert,model)
+        
+        self.gen_summaries()
+
+    def get_raw(self):
+        if self.flat:
+            return self.flat_trials
+        else:
+            return self.data_dict
+        
+    def gen_summaries(self):
+        if self.flat: raise NotImplementedError("gen_summaries() only implemented for unflattened data.")
+        self.trials_count = 0
+        self.minutes_count = 0
+
+        for individual in self.data_dict:
+            for expert in self.data_dict[individual]:
+                for model in self.data_dict[individual][expert]:
+                    trial_data = self.data_dict[individual][expert][model]
+
+                    self.trials_count += len(trial_data)
+                    for trial in trial_data:
+                        rows, _ = trial.shape
+                        self.minutes_count += (rows - 1)*5 #5 minute time interval
+
+
+    def print_summary(self):
+        print(f"{self.trials_count} trials stored.")
+        print(f"{self.minutes_count // 60}h {self.minutes_count % 60}m worth of data stored.")
 
     def flatten(self):
         output_list = []
@@ -253,6 +274,7 @@ class DataHandler:
         del self.data_dict
         self.flat_trials = output_list
         self.flat = True
+
     def save_as_csv(self, name, dest_folder="../data/csv_saves/"):
         if self.flat: #saves all trials in a single, large, .csv file
             df = pd.DataFrame(np.vstack(self.flat_trials), columns=self.trial_labels)

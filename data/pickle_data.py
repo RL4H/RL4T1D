@@ -240,7 +240,7 @@ def import_raw_files(file_dest_folder="../data/object_save/", file_name_start="d
         start_time = datetime.now() #start the write timer
         file_dest = file_dest_folder + file_name_start + individual + file_name_end + ".pkl"
         
-        data = import_all_data("../data", show_progress=False, individual_range=[individual]) #import data from files
+        data = import_all_data("../data", show_progress=True, individual_range=[individual]) #import data from files
         print("\nSuccesfully imported.")
 
         end_time = datetime.now() #end the read timer
