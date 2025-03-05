@@ -5,6 +5,7 @@ __pycache__/
 results/
 .env
 experiments/nci/help.txt
-data/adult
-data/adolescent
-data/object_save
+data/adult/
+data/adolescent/
+data/object_save/
+data/csv_saves/
