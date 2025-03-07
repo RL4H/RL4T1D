@@ -151,25 +151,26 @@ Check Docs/notebook.
 
 Performance Benchmarks
 --
+Cohort results are based on N=1,500 validation trials/meal protocol run for each subject (10 subjects/cohort). <br>
 
-| Algorithm                                                                       | Training Interactions (steps in millions) | Architecture               | Reward  | TIR (%)       | Failures (%) |
-|---------------------------------------------------------------------------------|-------------------------------------------|----------------------------|---------|---------------|------------|
-| **Adult Cohort**                                                                |                                           |                            |         |               |            |
-| BBI                                                                             | Clinical (Manual)                         |                            | -       | 71.02 ± 11.29 | 0.39       |
-| BBHE                                                                            | Clinical (Manual)                         |                            | -       | 69.78 ± 11.29 | 0.35       |
-| A2C_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | 244 ± 47 | 59.06 ± 14.31 | 9.11       |
-| PPO_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | 264 ± 26 | 69.12 ± 10.53 | 2.79       |
-| SAC_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | 146 ± 98 | 61.76 ± 21.01 | 59.49      |
-| [G2P2C_v0](https://www.sciencedirect.com/science/article/pii/S1746809423012727) | 0.8M                                      | LSTM+Dense (<5000 parameters) | 268 ± 21 | 72.69 ± 9.53  | 1.62       |
-| TD3_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | (add)   | 62.79 ± 16.30 | 18.37      |
-| **Adolescent Cohort**                                                           |                                           |                            |         |               |            |
-| BBI                                                                             | Clinical (Manual)                         |                            | -       | 71.43 ± 12.31 | 0.00       |
-| BBHE                                                                            | Clinical (Manual)                         |                            | -       | 70.23 ± 12.52 | 0.00       |
-| A2C_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | 227 ± 48 | 56.03 ± 14.40 | 14.41      |
-| PPO_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters)  | 249 ± 31 | 63.72 ± 13.95 | 4.93       |
-| SAC_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters)  | 107 ± 89 | 65.62 ± 20.16 | 82.06      |
-| [G2P2C_v0](https://www.sciencedirect.com/science/article/pii/S1746809423012727)  | 0.8M                                      | LSTM+Dense (<5000 parameters)  | 254 ± 22 | 64.33 ± 13.18 | 1.48       |
-| TD3_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters)  | (add)   | 60.99 ± 19.18 | 25.6       |
+| Algorithm                                                                       | Training Interactions (steps in millions) | Architecture               | Reward       | TIR (%)           | Failures (%) |
+|---------------------------------------------------------------------------------|-------------------------------------------|----------------------------|--------------|-------------------|--------------|
+| **Adult Cohort**                                                                |                                           |                            |              |                   |              |
+| BBI                                                                             | Clinical (Manual)                         |                            | -            | 71.02 ± 11.29     | 0.39         |
+| BBHE                                                                            | Clinical (Manual)                         |                            | -            | 69.78 ± 11.29     | 0.35         |
+| A2C_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | 244 ± 47     | 59.06 ± 14.31     | 9.11         |
+| PPO_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | 264 ± 26     | 69.12 ± 10.53     | 2.79         |
+| SAC_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | 146 ± 98     | 61.76 ± 21.01     | 59.49        |
+| [G2P2C_v0](https://www.sciencedirect.com/science/article/pii/S1746809423012727) | 0.8M                                      | LSTM+Dense (<5000 parameters) | **268 ± 21** | **72.69 ± 9.53**  | **1.62**     |
+| TD3_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | (add)        | 62.79 ± 16.30     | 18.37        |
+| **Adolescent Cohort**                                                           |                                           |                            |              |                   |              |
+| BBI                                                                             | Clinical (Manual)                         |                            | -            | 71.43 ± 12.31     | 0.00         |
+| BBHE                                                                            | Clinical (Manual)                         |                            | -            | 70.23 ± 12.52     | 0.00         |
+| A2C_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | 227 ± 48     | 56.03 ± 14.40     | 14.41        |
+| PPO_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters)  | 249 ± 31     | 63.72 ± 13.95     | 4.93         |
+| SAC_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters)  | 107 ± 89     | 65.62 ± 20.16     | 82.06        |
+| [G2P2C_v0](https://www.sciencedirect.com/science/article/pii/S1746809423012727)  | 0.8M                                      | LSTM+Dense (<5000 parameters)  | **254 ± 22** | **64.33 ± 13.18** | **1.48**     |
+| TD3_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters)  | (add)        | 60.99 ± 19.18     | 25.6         |
 
 RoadMap and Notes
 --
