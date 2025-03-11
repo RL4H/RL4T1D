@@ -60,7 +60,7 @@ class OnPolicyWorker(Worker):
                 self._reset()
         return
     
-    def update_rwd_param(self, w):
+    def update_rwd_params(self, w):
         self.rwd_params = w
 
 

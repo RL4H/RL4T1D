@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/jtrim/OneDrive/Documents/COMP4550/RL4T1D/mlruns/0/f114225b5e154fd6b4e886b2189f6074/artifacts
+end_time: 1741669297779
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: f114225b5e154fd6b4e886b2189f6074
+run_name: dapper-cow-808
+run_uuid: f114225b5e154fd6b4e886b2189f6074
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1741669283889
+status: 3
+tags: []
+user_id: jtrim

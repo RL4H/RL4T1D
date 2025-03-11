@@ -17,8 +17,7 @@ from utils.load_args import load_arguments
 from utils.logger import Logger
 
 
-#TODO: have work with different arguments
-#TODO: change around arguments so that can have PPO train using different arguments within same exeriment
+#TODO: change around arguments so that can have PPO train using different arguments within same experiment
 #TODO: ACtually test to see if works
 
 #arguemnts, currently have no idea what the values should be
@@ -29,12 +28,14 @@ n_hidden = 25
 
 #Class that does the main irl
 class ProjectionPPO:
-    def __init__(self, args, exp_samples, n_traj, traj_len, rl_u_init,rl_updates,device='cpu', discount_factor=0.99, tol=1e-10,
+    def __init__(self, exp_samples, n_traj, traj_len, rl_u_init,rl_updates,device='cpu', discount_factor=0.99, tol=1e-10,
                  env=None, k=2):
-        self.args = load_arguments(overrides=["experiment.name=test2", "agent=ppo", "env.patient_id=0", "agent.debug=True",
-                                 "hydra/job_logging=disabled"])
+        self.args = load_arguments(overrides=["experiment.name=test2", "agent=ppo", "env.patient_id=0", "agent.debug=True", 
+                                              "agent.n_step="+str(traj_len), "experiment.device="+device,
+                                 "agent.n_training_workers="+str(n_traj),"hydra/job_logging=disabled"])
         self.device = device
-        self.rl_agent = PPO(args=args.agent, env_args=args.env, logger=Logger(args), load_model=False, actor_path='', critic_path='')
+        print(self.args.agent.n_step)
+        self.rl_agent = PPO(args=self.args.agent, env_args=self.args.env, logger=Logger(self.args), load_model=False, actor_path='', critic_path='')
         self.expert = exp_samples
         self.discount_factor = discount_factor
         self.tol = tol
@@ -55,7 +56,7 @@ class ProjectionPPO:
                                          insulin_min=self.env.action_space.low[0],
                                          insulin_max=self.env.action_space.high[0])
 
-    # calculate projection
+    # calculate projection: should be the same
     def projection(self, feat_exp_expert, feat_exp, proj_prev):
         diff = feat_exp - proj_prev
 
@@ -67,6 +68,7 @@ class ProjectionPPO:
         t_new = np.linalg.norm(w_new, 2)
         return new_proj, w_new, t_new
 
+    #should be the same
     def mc_exp(self, demo):
         # demo[i][j] is jth state in the ith episode (demonstration)
         gamma = self.discount_factor
@@ -98,12 +100,13 @@ class ProjectionPPO:
             rl_f.close()
             traj = [np.array([x[0] for x in observation])]
             for _ in range(self.traj_len):
-                rl_action, _, _ = self.rl_agent.policy.get_action(torch.tensor(observation).to(self.device))  # get RL action
-                pump_action = self.controlspace.map(agent_action=rl_action)
+                pol_ret = self.rl_agent.policy.get_action(torch.tensor(observation).to(self.device))  # get RL action
+                
+                pump_action = self.controlspace.map(agent_action=pol_ret['action'])
                 observation, _, is_done, info = self.env.step(pump_action)
                 scaled_feature = np.array([x[0] for x in observation])#scaled
                 rl_f = open(self.rl_path, 'a')
-                rl_f.write(", ".join([str(self.iters), str(i), str(timestep), str(observation[-1][0]), str(observation[-1][1]), str(rl_action)])+"\n")
+                rl_f.write(", ".join([str(self.iters), str(i), str(timestep), str(observation[-1][0]), str(observation[-1][1]), str(pol_ret['action'])])+"\n")
                 rl_f.close()
                 traj.append(scaled_feature)  # saving the feature vector to the traj
                 timestep +=1
@@ -139,7 +142,7 @@ class ProjectionPPO:
         f1.write(", ".join(['_'+str(iters), str(self.proj), str(self.w)])+"\n")
         f1.close()
         #print('irl: ', iters, self.proj, self.w)
-        self.rl_agent.update_reward(self.w.to(self.device))  # update reward function
+        self.rl_agent.update_worker_rwd(self.w.to(self.device))  # update reward function
         # Now use RL algorithm to find a new policy
         #print('rl_train')
 
@@ -149,6 +152,7 @@ class ProjectionPPO:
         print('RL: ', (t_1 - t_0)/60)
         
         pol_exp = self.policy_expectations() #torch tensor of scalars
+        print("into loop")
         while not converged:
             #perform projection
             t_0 = time.perf_counter()
@@ -168,7 +172,7 @@ class ProjectionPPO:
             if converged:
                 break
             #print("w in mmp: ", self.w)
-            self.rl_agent.update_reward(self.w)  #update reward function
+            self.rl_agent.update_worker_rwd(self.w)  #update reward function
             t_1= time.perf_counter()
             print("IRL: ", (t_1 - t_0)/60)
             #Now use RL algorithm to find a new policy
