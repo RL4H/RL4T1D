@@ -1,4 +1,5 @@
 import sys
+print(sys.argv)
 import argparse
 import os
 
@@ -27,10 +28,10 @@ parser.add_argument("--patient_id", type=int, default = 0)#patient id
 parser.add_argument("--n_expert", type = int, default=3) #Number of expert trajs
 parser.add_argument("--l_expert", type=int, default=5) #Max length of expert traj
 parser.add_argument("--i_irl", type=int,default=5) #iterations irl
-parser.add_argument("--i_update_init", type=int, default = 3)#updates used to initally train rl agent
+parser.add_argument("--i_update_init", type=int, default = 1)#updates used to initally train rl agent
 parser.add_argument("--i_update", type=int,default=3)#updates per rl train
-parser.add_argument("--n_sim", type=int, default=2) #Number of sim traj
-parser.add_argument("--l_sim", type=int, default=5)#max length of sim traj
+parser.add_argument("--n_sim", type=int, default=16) #Number of sim traj
+parser.add_argument("--l_sim", type=int, default=256)#max length of sim traj
 parser.add_argument("--dvc", default = 'cpu', type=str, choices=['cpu','cuda'] )#device for pytorch
 
 input_args = parser.parse_args()
@@ -64,6 +65,7 @@ args = load_arguments(
     overrides=["experiment.name=test2", "agent=clinical_treatment", "env.patient_id="+str(patient_id), "agent.debug=True",
                "hydra/job_logging=disabled"])
 patients, env_ids = get_patient_env()
+print(args)
 
 env_clin = T1DEnv(args=args.env, mode='testing', worker_id=1)
 clinical_agent = BasalBolusController(args.agent, patient_name=patients[args.env.patient_id],
@@ -112,10 +114,11 @@ print('expert_fin')
 irl_agent = MaxMarginProjection(args=args, exp_samples=expert_samples, n_traj=sim_samples,
                                 traj_len=sim_length, rl_u_init=rl_u_init,
                                 rl_updates=rl_updates, env=env_clin, k=k, device=device)  #create the irl agent
-print("Begin training irl agent")
+#print("Begin training irl agent")
+tic_0 = time.perf_counter()
 iters, data = irl_agent.train(max_iters=irl_max_iters)  #train the irl agent and gain data for plotting
 print("Concluded training")
-finish = time.time()
+print((time.perf_counter() - tic_0)/60)
 #print("Finished training irl agent in ", finish - start, 'seconds')
 # ax = plt.subplot()
 # ax.scatter([i for i in range(iters)], data)
