@@ -134,24 +134,18 @@ class DataImporter:
             return self.current_data
         else:
             self.current_individual = None
-            self.delete_current(self)
+            self.delete_current()
             raise StopIteration
     
     def delete_current(self):
-        #python doesn't seem to delete the object with just this, leading to memory issues. Fix in progress.
-        # del self.current_data 
-        for expert in self.current_data[self.current_individual].keys():
-            for model in self.current_data[self.current_individual][expert].keys():
-                del self.current_data[self.current_individual][expert][model]
-            del self.current_data[self.current_individual][expert]
-        del self.current_data[self.current_individual]
-        del self.current_data
-        self.current_data = None
-        gc.collect()
+        if self.current_data != None:
+            self.current_data.delete()
+            del self.current_data
+            gc.collect()
 
     def import_current(self):
         if self.verbose: print("\tDeleting previous data.")
-        del self.current_data
+        self.delete_current()
         if self.verbose: print("\tFinished deleting previous data.")
         #import file
         file_dest = self.source_folder + PICKLE_FILE_NAME_START + self.current_individual + PICKLE_FILE_NAME_END + ".pkl"
@@ -159,7 +153,7 @@ class DataImporter:
             print("\tStarting import for",self.current_individual,"from",file_dest)
             start_time = datetime.now() #start the write timer
     
-        self.current_data = import_from_obj(file_dest) #import data from pickle object
+        raw_data = import_from_obj(file_dest) #import data from pickle object
         if self.verbose:
             end_time = datetime.now() #end the read timer
             duration = end_time - start_time
@@ -167,19 +161,23 @@ class DataImporter:
             file_size = os.path.getsize(file_dest) #obtain file size of read file
             print(f"\t{file_dest} has size {file_size / (1024 * 1024):.2f}MB")
 
-
         #strip irrelevant parts of imported object based on defined parameter ranges 
         if self.verbose: print("\tStripping Irrelevant Sections")
-        for expert in self.current_data[self.current_individual]:
+        for expert in list(raw_data[self.current_individual].keys()):
             if not (expert in self.experts):
                 print("\t\tDeleted expert",expert)
-                del self.current_data[self.current_individual][expert]
+                del raw_data[self.current_individual][expert]
             else:
-                for model in self.current_data[self.current_individual][expert]:
+                for model in list(raw_data[self.current_individual][expert].keys()):
                     if not (model in self.models):
                         print("\t\tDeleted model",model)
-                        del self.current_data[self.current_individual][expert][model]
+                        del raw_data[self.current_individual][expert][model]
         if self.verbose: print("\tFinished stripping sections.")
+
+        self.current_data = DataHandler(raw_data)
+
+
+
 
     def check_finished(self):
         return self.current_individual == None
@@ -224,9 +222,9 @@ class DataHandler:
 
         #detect range of individuals, experts, models, and ages
         self.individuals, self.experts, self.models, self.ages = [], [] , [], []
-        for individual in data_dict:
-            for expert in data_dict[individual]:
-                for model in data_dict[individual][expert]:
+        for individual in list(data_dict.keys()):
+            for expert in list(data_dict[individual].keys()):
+                for model in list(data_dict[individual][expert].keys()):
                     if data_dict[individual][expert][model] != []: #only add if empty
                         if not individual in self.individuals: self.individuals.append(individual)
                         age = individual[:-1]
@@ -266,18 +264,30 @@ class DataHandler:
         print(f"{self.minutes_count // 60}h {self.minutes_count % 60}m worth of data stored.")
 
     def flatten(self):
+        if self.verbose: print("Starting to Flatten")
         output_list = []
         for individual in self.individuals:
-            for expert in self.data_dict[individual]:
-                for model in self.data_dict[individual][expert]:
+            for expert in list(self.data_dict[individual].keys()):
+                for model in list(self.data_dict[individual][expert].keys()):
                     output_list += self.data_dict[individual][expert][model]
+                    del self.data_dict[individual][expert][model]
         del self.data_dict
         self.flat_trials = output_list
         self.flat = True
+        if self.verbose: print("Flattening Complete")
 
-    def save_as_csv(self, name, dest_folder="../data/csv_saves/"):
-        if self.flat: #saves all trials in a single, large, .csv file
-            df = pd.DataFrame(np.vstack(self.flat_trials), columns=self.trial_labels)
+    def save_as_csv(self, name, dest_folder="../data/csv_saves/",seperate_flat_files = False):
+        if self.verbose: print("Starting CSV Writing")
+        use_columns = self.trial_labels + ["meta"]
+        if self.flat and seperate_flat_files: #saves each trial in a seperate folder
+            num = 0
+            for trial in self.flat_trials:
+                df = pd.DataFrame(trial, columns=use_columns)
+                df.to_csv(dest_folder + name + str(num) + ".csv", sep=',', index=False, header=True)
+                num += 1
+        elif self.flat: #saves all trials in a single, large, .csv file
+            print(self.flat_trials[0])
+            df = pd.DataFrame(np.vstack(self.flat_trials), columns=use_columns)
             df.to_csv(dest_folder + name + ".csv", sep=',', index=False, header=True)
         else: #saves trials in seperate files, organised by folders.
             for individual in self.data_dict:
@@ -287,9 +297,16 @@ class DataHandler:
                     for model in self.data_dict[individual][expert]:
                         os.makedirs(dest_folder + name + '/' + individual + '/' + expert + '/' + model)
                         data = self.data_dict[individual][expert][model]
-                        df = pd.DataFrame(np.vstack(data), columns=self.trial_labels)
+                        df = pd.DataFrame(np.vstack(data), columns=use_columns)
                         df.to_csv(dest_folder + name + '/' + individual + '/' + expert + '/' + model + "/trials.csv", sep=',', index=False, header=True)
+        if self.verbose: print("Finished CSV Writing to",dest_folder + name)
 
+    def delete(self):
+        if self.flat:
+            del self.flat_trials
+        else:
+            del self.data_dict
+            del self.flat_trials
     
     
 
