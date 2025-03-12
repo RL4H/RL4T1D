@@ -7,9 +7,7 @@
 [![CI](https://github.com/chirathyh/G2P2C/actions/workflows/python-app.yml/badge.svg)](https://github.com/chirathyh/G2P2C/actions/workflows/python-app.yml)
 [![DOI](https://img.shields.io/badge/DOI-10.25911/CXAQ--3151-blue)](http://hdl.handle.net/1885/305591)
 
-**IMPORTANT** This project is currently is in development: please visit the legacy codebase: [**G2P2C**](https://github.com/RL4H/G2P2C)
-
-**RL4T1D** is a project to develop Reinforcement Learning (RL) based Artificial Pancreas Systems (APS), with the aim to automate treatment in Type 1 Diabetes (T1D). For more detailed information please visit the legacy codebase: [**G2P2C**](https://github.com/RL4H/G2P2C)
+**RL4T1D** is a project to develop Reinforcement Learning (RL) based Artificial Pancreas Systems (APS), with the aim to automate treatment in Type 1 Diabetes (T1D). Classical control algorithms (Hybrid Closed Loop (HCL) systems) typically require manual interventions, therefore we explore RL to eliminate the need for meal announcements and carbohydrates estimates to fully automate the treatment (Fully Closed Loop (FCL)). This codebase is simplified and improved to help researchers. For more detailed information please visit the legacy codebase: [**G2P2C**](https://github.com/RL4H/G2P2C)
 
 **Background:** Type 1 Diabetes (T1D) is casued by the autoimmune destruction of the islet beta-cells and results in absolute insulin deficiency (cover image: Human islet of Langerhans created by Stable Diffusion). Hence, external administration of insulin is required to maintain glucose levels, which is cruicial as both low and high glucose levels are detrimental to health. This is usually done through an insulin pump attached to the body. An continuous glucose sensor is also attached to measure the glucose levels so that a control algorithm can estimate the appropriate insulin dose. In this project we design Reinforcement Learning (RL) based Artificial Pancreas Systems (APS) for the glucose control problem. The figure below shows the main components of an APS. 
 
@@ -43,12 +41,25 @@ Running a **Proximal Policy Optimisation (PPO)** algorithm for glucose control. 
 cd experiments 
 python run_RL_agent.py experiment.name=test1 experiment.device=cpu agent=ppo agent.debug=True hydra/job_logging=disabled
 ```
+Running a **Glucose Control by Glucose Prediction and Planning (G2P2C)** algorithm for glucose control. More information related to state-action space, reward formulations: [Paper](https://www.sciencedirect.com/science/article/pii/S1746809423012727) .
+```
+cd experiments 
+python run_RL_agent.py experiment.name=test2 env.patient_id=1 experiment.device=cpu agent=g2p2c agent.debug=True hydra/job_logging=disabled
+```
 Running a **Soft Actor Critic (SAC)** algorithm for glucose control. 
 ```
 cd experiments 
-python run_RL_agent.py experiment.name=test2 experiment.device=cpu agent=sac agent.debug=True hydra/job_logging=disabled
+python run_RL_agent.py experiment.name=test3 experiment.device=cpu agent=sac agent.debug=True hydra/job_logging=disabled
 ```
-Start mlflow
+
+**Important Notes**
+* You can also set environment (i.e., patients) parameters through the terminal e.g., as in G2P2C above (<code>env.patient_id=1</code>)
+* There 4 types of configs; <code>agent</code>, <code>env</code>, <code>logging</code>, <code>debug</code>.
+* You can set additional paremeters for <code>logging</code>. e.g., check <code>configs/logger/default.yaml</code> G2P2C has additonal parameters for logging. And any custom logging variables can be integrated easily.
+* You can use the <code>debug</code> config and adjust main RL agent parameters to troubleshoot your algorithms (e.g., set smaller buffer sizes, run for less workers etc.) 
+* There are some parameters the agent requires from the environment (e.g., featurespace, observations, actions, and other values (e.g., glucose range, actions). This interface is carried out int he <code>Agent</code> class; you can add any additional parameters requiring for your algorithm here. 
+
+**Start mlflow**
 ```
 mlflow ui --backend-store-uri results/mlflow 
 ```
@@ -138,15 +149,33 @@ print('Done')
 <h4>Google Colab</h4> 
 Check Docs/notebook. 
 
+Performance Benchmarks
+--
+Cohort results are based on N=1,500 validation trials/meal protocol run for each subject (10 subjects/cohort). <br>
+
+| Algorithm                                                                       | Training Interactions (steps in millions) | Architecture               | Reward       | TIR (%)           | Failures (%) |
+|---------------------------------------------------------------------------------|-------------------------------------------|----------------------------|--------------|-------------------|--------------|
+| **Adult Cohort**                                                                |                                           |                            |              |                   |              |
+| BBI                                                                             | Clinical (Manual)                         |                            | -            | 71.02 ± 11.29     | 0.39         |
+| BBHE                                                                            | Clinical (Manual)                         |                            | -            | 69.78 ± 11.29     | 0.35         |
+| A2C_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | 244 ± 47     | 59.06 ± 14.31     | 9.11         |
+| PPO_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | 264 ± 26     | 69.12 ± 10.53     | 2.79         |
+| SAC_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | 146 ± 98     | 61.76 ± 21.01     | 59.49        |
+| [G2P2C_v0](https://www.sciencedirect.com/science/article/pii/S1746809423012727) | 0.8M                                      | LSTM+Dense (<5000 parameters) | **268 ± 21** | **72.69 ± 9.53**  | **1.62**     |
+| TD3_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | (add)        | 62.79 ± 16.30     | 18.37        |
+| **Adolescent Cohort**                                                           |                                           |                            |              |                   |              |
+| BBI                                                                             | Clinical (Manual)                         |                            | -            | 71.43 ± 12.31     | 0.00         |
+| BBHE                                                                            | Clinical (Manual)                         |                            | -            | 70.23 ± 12.52     | 0.00         |
+| A2C_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters) | 227 ± 48     | 56.03 ± 14.40     | 14.41        |
+| PPO_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters)  | 249 ± 31     | 63.72 ± 13.95     | 4.93         |
+| SAC_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters)  | 107 ± 89     | 65.62 ± 20.16     | 82.06        |
+| [G2P2C_v0](https://www.sciencedirect.com/science/article/pii/S1746809423012727)  | 0.8M                                      | LSTM+Dense (<5000 parameters)  | **254 ± 22** | **64.33 ± 13.18** | **1.48**     |
+| TD3_v0                                                                          | 0.8M                                      | LSTM+Dense (<5000 parameters)  | (add)        | 60.99 ± 19.18     | 25.6         |
+
 RoadMap and Notes
 --
-* Now you can use mlflow to organise: <experiments, experiment_runs (e.g., for hyperparams, new ideas)>. <br>
-* We have legacy custom visualisation scripts <jupyter notebooks> used to debug experiments while running - integrate with new flow<br>
-* Think/Complete logging. Duplicated with mlflow logs and legacy custom logging patterns <br>
-  * validation results.
-* Write test cases <br>
-* Add read docs like GluCoEnv. <br>
-* Improve handling offpolicy vs onpolicy workers. <br>
+* Integrate DPG, DDPG, and TD3 algorithms from the legacy codebase. <br>
+* Duplicated mlflow logs and legacy custom logging patterns <br>
 * Issue running hydra from jupyter notebook. <br>
 * build batch scripts to run for mutiple seeds, envs. <br>
 * provide capability to run agents without using main script (integrate with other rl-libraries). <br>

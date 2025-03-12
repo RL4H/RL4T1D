@@ -35,9 +35,9 @@ class RolloutBuffer:
         self.v_pred = torch.rand(self.n_training_workers, self.n_step + 1, device=self.device)
         self.first_flag = torch.rand(self.n_training_workers, self.n_step + 1, device=self.device)
 
+        # only used for G2P2C
         self.agent_id = args.agent
-        if self.agent_id == "g2p2c":
-            self.cgm_target = torch.rand(self.n_training_workers, self.n_step, device=self.device)
+        self.cgm_target = torch.rand(self.n_training_workers, self.n_step, device=self.device)
 
     def save_rollout(self, training_agent_index):
         data = self.Rollout.get()
@@ -48,8 +48,8 @@ class RolloutBuffer:
         self.reward[training_agent_index] = data['reward']
         self.first_flag[training_agent_index] = data['first_flag']
 
-        if self.agent_id == "g2p2c":
-            self.cgm_target[training_agent_index] = data['cgm_target']
+        # only used for G2P2C
+        self.cgm_target[training_agent_index] = data['cgm_target']
 
     def compute_gae(self):  # TODO: move to different script, optimise/resolve moving across devices back and forth.
         orig_device = self.v_pred.device
@@ -90,8 +90,8 @@ class RolloutBuffer:
         first_flag = self.first_flag.view(-1)
         buffer_len = s_hist.shape[0]
 
+        cgm_target = self.cgm_target.view(-1)
         if self.agent_id == "g2p2c":
-            cgm_target = self.cgm_target.view(-1)
             AuxiliaryBuffer.update(s_hist, cgm_target, act, first_flag)
 
         if self.shuffle_rollout:
@@ -101,8 +101,10 @@ class RolloutBuffer:
             logp = logp[rand_perm, :]  # torch.Size([batch, 1])
             v_targ = v_targ[rand_perm]  # torch.Size([batch])
             adv = adv[rand_perm]  # torch.Size([batch])
+            adv = adv[rand_perm]  # torch.Size([batch])
 
-        return dict(states=s_hist, action=act, log_prob_action=logp, value_target=v_targ, advantage=adv, len=buffer_len)
+        return dict(states=s_hist, action=act, log_prob_action=logp, value_target=v_targ,
+                    advantage=adv, len=buffer_len, cgm_target=cgm_target,)
 
     def get(self, AuxiliaryBuffer=None):
         return self.prepare_rollout_buffer(AuxiliaryBuffer)

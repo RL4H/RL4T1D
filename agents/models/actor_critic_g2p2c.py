@@ -91,6 +91,7 @@ class ActorNetwork(nn.Module):
                 s_new = torch.cat((cgm_pred, action), dim=1)
             s_new = s_new.unsqueeze(1)
             s = torch.cat((s[:, 1:self.args.feature_history, :], s_new), dim=1)
+
         return s
 
     def expert_search(self, s, rew_norm_var, mode):
@@ -200,7 +201,6 @@ class ActorCritic(nn.Module):
             action_logprobs = dist.log_prob(action)
             dist_entropy = dist.entropy()
             return action_logprobs, dist_entropy
-
 
     def evaluate_critic(self, state, action=None, cgm_pred=False):  # evaluate critic <batch>
         if cgm_pred:
