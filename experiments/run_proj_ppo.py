@@ -32,6 +32,7 @@ parser.add_argument("--i_update_init", type=int, default = 3)#updates used to in
 parser.add_argument("--i_update", type=int,default=3)#updates per rl train
 parser.add_argument("--n_sim", type=int, default=2) #Number of sim traj
 parser.add_argument("--l_sim", type=int, default=5)#max length of sim traj
+parser.add_argument("--total_inters", type=int, default=50)#total number of interactions
 parser.add_argument("--dvc", default = 'cpu', type=str, choices=['cpu','cuda'] )#device for pytorch
 
 input_args = parser.parse_args()
@@ -45,6 +46,7 @@ rl_u_init = input_args.i_update_init
 rl_updates = input_args.i_update
 sim_samples = input_args.n_sim #might wan to split in rl update sim and mc sim
 sim_length = input_args.l_sim
+total_inters = input_args.total_inters
 device = input_args.dvc
 
 k = 12  #feature size -> observation already has past incorporated
@@ -113,7 +115,7 @@ print("Trying to initialise irl agent")
 
 irl_agent = ProjectionPPO( exp_samples=expert_samples, n_traj=sim_samples,
                                 traj_len=sim_length, rl_u_init=rl_u_init,
-                                rl_updates=rl_updates, env=env_clin, k=k, device=device)
+                                rl_updates=rl_updates, env=env_clin, k=k,total_inters=total_inters, device=device)
 print("Begin training irl agent")
 iters, data = irl_agent.train(max_iters=irl_max_iters)  #train the irl agent and gain data for plotting
 print("Concluded training")

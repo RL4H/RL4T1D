@@ -29,9 +29,9 @@ n_hidden = 25
 #Class that does the main irl
 class ProjectionPPO:
     def __init__(self, exp_samples, n_traj, traj_len, rl_u_init,rl_updates,device='cpu', discount_factor=0.99, tol=1e-10,
-                 env=None, k=2):
+                 env=None, total_inters=5, k=2):
         self.args = load_arguments(overrides=["experiment.name=test2", "agent=ppo", "env.patient_id=0", "agent.debug=True", 
-                                              "agent.n_step="+str(traj_len), "experiment.device="+device,
+                                              "agent.n_step="+str(traj_len), "experiment.device="+device, "agent.total_interactions="+str(total_inters),
                                  "agent.n_training_workers="+str(n_traj),"hydra/job_logging=disabled"])
         self.device = device
         print(self.args.agent.n_step)
