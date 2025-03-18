@@ -5,10 +5,11 @@ from copy import deepcopy
 
 
 class Worker(T1DEnv):
-    def __init__(self, args, env_args, mode, worker_id):
+    def __init__(self, args, env_args, mode, worker_id, rwd_params = None):
         T1DEnv.__init__(self, env_args, mode, worker_id)
         self.worker_id = worker_id
         self.episode, self.counter = 0, 0
+        self.rwd_params = rwd_params
         self.rollout_steps = args.n_step if self.worker_mode == 'training' else args.max_test_epi_len
         self.stop_factor = (args.max_epi_length - 1) if self.worker_mode == 'training' else (args.max_test_epi_len - 1)
         self.controlspace = ControlSpace(control_space_type=args.control_space_type,
@@ -22,8 +23,8 @@ class Worker(T1DEnv):
 
 
 class OnPolicyWorker(Worker):
-    def __init__(self, args, env_args, mode, worker_id):
-        Worker.__init__(self, args, env_args, mode, worker_id)
+    def __init__(self, args, env_args, mode, worker_id, rwd_params = None):
+        Worker.__init__(self, args, env_args, mode, worker_id, rwd_params)
 
     def rollout(self, policy=None, buffer=None, logger=None):
         logger = logger[self.worker_id]
@@ -36,6 +37,10 @@ class OnPolicyWorker(Worker):
             pump_action = self.controlspace.map(agent_action=rl_action['action'][0])  # map RL action => control space (pump)
 
             state, reward, is_done, info = self.env.step(pump_action)
+            if self.rwd_params is not None:
+                obs = torch.tensor([x[0] for x in state]) #need to check this is correct for PPO
+                reward = torch.matmul(self.rwd_params, obs)
+                
 
             if self.worker_mode == 'training': # store -> rollout data for training.
                 is_first = True if self.counter == 0 else False
@@ -54,6 +59,10 @@ class OnPolicyWorker(Worker):
                 if self.worker_mode != 'training': break
                 self._reset()
         return
+    
+    def update_rwd_params(self, w):
+        self.rwd_params = w
+
 
 
 class OffPolicyWorker(Worker):

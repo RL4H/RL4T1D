@@ -6,8 +6,8 @@ from agents.models.actor_critic import ActorCritic
 
 
 class PPO(Agent):
-    def __init__(self, args, env_args, logger, load_model, actor_path, critic_path):
-        super(PPO, self).__init__(args, env_args=env_args, logger=logger, type="OnPolicy")
+    def __init__(self, args, env_args, logger, load_model, actor_path, critic_path, rwd_params = None):
+        super(PPO, self).__init__(args, env_args=env_args, logger=logger, type="OnPolicy", rwd_params=rwd_params)
         self.device = args.device
         self.completed_interactions = 0
 
@@ -32,6 +32,8 @@ class PPO(Agent):
         self.entropy_coef = args.entropy_coef
         self.eps_clip = args.eps_clip
         self.target_kl = args.target_kl
+
+        
 
     def train_pi(self):
         print('Running Policy Update...')

@@ -1,0 +1,21 @@
+artifact_path: critic_model
+flavors:
+  python_function:
+    config:
+      device: null
+    data: data
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pytorch
+    pickle_module_name: mlflow.pytorch.pickle_module
+    python_version: 3.10.12
+  pytorch:
+    code: null
+    model_data: data
+    pytorch_version: 2.2.0+cu118
+mlflow_version: 2.14.2
+model_size_bytes: 21870
+model_uuid: 1351fb845e624f728c01cee53b4f68d3
+run_id: f114225b5e154fd6b4e886b2189f6074
+utc_time_created: '2025-03-11 05:01:30.585684'

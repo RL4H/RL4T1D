@@ -7,7 +7,7 @@ rnn_directions: 1
 bidirectional: False
 
 # parameters for RL discounting strategies
-return_type: 'average'   # discount | average; is average gamma and lamda -> 1.
+return_type: 'discount'   # discount | average; is average gamma and lamda -> 1.
 gamma: 0.99
 lambda_: 0.95
 

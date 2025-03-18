@@ -16,11 +16,12 @@ from omegaconf import OmegaConf, open_dict
 
 
 class Agent:
-    def __init__(self, args, env_args, logger, type="None"):
+    def __init__(self, args, env_args, logger, type="None", rwd_params=None):
         self.args = args
         self.env_args = env_args
         self.agent_type = type
         self.policy = None
+        self.rwd_params = rwd_params
 
         with open_dict(self.args):  # TODO: the interface between env - agent, improve?
             self.args.n_features = len(env_args.obs_features)
@@ -33,11 +34,11 @@ class Agent:
         # initialise workers and buffers
         if type == "OnPolicy":
             self.training_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='training',
-                                           worker_id=i+args.training_agent_id_offset) for i in range(self.args.n_training_workers)]
+                                           worker_id=i+args.training_agent_id_offset, rwd_params = rwd_params) for i in range(self.args.n_training_workers)]
             self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing',
-                                          worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
+                                          worker_id=i+args.testing_agent_id_offset, rwd_params = rwd_params) for i in range(self.args.n_testing_workers)]
             self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing',
-                                             worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
+                                             worker_id=i + args.validation_agent_id_offset, rwd_params = rwd_params) for i in range(self.args.n_val_trials)]
             self.buffer = onpolicy_buffers.RolloutBuffer(self.args)
 
         elif type == "OffPolicy":
@@ -143,3 +144,12 @@ class Agent:
         #     param_group['lr'] = self.pi_lr
         # for param_group in self.optimizer_Critic.param_groups:
         #     param_group['lr'] = self.vf_lr
+
+    def update_worker_rwd(self, w):
+        for x in self.training_agents:
+            x.update_rwd_params(w)
+        for x in self.testing_agents:
+            x.update_rwd_params(w)
+        for x in self.validation_agents:
+            x.update_rwd_params(w)
+
