@@ -41,7 +41,7 @@ class OnPolicyWorker(Worker):
                 obs = torch.tensor([x[0] for x in state]).to(self.args.device) #need to check this is correct for PPO
                 print("obs: ", obs.get_device())
                 print("w: ", self.rwd_params.get_device())
-                reward = torch.matmul(self.rwd_params, obs)
+                reward = torch.matmul(self.rwd_params, obs).cpu()
                 
 
             if self.worker_mode == 'training': # store -> rollout data for training.
