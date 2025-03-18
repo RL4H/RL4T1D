@@ -63,7 +63,7 @@ class OnPolicyWorker(Worker):
         return
     
     def update_rwd_params(self, w):
-        self.rwd_params = w.to(self.args.environment.device)
+        self.rwd_params = w.to(self.args.experiment.device)
 
 
 
