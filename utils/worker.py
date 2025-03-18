@@ -39,8 +39,6 @@ class OnPolicyWorker(Worker):
             state, reward, is_done, info = self.env.step(pump_action)
             if self.rwd_params is not None:
                 obs = torch.tensor([x[0] for x in state]).to(self.args.device) #need to check this is correct for PPO
-                print("obs: ", obs.get_device())
-                print("w: ", self.rwd_params.get_device())
                 reward = torch.matmul(self.rwd_params, obs).cpu()
                 
 

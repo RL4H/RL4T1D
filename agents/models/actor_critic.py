@@ -74,8 +74,8 @@ class ActorCritic(nn.Module):
         critic_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_Critic.pth'
 
         torch.save(self.Actor, actor_path)
-        mlflow.pytorch.log_model(self.Actor, 'actor_model')
+        #mlflow.pytorch.log_model(self.Actor, 'actor_model')
 
         torch.save(self.Critic, critic_path)
-        mlflow.pytorch.log_model(self.Critic, 'critic_model')
+        #mlflow.pytorch.log_model(self.Critic, 'critic_model')
 

@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/jtrim/OneDrive/Documents/COMP4550/RL4T1D/mlruns/0/adc59a7831154700a3c51142736091cd/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: adc59a7831154700a3c51142736091cd
+run_name: trusting-goose-842
+run_uuid: adc59a7831154700a3c51142736091cd
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1742263817168
+status: 1
+tags: []
+user_id: jtrim
