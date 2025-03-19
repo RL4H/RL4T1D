@@ -35,13 +35,12 @@ If you are setting up the data for yourself, take care to remove other subfolder
 
 Additionally, if the SAVE_TO_PICKLE variable is set to true when importing the data (running `import_data.py` as main), a pickled version of the data will be stored in `object_save/object_dictionary.pkl`.
 
-The `import_data.py` file is set up to be ran from the experiments folder in following with the other files in the repository, so keep this in mind when running. ie.
+To run this file, simply navigate to the root of the repo and run the following command:
 
 ```
->>> cd experiments
->>> python ../data/import_data.py
+>>> python /data/import_data.py
 ```
 
-To run this file, you will need the pickle module on top of the other modules needed for this repository.
+To run this file, you will need the pickle module on top of the other modules needed for the rest of this repository.
 
-In the main execution of the `import_data.py` file, there are examples of how to read and write the data.
+In the `utilise_data.py` file, there are examples of how to read and write the data.

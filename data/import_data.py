@@ -9,6 +9,11 @@ import json
 from omegaconf import OmegaConf
 import gc
 
+
+from decouple import config
+MAIN_PATH = config('MAIN_PATH')
+sys.path.insert(1, MAIN_PATH)
+
 AGE_VALUES = ["adolescent", "adult"] 
 
 
@@ -38,7 +43,7 @@ ADOLESCENT_INDIVIDUALS = ["adolescent" + str(num) for num in range(ADOLESCENT_IN
 INDIVIDUALS = ADULT_INDIVIDUALS + ADOLESCENT_INDIVIDUALS
 
 # stores where object is saved to when run as main
-OBJECT_SAVE_FILE = "../data" + "/object_save/data_dictionary.pkl"
+OBJECT_SAVE_FILE = "data" + "/object_savedata_dictionary.pkl"
 
 CSV_HEADERS = ["cgm", "carbs", "ins", "t"]
 
@@ -46,11 +51,13 @@ CSV_HEADERS = ["cgm", "carbs", "ins", "t"]
 def import_from_obj(file_dest=OBJECT_SAVE_FILE):
     with open(file_dest, 'rb') as f:
         data_dict = pickle.load(f)
+        f.close()
     return data_dict
 
 def save_to_obj_file(data_dict, file_dest=OBJECT_SAVE_FILE):
     with open(file_dest, 'wb') as f:
         data_dict = pickle.dump(data_dict, f)
+        f.close()
     return data_dict
 
 def open_arg_file(file_dest):
@@ -61,7 +68,7 @@ def open_arg_file(file_dest):
     
 
 
-def import_pickle_files(file_dest_folder="../data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
+def import_pickle_files(file_dest_folder="data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
     start_time = datetime.now() #start the read timer
     overall_file_size = 0
 
@@ -82,7 +89,7 @@ def import_pickle_files(file_dest_folder="../data/object_save/", file_name_start
     print("Executed in",duration.total_seconds(), "seconds")
     print(f"Overall files have size {overall_file_size / (1024 * 1024):.2f}MB")
 
-def import_pickle_files_seperately(file_dest_folder="../data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
+def import_pickle_files_seperately(file_dest_folder="data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
     start_time = datetime.now() #start the read timer
     overall_file_size = 0
 
@@ -108,7 +115,7 @@ PICKLE_FILE_NAME_END = "_data"
 PICKLE_FILE_NAME_START = "data_dictionary_"
 class DataImporter:
     def __init__(self, 
-            data_folder="../data/",
+            data_folder="data/",
             verbose = True,
             individuals = INDIVIDUALS, ages=AGE_VALUES, models = MODEL_TYPES, experts=EXPERTS,
         ):
@@ -140,7 +147,7 @@ class DataImporter:
     def delete_current(self):
         if self.current_data != None:
             self.current_data.delete()
-            del self.current_data
+            self.current_data = None
             gc.collect()
 
     def import_current(self):
@@ -175,6 +182,7 @@ class DataImporter:
         if self.verbose: print("\tFinished stripping sections.")
 
         self.current_data = DataHandler(raw_data)
+        raw_data = None
 
 
 
@@ -273,10 +281,11 @@ class DataHandler:
                     del self.data_dict[individual][expert][model]
         del self.data_dict
         self.flat_trials = output_list
+        print("made flat", len(self.flat_trials))
         self.flat = True
         if self.verbose: print("Flattening Complete")
 
-    def save_as_csv(self, name, dest_folder="../data/csv_saves/",seperate_flat_files = False):
+    def save_as_csv(self, name, dest_folder="data/csv_saves/",seperate_flat_files = False):
         if self.verbose: print("Starting CSV Writing")
         use_columns = self.trial_labels + ["meta"]
         if self.flat and seperate_flat_files: #saves each trial in a seperate folder
@@ -302,13 +311,20 @@ class DataHandler:
         if self.verbose: print("Finished CSV Writing to",dest_folder + name)
 
     def delete(self):
-        if self.flat:
-            del self.flat_trials
-        else:
-            del self.data_dict
-            del self.flat_trials
-    
-    
+        print("deleting time!")
+        self.flat_trials = None
+        self.data_dict = None
+    def print_structure(self):
+        print("Structure")
+        if not self.flat:
+            for individual in self.data_dict:
+                print(individual)
+                for expert in self.data_dict[individual]:
+                    print("\t",expert)
+                    for model in self.data_dict[individual][expert]:
+                        print("\t\t",model,"with",len(self.data_dict[individual][expert][model]),"trials")
+        print()
+
 
     
 
@@ -326,7 +342,7 @@ if __name__ == "__main__":
     elif not SINGLE_INDIVIDUAL_FILES: #read from the single overall file
         start_time = datetime.now() #start the read timer
 
-        file_dest="../data/object_save/data_dictionary.pkl"
+        file_dest="data/object_savedata_dictionary.pkl"
         print("Starting read from file",file_dest)
         data = import_from_obj(file_dest) #import data from pickle object
 
