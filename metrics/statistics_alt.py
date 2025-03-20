@@ -138,3 +138,36 @@ def compare_algorithms(cohort, algo_types, algos, abbreviations):
     print("\nCompare algorithm performance for the {} cohort".format(cohort))
     print(res)
     return res
+
+COL_NAMES = ["episode","t","cgm","meal","ins","rew","rl_ins","mu","sigma","prob","state_val","day_hour","day_min"]
+
+def read_file(experiment_name, algorithm, n_trials, base_num=5000):
+    FOLDER_PATH='/results/'+experiment_name+'/testing'
+    trials_dict = dict()
+    for i in range(0, n_trials):
+        test_i = 'worker_episode_'+str(base_num+i)+'.csv'
+        df = pd.read_csv(MAIN_PATH + FOLDER_PATH + '/' + test_i, names=COL_NAMES)
+
+        copy_dict = dict()
+        for k in df: copy_dict[k] = [i for i in df[k]][1:] #remove title entry from each column
+
+        n_episodes = max([int(float(i)) for i in copy_dict["episode"]])
+        trial_list = [dict() for n in range(n_episodes)]
+        row_n = len(copy_dict["episode"])
+
+        #obtain index boundaries for each episode
+        episode_indices = [0]
+        current_episode = 1
+        for c,row_episode in enumerate(copy_dict["episode"]):
+            if int(float(row_episode)) != current_episode:
+                current_episode += 1
+                episode_indices.append(c)
+        episode_indices.append(None)
+
+        #assign rows for each episode
+        for n in range(n_episodes):
+            current_slice = slice(episode_indices[n], episode_indices[n+1])
+            for k in copy_dict: trial_list[n][k] = copy_dict[k][current_slice]
+        
+        trials_dict[base_num+i] = trial_list
+    return trials_dict

@@ -1,0 +1,48 @@
+agent: 'custom'
+debug: False
+
+n_rnn_hidden: 16
+n_rnn_layers: 1
+rnn_directions: 1
+bidirectional: False
+
+# parameters for RL discounting strategies
+return_type: 'average'   # discount | average; is average gamma and lamda -> 1.
+gamma: 0.99
+lambda_: 0.95
+
+# parameters for the RL rollout
+normalize_reward: True  # reward received is normalised
+shuffle_rollout: True  # rollout trajectory data is shuffled
+
+# ppo parameters
+entropy_coef: 0.001
+grad_clip: 20
+eps_clip: 0.1
+target_kl: 0.01
+
+# train
+n_step: 256
+max_epi_length: 2880
+n_training_workers: 16
+total_interactions: 800000  # total number of interactions the agent will train for
+n_interactions_lr_decay: 600000
+
+# training parameters
+pi_lr: 3.e-4
+vf_lr: 3.e-4
+batch_size: 1024
+n_pi_epochs: 5
+n_vf_epochs: 5
+
+# test
+n_testing_workers: 20
+max_test_epi_len: 288  # testing conducted for 1 day: 12 steps/hr * 24 hours
+
+# validation
+n_val_trials: 500
+
+
+
+
+

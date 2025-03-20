@@ -1,0 +1,230 @@
+{
+    "env": {
+        "patient_id": 0,
+        "obs_window": 12,
+        "obs_features": [
+            "cgm",
+            "insulin"
+        ],
+        "n_actions": 1,
+        "sensor": "GuardianRT",
+        "glucose_max": 600,
+        "glucose_min": 39,
+        "pump": "Insulet",
+        "insulin_max": 5,
+        "insulin_min": 0,
+        "meal_times_mean": [
+            8,
+            10.5,
+            13,
+            16.5,
+            20,
+            22.5
+        ],
+        "time_variance": [
+            60,
+            30,
+            60,
+            30,
+            60,
+            30
+        ],
+        "time_lower_bound": [
+            7,
+            10,
+            12,
+            16,
+            19,
+            22
+        ],
+        "time_upper_bound": [
+            9,
+            11,
+            14,
+            17,
+            21,
+            23
+        ],
+        "meal_prob": [
+            0.95,
+            -1,
+            0.95,
+            -1,
+            0.95,
+            -1
+        ],
+        "meal_amount": [
+            45,
+            30,
+            85,
+            30,
+            80,
+            30
+        ],
+        "meal_variance": [
+            5,
+            3,
+            5,
+            3,
+            10,
+            3
+        ],
+        "val_meal_prob": [
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1
+        ],
+        "val_meal_amount": [
+            40,
+            0,
+            80,
+            0,
+            60,
+            0
+        ],
+        "val_meal_variance": [
+            1e-08,
+            1e-08,
+            1e-08,
+            1e-08,
+            1e-08,
+            1e-08
+        ],
+        "val_time_variance": [
+            1e-08,
+            1e-08,
+            1e-08,
+            1e-08,
+            1e-08,
+            1e-08
+        ],
+        "t_meal": 20,
+        "experiment_folder": "../results/CustomTest1",
+        "device": "cpu",
+        "verbose": true,
+        "seed": 0
+    },
+    "agent": {
+        "agent": "custom",
+        "debug": true,
+        "n_rnn_hidden": 16,
+        "n_rnn_layers": 1,
+        "rnn_directions": 1,
+        "bidirectional": false,
+        "return_type": "average",
+        "gamma": 0.99,
+        "lambda_": 0.95,
+        "normalize_reward": true,
+        "shuffle_rollout": true,
+        "entropy_coef": 0.001,
+        "grad_clip": 20,
+        "eps_clip": 0.1,
+        "target_kl": 0.01,
+        "n_step": 256,
+        "max_epi_length": 2880,
+        "n_training_workers": 2,
+        "total_interactions": 4000,
+        "n_interactions_lr_decay": 2000,
+        "pi_lr": 0.0003,
+        "vf_lr": 0.0003,
+        "batch_size": 32,
+        "n_pi_epochs": 5,
+        "n_vf_epochs": 5,
+        "n_testing_workers": 2,
+        "max_test_epi_len": 288,
+        "n_val_trials": 3,
+        "experiment_folder": "../results/CustomTest1",
+        "experiment_dir": "../results/CustomTest1",
+        "device": "cpu",
+        "verbose": true,
+        "seed": 0,
+        "debug_params": {
+            "n_testing_workers": 2,
+            "n_training_workers": 2,
+            "total_interactions": 4000,
+            "n_interactions_lr_decay": 2000,
+            "n_val_trials": 3,
+            "batch_size": 32,
+            "replay_buffer_size": 1024
+        },
+        "control_space_type": "exponential",
+        "mlflow_track": false,
+        "training_agent_id_offset": 5,
+        "testing_agent_id_offset": 5000,
+        "validation_agent_id_offset": 6000
+    },
+    "logger": {
+        "log": true,
+        "experiment_logs": [
+            "experiment_summary"
+        ],
+        "worker_logs": [
+            "worker_episode",
+            "worker_episode_summary"
+        ],
+        "experiment_summary": [
+            "policy_grad",
+            "value_grad",
+            "val_loss",
+            "explained_var",
+            "true_var",
+            "policy_loss",
+            "avg_rew"
+        ],
+        "worker_episode": [
+            "episode",
+            "t",
+            "cgm",
+            "meal",
+            "ins",
+            "rew",
+            "rl_ins",
+            "mu",
+            "sigma",
+            "prob",
+            "state_val",
+            "day_hour",
+            "day_min"
+        ],
+        "worker_episode_summary": [
+            "epi",
+            "t",
+            "reward",
+            "normo",
+            "hypo",
+            "sev_hypo",
+            "hyper",
+            "lgbi",
+            "hgbi",
+            "ri",
+            "sev_hyper",
+            "aBGP_rmse",
+            "cBGP_rmse"
+        ]
+    },
+    "debug": {
+        "n_testing_workers": 2,
+        "n_training_workers": 2,
+        "total_interactions": 4000,
+        "n_interactions_lr_decay": 2000,
+        "n_val_trials": 3,
+        "batch_size": 32,
+        "replay_buffer_size": 1024
+    },
+    "mlflow": {
+        "track": false,
+        "tracking_uri": "../results/mlflow"
+    },
+    "experiment": {
+        "name": "CustomTest1",
+        "run_name": null,
+        "folder": "CustomTest1",
+        "experiment_dir": "../results/CustomTest1",
+        "device": "cpu",
+        "verbose": true,
+        "seed": 0
+    }
+}
