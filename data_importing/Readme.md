@@ -27,6 +27,8 @@ The data itself is too large to be stored in the repository, so to use it on you
         --- SAC
         --- TD3
 ``` 
+
+Add a variable in the .env file called `SIM_DATA_PATH`, and set it to the root of the data folder stored on your local machine.
 The BBHE and BBI folders contain csv files in the format `logs_worker_[individual number]_[trial number].csv`.
 
 All other folders contain sub folders following the format `[model name][individual number]_[seed number].csv`.

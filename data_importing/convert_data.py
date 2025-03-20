@@ -1,8 +1,12 @@
 from datetime import datetime
-from import_data import import_from_obj, INDIVIDUALS
+from data.import_data import import_from_obj, INDIVIDUALS
 import os
 import numpy as np
 from random import randrange
+from decouple import config
+
+MAIN_PATH = config('MAIN_PATH')
+SIM_DATA_PATH = config('SIM_DATA_PATH')
 
 
 def convert_to_frames(data_obj, window_size=16, default_starting_window=True, default_starting_value=0):
@@ -38,7 +42,7 @@ if __name__ == "__main__":
     start_time = datetime.now() #start the read timer
 
     overall_data_dict = dict()
-    file_dest="../data/object_save/data_dictionary_" + individual + "_data.pkl"
+    file_dest= SIM_DATA_PATH + "/object_save/data_dictionary_" + individual + "_data.pkl"
     print("Starting import for",individual,"from",file_dest)
     
     data = import_from_obj(file_dest) #import data from pickle object

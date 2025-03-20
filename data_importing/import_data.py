@@ -12,6 +12,7 @@ import gc
 
 from decouple import config
 MAIN_PATH = config('MAIN_PATH')
+SIM_DATA_PATH = config('SIM_DATA_PATH')
 sys.path.insert(1, MAIN_PATH)
 
 AGE_VALUES = ["adolescent", "adult"] 
@@ -43,7 +44,7 @@ ADOLESCENT_INDIVIDUALS = ["adolescent" + str(num) for num in range(ADOLESCENT_IN
 INDIVIDUALS = ADULT_INDIVIDUALS + ADOLESCENT_INDIVIDUALS
 
 # stores where object is saved to when run as main
-OBJECT_SAVE_FILE = "data" + "/object_savedata_dictionary.pkl"
+OBJECT_SAVE_FILE = SIM_DATA_PATH + "/object_savedata_dictionary.pkl"
 
 CSV_HEADERS = ["cgm", "carbs", "ins", "t"]
 
@@ -68,7 +69,7 @@ def open_arg_file(file_dest):
     
 
 
-def import_pickle_files(file_dest_folder="data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
+def import_pickle_files(file_dest_folder=SIM_DATA_PATH + "/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
     start_time = datetime.now() #start the read timer
     overall_file_size = 0
 
@@ -89,7 +90,7 @@ def import_pickle_files(file_dest_folder="data/object_save/", file_name_start="d
     print("Executed in",duration.total_seconds(), "seconds")
     print(f"Overall files have size {overall_file_size / (1024 * 1024):.2f}MB")
 
-def import_pickle_files_seperately(file_dest_folder="data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
+def import_pickle_files_seperately(file_dest_folder=SIM_DATA_PATH + "/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
     start_time = datetime.now() #start the read timer
     overall_file_size = 0
 
@@ -342,7 +343,7 @@ if __name__ == "__main__":
     elif not SINGLE_INDIVIDUAL_FILES: #read from the single overall file
         start_time = datetime.now() #start the read timer
 
-        file_dest="data/object_savedata_dictionary.pkl"
+        file_dest=SIM_DATA_PATH + "/object_savedata_dictionary.pkl"
         print("Starting read from file",file_dest)
         data = import_from_obj(file_dest) #import data from pickle object
 
