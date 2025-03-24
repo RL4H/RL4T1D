@@ -45,8 +45,8 @@ class ProjectionPPO:
         self.k = 12
         #self.args = args
         self.iters = 0
-        self.irl_path = os.path.abspath('results/mmp_proj_test/irl.txt')
-        self.rl_path = os.path.abspath('results/mmp_proj_test/rl.txt')
+        # self.irl_path = os.path.abspath('results/mmp_proj_test/irl.txt')
+        # self.rl_path = os.path.abspath('results/mmp_proj_test/rl.txt')
         #might need to change this to account for PPO -> doesnt look like it
         self.controlspace = ControlSpace(control_space_type=self.cfg.agent.control_space_type,
                                          insulin_min=self.env.action_space.low[0],
@@ -89,9 +89,9 @@ class ProjectionPPO:
         for i in range(self.n_traj):
             timestep = 0
             observation = self.env.reset()
-            rl_f = open(self.rl_path, 'a')
+            # rl_f = open(self.rl_path, 'a')
             for x in observation:
-                rl_f.write(", ".join([str(self.iters), str(i), str(timestep), str(x[0]), str(x[1]), 'S'])+"\n")
+                # rl_f.write(", ".join([str(self.iters), str(i), str(timestep), str(x[0]), str(x[1]), 'S'])+"\n")
                 timestep += 1
             rl_f.close()
             traj = [np.array([x[0] for x in observation])]
@@ -101,9 +101,9 @@ class ProjectionPPO:
                 pump_action = self.controlspace.map(agent_action=pol_ret['action'])
                 observation, _, is_done, info = self.env.step(pump_action)
                 scaled_feature = np.array([x[0] for x in observation])#scaled
-                rl_f = open(self.rl_path, 'a')
-                rl_f.write(", ".join([str(self.iters), str(i), str(timestep), str(observation[-1][0]), str(observation[-1][1]), str(pol_ret['action'])])+"\n")
-                rl_f.close()
+                # rl_f = open(self.rl_path, 'a')
+                # rl_f.write(", ".join([str(self.iters), str(i), str(timestep), str(observation[-1][0]), str(observation[-1][1]), str(pol_ret['action'])])+"\n")
+                # rl_f.close()
                 traj.append(scaled_feature)  # saving the feature vector to the traj
                 timestep +=1
                 if is_done == 1: #i.e the patient dies
@@ -120,7 +120,7 @@ class ProjectionPPO:
         # irl_path = os.path.abspath('../..results/mmp_proj_test/irl')
         #rl_path = os.path.abspath('../..results/mmp_proj_test/rl')
         # open(irl_path, 'w').close()
-        open(self.rl_path, 'w').close() #-- needs to be uncommented
+        # open(self.rl_path, 'w').close() #-- needs to be uncommented
         iters = 0
         data = []  #used for plotting
         #get expert feature expectation
@@ -134,9 +134,9 @@ class ProjectionPPO:
         self.proj = pol_exp
         self.w = expert_exp - self.proj
         #wrting to results
-        f1 = open(self.irl_path, 'w')
-        f1.write(", ".join(['_'+str(iters), str(self.proj), str(self.w)])+"\n")
-        f1.close()
+        # f1 = open(self.irl_path, 'w')
+        # f1.write(", ".join(['_'+str(iters), str(self.proj), str(self.w)])+"\n")
+        # f1.close()
         #print('irl: ', iters, self.proj, self.w)
         self.rl_agent.update_worker_rwd(self.w.to(self.device))  # update reward function
         # Now use RL algorithm to find a new policy
@@ -161,9 +161,9 @@ class ProjectionPPO:
             #print("irl: ",iters, p, w, t)
             self.proj = p
             self.w = w
-            file = open(self.irl_path, 'a')
-            file.write(", ".join(['_'+str(iters), str(self.proj), str(self.w),str(t) ])+"\n")
-            file.close()
+            # file = open(self.irl_path, 'a')
+            # file.write(", ".join(['_'+str(iters), str(self.proj), str(self.w),str(t) ])+"\n")
+            # file.close()
             converged = t <= self.tol or iters == max_iters
             if converged:
                 break
