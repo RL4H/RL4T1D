@@ -32,8 +32,8 @@ parser.add_argument("--i_update_init", type=int, default = 3)#updates used to in
 parser.add_argument("--i_update", type=int,default=3)#updates per rl train
 parser.add_argument("--n_sim", type=int, default=2) #Number of sim traj
 parser.add_argument("--l_sim", type=int, default=5)#max length of sim traj
-parser.add_argument("--total_inters", type=int, default=5)#total number of interactions
-parser.add_argument("--dvc", default = 'cpu', type=str, choices=['cpu','cuda'] )#device for pytorch
+parser.add_argument("--total_inters", type=int, default=1)#total number of interactions
+parser.add_argument("--dvc", default = 'cuda', type=str, choices=['cpu','cuda'] )#device for pytorch
 
 input_args = parser.parse_args()
 
