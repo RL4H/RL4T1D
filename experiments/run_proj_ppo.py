@@ -32,6 +32,7 @@ parser.add_argument("--i_update_init", type=int, default = 3)#updates used to in
 parser.add_argument("--i_update", type=int,default=3)#updates per rl train
 parser.add_argument("--n_sim", type=int, default=2) #Number of sim traj
 parser.add_argument("--l_sim", type=int, default=5)#max length of sim traj
+parser.add_argument("--total_inters", type=int, default=5)#total number of interactions
 parser.add_argument("--dvc", default = 'cpu', type=str, choices=['cpu','cuda'] )#device for pytorch
 
 input_args = parser.parse_args()
@@ -45,6 +46,7 @@ rl_u_init = input_args.i_update_init
 rl_updates = input_args.i_update
 sim_samples = input_args.n_sim #might wan to split in rl update sim and mc sim
 sim_length = input_args.l_sim
+total_inters = input_args.total_inters
 device = input_args.dvc
 
 k = 12  #feature size -> observation already has past incorporated
@@ -64,42 +66,49 @@ expert_samples = []
 args = load_arguments(
     overrides=["experiment.name=test2", "agent=clinical_treatment", "env.patient_id="+str(patient_id), "agent.debug=True",
                "hydra/job_logging=disabled"])
-patients, env_ids = get_patient_env()
+# patients, env_ids = get_patient_env()
+#
+# env_clin = T1DEnv(args=args.env, mode='testing', worker_id=1)
+# clinical_agent = BasalBolusController(args.agent, patient_name=patients[args.env.patient_id],
+#                                       sampling_rate=env_clin.env.sampling_time)
+#
+# observation = env_clin.reset()  # observation is the state-space (features x history) of the RL algorithm.
+# glucose, meal = core.inverse_linear_scaling(y=observation[-1][0], x_min=args.env.glucose_min,
+#                                             x_max=args.env.glucose_max), 0
 
-env_clin = T1DEnv(args=args.env, mode='testing', worker_id=1)
-clinical_agent = BasalBolusController(args.agent, patient_name=patients[args.env.patient_id],
-                                      sampling_rate=env_clin.env.sampling_time)
-
-observation = env_clin.reset()  # observation is the state-space (features x history) of the RL algorithm.
-glucose, meal = core.inverse_linear_scaling(y=observation[-1][0], x_min=args.env.glucose_min,
-                                            x_max=args.env.glucose_max), 0
+print(args)
+LOG_DIR = args.env.experiment_folder
+os.makedirs(LOG_DIR + '/checkpoints')
+os.makedirs(LOG_DIR + '/training/')
+os.makedirs(LOG_DIR + '/testing/')
+exit()
 # clinical algorithms uses the glucose value, rather than the observation-space of RL algorithms, which is normalised for training stability.
 #print("expert")
-for _ in range(n_samples):  #samples, each of length traj_len
-    observation = env_clin.reset()  # observation is the state-space (features x history) of the RL algorithm.
-    glucose, meal = core.inverse_linear_scaling(y=observation[-1][0], x_min=args.env.glucose_min,
-                                                x_max=args.env.glucose_max), 0
-    traj = [np.array([x[0] for x in observation])]
-    for _ in range(traj_len):
-
-        action = clinical_agent.get_action(meal=meal, glucose=glucose)  # insulin action of BB treatment
-        observation, reward, is_done, info = env_clin.step(action[0])  # take an env step
-
-        # clinical algorithms require "manual meal announcement and carbohydrate estimation."
-        if args.env.t_meal == 0:  # no meal announcement: take action for the meal as it happens.
-            meal = info['meal'] * info['sample_time']
-        elif args.env.t_meal == info[
-            'remaining_time_to_meal']:  # meal announcement: take action "t_meal" minutes before the actual meal.
-            meal = info['future_carb']
-        else:
-            meal = 0
-        if meal != 0:  # simulate the human carbohydrate estimation error or ideal scenario.
-            meal = carb_estimate(meal, info['day_hour'], patients[args.env.patient_id], type=args.agent.carb_estimation_method)
-        glucose = info['cgm'].CGM
-
-        traj.append(np.array([x[0] for x in observation]))
-        #print(f'Latest glucose level: {info["cgm"].CGM:.2f} mg/dL, administered insulin: {action[0]:.2f} U.')
-    expert_samples.append(traj)
+# for _ in range(n_samples):  #samples, each of length traj_len
+#     observation = env_clin.reset()  # observation is the state-space (features x history) of the RL algorithm.
+#     glucose, meal = core.inverse_linear_scaling(y=observation[-1][0], x_min=args.env.glucose_min,
+#                                                 x_max=args.env.glucose_max), 0
+#     traj = [np.array([x[0] for x in observation])]
+#     for _ in range(traj_len):
+#
+#         action = clinical_agent.get_action(meal=meal, glucose=glucose)  # insulin action of BB treatment
+#         observation, reward, is_done, info = env_clin.step(action[0])  # take an env step
+#
+#         # clinical algorithms require "manual meal announcement and carbohydrate estimation."
+#         if args.env.t_meal == 0:  # no meal announcement: take action for the meal as it happens.
+#             meal = info['meal'] * info['sample_time']
+#         elif args.env.t_meal == info[
+#             'remaining_time_to_meal']:  # meal announcement: take action "t_meal" minutes before the actual meal.
+#             meal = info['future_carb']
+#         else:
+#             meal = 0
+#         if meal != 0:  # simulate the human carbohydrate estimation error or ideal scenario.
+#             meal = carb_estimate(meal, info['day_hour'], patients[args.env.patient_id], type=args.agent.carb_estimation_method)
+#         glucose = info['cgm'].CGM
+#
+#         traj.append(np.array([x[0] for x in observation]))
+#         #print(f'Latest glucose level: {info["cgm"].CGM:.2f} mg/dL, administered insulin: {action[0]:.2f} U.')
+#     expert_samples.append(traj)
 
 #expert_samples.to(device)
 #print(expert_samples)
@@ -113,7 +122,7 @@ print("Trying to initialise irl agent")
 
 irl_agent = ProjectionPPO( exp_samples=expert_samples, n_traj=sim_samples,
                                 traj_len=sim_length, rl_u_init=rl_u_init,
-                                rl_updates=rl_updates, env=env_clin, k=k, device=device)
+                                rl_updates=rl_updates, env=env_clin, k=k,total_inters=total_inters, device=device)
 print("Begin training irl agent")
 iters, data = irl_agent.train(max_iters=irl_max_iters)  #train the irl agent and gain data for plotting
 print("Concluded training")

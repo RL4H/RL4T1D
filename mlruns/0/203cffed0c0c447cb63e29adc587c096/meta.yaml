@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/jtrim/OneDrive/Documents/COMP4550/RL4T1D/mlruns/0/203cffed0c0c447cb63e29adc587c096/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 203cffed0c0c447cb63e29adc587c096
+run_name: trusting-fowl-82
+run_uuid: 203cffed0c0c447cb63e29adc587c096
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1742162704189
+status: 1
+tags: []
+user_id: jtrim

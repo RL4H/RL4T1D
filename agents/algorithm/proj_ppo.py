@@ -29,10 +29,10 @@ n_hidden = 25
 #Class that does the main irl
 class ProjectionPPO:
     def __init__(self, exp_samples, n_traj, traj_len, rl_u_init,rl_updates,device='cpu', discount_factor=0.99, tol=1e-10,
-                 env=None, k=2):
+                 env=None, total_inters=5, k=2):
         self.args = load_arguments(overrides=["experiment.name=test2", "agent=ppo", "env.patient_id=0", "agent.debug=True", 
-                                              "agent.n_step="+str(traj_len), "experiment.device="+device,
-                                 "agent.n_training_workers="+str(n_traj), "agent.max_epi_length="+str(rl_updates),"hydra/job_logging=disabled"])
+                                              "agent.n_step="+str(traj_len), "experiment.device="+device, "agent.total_interactions="+str(total_inters),
+                                 "agent.n_training_workers="+str(n_traj),"hydra/job_logging=disabled"])
         self.device = device
         print(self.args.agent.n_step)
         self.rl_agent = PPO(args=self.args.agent, env_args=self.args.env, logger=Logger(self.args), load_model=False, actor_path='', critic_path='')
@@ -105,9 +105,9 @@ class ProjectionPPO:
                 pump_action = self.controlspace.map(agent_action=pol_ret['action'])
                 observation, _, is_done, info = self.env.step(pump_action)
                 scaled_feature = np.array([x[0] for x in observation])#scaled
-                # rl_f = open(self.rl_path, 'a')
-                # rl_f.write(", ".join([str(self.iters), str(i), str(timestep), str(observation[-1][0]), str(observation[-1][1]), str(pol_ret['action'])])+"\n")
-                # rl_f.close()
+                rl_f = open(self.rl_path, 'a')
+                rl_f.write(", ".join([str(self.iters), str(i), str(timestep), str(observation[-1][0]), str(observation[-1][1]), str(pol_ret['action'])])+"\n")
+                rl_f.close()
                 traj.append(scaled_feature)  # saving the feature vector to the traj
                 timestep +=1
                 if is_done == 1: #i.e the patient dies
@@ -138,9 +138,9 @@ class ProjectionPPO:
         self.proj = pol_exp
         self.w = expert_exp - self.proj
         #wrting to results
-        # f1 = open(self.irl_path, 'w')
-        # f1.write(", ".join(['_'+str(iters), str(self.proj), str(self.w)])+"\n")
-        # f1.close()
+        f1 = open(self.irl_path, 'w')
+        f1.write(", ".join(['_'+str(iters), str(self.proj), str(self.w)])+"\n")
+        f1.close()
         #print('irl: ', iters, self.proj, self.w)
         self.rl_agent.update_worker_rwd(self.w.to(self.device))  # update reward function
         # Now use RL algorithm to find a new policy
@@ -165,9 +165,9 @@ class ProjectionPPO:
             #print("irl: ",iters, p, w, t)
             self.proj = p
             self.w = w
-            # file = open(self.irl_path, 'a')
-            # file.write(", ".join(['_'+str(iters), str(self.proj), str(self.w),str(t) ])+"\n")
-            # file.close()
+            file = open(self.irl_path, 'a')
+            file.write(", ".join(['_'+str(iters), str(self.proj), str(self.w),str(t) ])+"\n")
+            file.close()
             converged = t <= self.tol or iters == max_iters
             if converged:
                 break
