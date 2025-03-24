@@ -143,7 +143,7 @@ class ActorCritic:  #changed n_obs <- n_state
 #changed, left original code commented out for reference
 
 def train_actor_critic(args=None, env=None, estimator=None, controlspace=None, n_episode=5, episode_length=1000,
-                       gamma=1.0, trajectories=1, device='cpu',
+                       gamma=0.997, trajectories=1, device='cpu',
                        feature_history=40, calibration=1, STD_BASAL=0, action_stop_horizon=1, folder_id='None',
                        penalty=10):
     """

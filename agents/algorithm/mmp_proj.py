@@ -44,7 +44,7 @@ n_hidden = 25
 
 #Class that does the main irl
 class MaxMarginProjection:
-    def __init__(self, args, exp_samples, n_traj, traj_len, rl_u_init,rl_updates,device='cpu', discount_factor=0.9, tol=1e-10,
+    def __init__(self, args, exp_samples, n_traj, traj_len, rl_u_init,rl_updates,device='cpu', discount_factor=0.99, tol=1e-10,
                  env=None, k=2):
         self.device = device
         self.rl_agent = ActorCritic(n_obs, n_action, n_hidden, device=self.device)
@@ -148,59 +148,50 @@ class MaxMarginProjection:
         self.w = expert_exp - self.proj
         #wrting to results
         f1 = open(self.irl_path, 'w')
-        f1.write(", ".join(['_'+str(iters), str(self.proj), str(self.w)])+"\n")
+        f1.write(", ".join([str(iters), str(self.proj), str(self.w)])+"\n")
         f1.close()
         #print('irl: ', iters, self.proj, self.w)
         self.rl_agent.update_reward(self.w.to(self.device))  # update reward function
         # Now use RL algorithm to find a new policy
         #print('rl_train')
-
-        t_0 = time.perf_counter()
+        tic_0 = time.perf_counter()
         train_actor_critic(args=self.args, env=self.env, estimator=self.rl_agent, controlspace=self.controlspace,
                      episode_length=self.traj_len, n_episode=self.rl_u_init,
                      gamma=self.discount_factor, device=self.device,
                      trajectories=self.n_traj)
-        t_1 = time.perf_counter()
-        print('RL: ', (t_1 - t_0)/60)
-        
+        print((time.perf_counter() - tic_0) / 60)
+        print('rl_train_fin first time')
+        tic_0 = time.perf_counter()
         pol_exp = self.policy_expectations() #torch tensor of scalars
         while not converged:
             #perform projection
-            t_0 = time.perf_counter()
+
             p, w, t = self.projection(expert_exp, pol_exp, self.proj)
-        
             p.to(self.device)
             w.to(self.device)
+            print((time.perf_counter() - tic_0) / 60)
             data.append(t)
             iters += 1
             #print("irl: ",iters, p, w, t)
             self.proj = p
             self.w = w
             file = open(self.irl_path, 'a')
-            file.write(", ".join(['_'+str(iters), str(self.proj), str(self.w),str(t) ])+"\n")
+            file.write(", ".join([str(iters), str(self.proj), str(self.w),str(t) ])+"\n")
             file.close()
             converged = t <= self.tol or iters == max_iters
             if converged:
                 break
             #print("w in mmp: ", self.w)
             self.rl_agent.update_reward(self.w)  #update reward function
-            t_1= time.perf_counter()
-            print("IRL: ", (t_1 - t_0)/60)
             #Now use RL algorithm to find a new policy
             print("rl_train second time")
-            t_0 = time.perf_counter()
             train_actor_critic(args=self.args, env=self.env, estimator=self.rl_agent, controlspace=self.controlspace,
                          episode_length=self.traj_len, n_episode=self.rl_updates,
                          gamma=self.discount_factor, device = self.device,
                          trajectories=self.n_traj)  #i think currently only does one pass
-            t_1= time.perf_counter()
-            print("RL: ", (t_1 - t_0)/60)
             #print("rl_train_fin")
             #print("pol_exp")
-            t_0 = time.perf_counter()
             pol_exp = self.policy_expectations()  #expectations of new policy
-            t_1= time.perf_counter()
-            print("Expectation: ", (t_1 - t_0)/60)
             #print(pol_exp)
             #print("pol_exp_fin")
 
