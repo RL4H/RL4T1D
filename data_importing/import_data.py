@@ -12,13 +12,18 @@ import gc
 
 from decouple import config
 MAIN_PATH = config('MAIN_PATH')
-SIM_DATA_PATH = config('SIM_DATA_PATH')
 sys.path.insert(1, MAIN_PATH)
+
+SIM_DATA_PATH = config('SIM_DATA_PATH')
+if SIM_DATA_PATH == '':
+    raise ImportError("Environment variable 'SIM_DATA_PATH' not defined.")
 
 AGE_VALUES = ["adolescent", "adult"] 
 
 
+### Constants
 
+## For Simulated Data
 
 MODEL_TYPES = ["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC", "TD3", "DDPG", "DPG"]
 
@@ -48,6 +53,12 @@ OBJECT_SAVE_FILE = SIM_DATA_PATH + "/object_savedata_dictionary.pkl"
 
 CSV_HEADERS = ["cgm", "carbs", "ins", "t"]
 
+PICKLE_FILE_NAME_END = "_data"
+PICKLE_FILE_NAME_START = "data_dictionary_"
+
+## For Clinical Data
+
+### Helpers
 
 def import_from_obj(file_dest=OBJECT_SAVE_FILE):
     with open(file_dest, 'rb') as f:
@@ -112,8 +123,6 @@ def import_pickle_files_seperately(file_dest_folder=SIM_DATA_PATH + "/object_sav
     print(f"Overall files have size {overall_file_size / (1024 * 1024):.2f}MB")
 
 
-PICKLE_FILE_NAME_END = "_data"
-PICKLE_FILE_NAME_START = "data_dictionary_"
 class DataImporter:
     def __init__(self, 
             data_folder="data/",

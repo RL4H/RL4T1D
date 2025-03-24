@@ -80,12 +80,12 @@ def set_agent_parameters(cfg):
         from agents.algorithm.g2p2c import G2P2C
         agent = G2P2C(args=cfg.agent, env_args=cfg.env, logger=logger, load_model=False, actor_path='', critic_path='')
 
-    elif cfg.agent.agent == 'custom':
-        from agents.algorithm.custom import Custom
-        agent = Custom(args=cfg.agent, env_args=cfg.env, logger=logger, load_model=False, actor_path='', critic_path='')
+    elif cfg.agent.agent == 'offline':
+        from agents.algorithm.offline import Offline
+        agent = Offline(args=cfg.agent, env_args=cfg.env, logger=logger, load_model=False, actor_path='', critic_path='')
 
     else:
-        print('Please select an agent for the experiment. Hint: a2c, sac, ppo, g2p2c, custom')
+        print('Please select an agent for the experiment. Hint: a2c, sac, ppo, g2p2c, offline')
     return agent
 
 with open("../offline_testing/default_args.json",'r') as fp:

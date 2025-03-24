@@ -10,12 +10,12 @@ import sys
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-from data_importing.import_data import import_all_data, import_from_obj
+from data_importing.import_data import DataImporter
 
 # CURRENTLY JUST A COPY OF PPO FILE (+ a few things); just here as a placeholder to set up custom agent registration
-class Custom(Agent):
+class Offline(Agent):
     def __init__(self, args, env_args, logger, load_model, actor_path, critic_path):
-        super(Custom, self).__init__(args, env_args=env_args, logger=logger, type="OnPolicy")
+        super(Offline, self).__init__(args, env_args=env_args, logger=logger, type="OnPolicy")
         self.device = args.device
         self.completed_interactions = 0
 
@@ -41,12 +41,17 @@ class Custom(Agent):
         self.eps_clip = args.eps_clip
         self.target_kl = args.target_kl
 
+        # readout
+        print("Setting up offline Agent")
+        print(f"Using {args.data_type} data.")
+
         # import custom data
         try:
-            self.data_obj = import_from_obj("../data/object_save/data_dictionary.pkl")
-            print("Succesfully imported data object.")
+            self.importer = DataImporter()
+            print("Succesfully instantiated data importer object.")
         except:
             print("No object save found at data/object_save/data_dictionary.pkl")
+
 
     def train_pi(self):
         print('Running Policy Update...')
