@@ -28,31 +28,27 @@ n_hidden = 25
 
 #Class that does the main irl
 class ProjectionPPO:
-    def __init__(self, exp_samples, n_traj, traj_len, rl_u_init,rl_updates,device='cpu', discount_factor=0.99, tol=1e-10,
-                 env=None, total_inters=5, k=2):
-        self.args = load_arguments(overrides=["experiment.name=test2", "agent=ppo", "env.patient_id=0", "agent.debug=True", 
-                                              "agent.n_step="+str(traj_len), "experiment.device="+device, "agent.total_interactions="+str(total_inters),
-                                 "agent.n_training_workers="+str(n_traj),"hydra/job_logging=disabled"])
-        self.device = device
-        print(self.args.agent.n_step)
-        self.rl_agent = PPO(args=self.args.agent, env_args=self.args.env, logger=Logger(self.args), load_model=False, actor_path='', critic_path='')
+    def __init__(self, exp_samples, agent,cfg, env):
+        self.cfg = cfg
+        self.device = cfg.experiment.device
+        self.rl_agent = agent
         self.expert = exp_samples
-        self.discount_factor = discount_factor
-        self.tol = tol
-        self.n_traj = n_traj
-        self.traj_len = traj_len
-        self.rl_u_init = rl_u_init
-        self.rl_updates = rl_updates
+        self.discount_factor = cfg.agent.gamma
+        self.tol = cfg.agent.tol
+        self.n_traj = cfg.agent.n_training_workers
+        self.traj_len = cfg.agent.n_step
+        # self.rl_u_init = rl_u_init
+        # self.rl_updates = rl_updates
         #self.env = T1DEnv(args=args.env, mode='testing', worker_id=1)
-        self.env = env  #I think want the sam environment
+        self.env = env #I think want the sam environment
         self.w = 1
-        self.k = k
+        self.k = 12
         #self.args = args
         self.iters = 0
         self.irl_path = os.path.abspath('results/mmp_proj_test/irl.txt')
         self.rl_path = os.path.abspath('results/mmp_proj_test/rl.txt')
         #might need to change this to account for PPO -> doesnt look like it
-        self.controlspace = ControlSpace(control_space_type=self.args.agent.control_space_type,
+        self.controlspace = ControlSpace(control_space_type=self.cfg.agent.control_space_type,
                                          insulin_min=self.env.action_space.low[0],
                                          insulin_max=self.env.action_space.high[0])
 

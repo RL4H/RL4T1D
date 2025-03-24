@@ -84,31 +84,31 @@ os.makedirs(LOG_DIR + '/testing/')
 exit()
 # clinical algorithms uses the glucose value, rather than the observation-space of RL algorithms, which is normalised for training stability.
 #print("expert")
-# for _ in range(n_samples):  #samples, each of length traj_len
-#     observation = env_clin.reset()  # observation is the state-space (features x history) of the RL algorithm.
-#     glucose, meal = core.inverse_linear_scaling(y=observation[-1][0], x_min=args.env.glucose_min,
-#                                                 x_max=args.env.glucose_max), 0
-#     traj = [np.array([x[0] for x in observation])]
-#     for _ in range(traj_len):
-#
-#         action = clinical_agent.get_action(meal=meal, glucose=glucose)  # insulin action of BB treatment
-#         observation, reward, is_done, info = env_clin.step(action[0])  # take an env step
-#
-#         # clinical algorithms require "manual meal announcement and carbohydrate estimation."
-#         if args.env.t_meal == 0:  # no meal announcement: take action for the meal as it happens.
-#             meal = info['meal'] * info['sample_time']
-#         elif args.env.t_meal == info[
-#             'remaining_time_to_meal']:  # meal announcement: take action "t_meal" minutes before the actual meal.
-#             meal = info['future_carb']
-#         else:
-#             meal = 0
-#         if meal != 0:  # simulate the human carbohydrate estimation error or ideal scenario.
-#             meal = carb_estimate(meal, info['day_hour'], patients[args.env.patient_id], type=args.agent.carb_estimation_method)
-#         glucose = info['cgm'].CGM
-#
-#         traj.append(np.array([x[0] for x in observation]))
-#         #print(f'Latest glucose level: {info["cgm"].CGM:.2f} mg/dL, administered insulin: {action[0]:.2f} U.')
-#     expert_samples.append(traj)
+for _ in range(n_samples):  #samples, each of length traj_len
+    observation = env_clin.reset()  # observation is the state-space (features x history) of the RL algorithm.
+    glucose, meal = core.inverse_linear_scaling(y=observation[-1][0], x_min=args.env.glucose_min,
+                                                x_max=args.env.glucose_max), 0
+    traj = [np.array([x[0] for x in observation])]
+    for _ in range(traj_len):
+
+        action = clinical_agent.get_action(meal=meal, glucose=glucose)  # insulin action of BB treatment
+        observation, reward, is_done, info = env_clin.step(action[0])  # take an env step
+
+        # clinical algorithms require "manual meal announcement and carbohydrate estimation."
+        if args.env.t_meal == 0:  # no meal announcement: take action for the meal as it happens.
+            meal = info['meal'] * info['sample_time']
+        elif args.env.t_meal == info[
+            'remaining_time_to_meal']:  # meal announcement: take action "t_meal" minutes before the actual meal.
+            meal = info['future_carb']
+        else:
+            meal = 0
+        if meal != 0:  # simulate the human carbohydrate estimation error or ideal scenario.
+            meal = carb_estimate(meal, info['day_hour'], patients[args.env.patient_id], type=args.agent.carb_estimation_method)
+        glucose = info['cgm'].CGM
+
+        traj.append(np.array([x[0] for x in observation]))
+        #print(f'Latest glucose level: {info["cgm"].CGM:.2f} mg/dL, administered insulin: {action[0]:.2f} U.')
+    expert_samples.append(traj)
 
 #expert_samples.to(device)
 #print(expert_samples)
