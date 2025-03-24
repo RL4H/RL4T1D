@@ -93,7 +93,7 @@ class ProjectionPPO:
             for x in observation:
                 # rl_f.write(", ".join([str(self.iters), str(i), str(timestep), str(x[0]), str(x[1]), 'S'])+"\n")
                 timestep += 1
-            rl_f.close()
+            # rl_f.close()
             traj = [np.array([x[0] for x in observation])]
             for _ in range(self.traj_len):
                 pol_ret = self.rl_agent.policy.get_action(torch.tensor(observation).to(self.device))  # get RL action

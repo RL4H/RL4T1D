@@ -133,7 +133,7 @@ class Agent:
 
             print('\nAlgorithm Training/Validation Completed Successfully.')
             print('---------------------------------------------------------')
-            exit()
+            # exit()
 
     def decay_lr(self):
         return
