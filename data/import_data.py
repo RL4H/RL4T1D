@@ -1,32 +1,21 @@
 import os
-import torch
 import numpy as np
 import pandas as pd
 from datetime import datetime
-import sys
 import pickle
-import json
-from omegaconf import OmegaConf
 import gc
-
-
-from decouple import config
-MAIN_PATH = config('MAIN_PATH')
-sys.path.insert(1, MAIN_PATH)
 
 AGE_VALUES = ["adolescent", "adult"] 
 
 
+DATA_DEST = "../SimulatedData" #FIXME change data destination for your script
 
 
-MODEL_TYPES = ["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC", "TD3", "DDPG", "DPG"]
+MODEL_TYPES = ["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC", "TD3", "DDPG", "DPG"] #stores the types of models accessed by the script
 
 # stores which encoding version is used for each model's data
-FOLDER_TYPE_MODELS = ["A2C", "AUXML", "G2P2C", "PPO", "SAC", "DDPG", "TD3", "DPG"]
+FOLDER_TYPE_MODELS = ["A2C", "AUXML", "G2P2C", "PPO", "SAC", "DDPG", "TD3", "DPG"] 
 FOLDER_TYPE_EXPERTS = ["training","testing","evaluation"]
-
-ONLY_ADOLESCENT_MODELS = ["DDPG", "DPG"]
-ONLY_ADULT_MODELS = []
 
 CSV_TYPE_MODELS = ["BBHE", "BBI"]
 CSV_TYPE_EXPERTS = ["clinical"]
@@ -34,17 +23,27 @@ CSV_TYPE_EXPERTS = ["clinical"]
 EXPERTS = FOLDER_TYPE_EXPERTS + CSV_TYPE_EXPERTS
 
 
+ONLY_ADOLESCENT_MODELS = ["DDPG", "DPG"] #stores which models only have data for adolescents
+ONLY_ADULT_MODELS = [] #stores which models only have data for adults
+
+#number of individuals for each cohort
 ADOLESCENT_INDIVIDUAL_NUMBER = 10
 ADULT_INDIVIDUAL_NUMBER = 10
 
-ADULT_INDIVIDUALS = ["adult" + str(num) for num in range(ADULT_INDIVIDUAL_NUMBER)]
+#generate names for individuals, used in file references
+ADULT_INDIVIDUALS = ["adult" + str(num) for num in range(ADULT_INDIVIDUAL_NUMBER)] 
 ADOLESCENT_INDIVIDUALS = ["adolescent" + str(num) for num in range(ADOLESCENT_INDIVIDUAL_NUMBER)]
 
 INDIVIDUALS = ADULT_INDIVIDUALS + ADOLESCENT_INDIVIDUALS
 
 # stores where object is saved to when run as main
-OBJECT_SAVE_FILE = "data" + "/object_savedata_dictionary.pkl"
+OBJECT_SAVE_FILE = DATA_DEST + "/object_save/data_dictionary.pkl"
 
+#designate file naming conventions to read from
+PICKLE_FILE_NAME_END = "_data"
+PICKLE_FILE_NAME_START = "data_dictionary_"
+
+#record column names
 CSV_HEADERS = ["cgm", "carbs", "ins", "t"]
 
 
@@ -60,68 +59,21 @@ def save_to_obj_file(data_dict, file_dest=OBJECT_SAVE_FILE):
         f.close()
     return data_dict
 
-def open_arg_file(file_dest):
-    with open(file_dest,'r') as fp:
-        args_dict = json.load(fp)
-        fp.close()
-    return OmegaConf.create(args_dict)
-    
 
 
-def import_pickle_files(file_dest_folder="data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
-    start_time = datetime.now() #start the read timer
-    overall_file_size = 0
 
-    overall_data_dict = dict()
-    for individual in INDIVIDUALS:
-        file_dest = file_dest_folder + file_name_start + individual + file_name_end + ".pkl"
-        print("Starting import for",individual,"from",file_dest)
-        
-        data = import_from_obj(file_dest) #import data from pickle object
-        file_size = os.path.getsize(file_dest) #obtain file size of read file
-        print(f"\t{file_dest} has size {file_size / (1024 * 1024):.2f}MB")
-        overall_file_size += file_size
-
-        overall_data_dict[individual] = data[individual]
-
-    end_time = datetime.now() #end the read timer
-    duration = end_time - start_time
-    print("Executed in",duration.total_seconds(), "seconds")
-    print(f"Overall files have size {overall_file_size / (1024 * 1024):.2f}MB")
-
-def import_pickle_files_seperately(file_dest_folder="data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
-    start_time = datetime.now() #start the read timer
-    overall_file_size = 0
-
-    for individual in INDIVIDUALS:
-        file_dest = file_dest_folder + file_name_start + individual + file_name_end + ".pkl"
-        print("Starting import for",individual,"from",file_dest)
-        
-        data = import_from_obj(file_dest) #import data from pickle object
-        file_size = os.path.getsize(file_dest) #obtain file size of read file
-        print(f"\t{file_dest} has size {file_size / (1024 * 1024):.2f}MB")
-        overall_file_size += file_size
-
-        print(file_dest, "Imported")
-        del data
-
-    end_time = datetime.now() #end the read timer
-    duration = end_time - start_time
-    print("Executed in",duration.total_seconds(), "seconds")
-    print(f"Overall files have size {overall_file_size / (1024 * 1024):.2f}MB")
-
-
-PICKLE_FILE_NAME_END = "_data"
-PICKLE_FILE_NAME_START = "data_dictionary_"
 class DataImporter:
+    """
+    Manages the parameterised importing of data.
+    """
     def __init__(self, 
-            data_folder="data/",
+            data_folder=DATA_DEST,
             verbose = True,
             individuals = INDIVIDUALS, ages=AGE_VALUES, models = MODEL_TYPES, experts=EXPERTS,
         ):
         self.individuals, self.ages, self.models, self.experts = individuals, ages, models, experts
         self.verbose = verbose
-        self.source_folder = data_folder + "object_save/"
+        self.source_folder = data_folder + "/object_save/"
         self.current_data = None
         self.current_index = 0
         self.current_individual = self.individuals[0]
@@ -184,9 +136,6 @@ class DataImporter:
         self.current_data = DataHandler(raw_data)
         raw_data = None
 
-
-
-
     def check_finished(self):
         return self.current_individual == None
 
@@ -222,6 +171,9 @@ class DataImporter:
 
 
 class DataHandler:
+    """
+    Manages the handling of data once imported.
+    """
     def __init__(self, data_dict, verbose=False):
         self.data_dict = data_dict
         self.trial_labels = CSV_HEADERS
@@ -246,6 +198,12 @@ class DataHandler:
         self.gen_summaries()
 
     def get_raw(self):
+        """
+        Returns the raw data object held by the handler.
+
+        Returns:
+            a list of 2D numpy arrays representing trials if flat, a tiered dictionary with keys of invividual name -> expert type -> model type -> trial (2D numpy array) if not flat.
+        """
         if self.flat:
             return self.flat_trials
         else:
@@ -266,12 +224,14 @@ class DataHandler:
                         rows, _ = trial.shape
                         self.minutes_count += (rows - 1)*5 #5 minute time interval
 
-
     def print_summary(self):
         print(f"{self.trials_count} trials stored.")
         print(f"{self.minutes_count // 60}h {self.minutes_count % 60}m worth of data stored.")
 
     def flatten(self):
+        """
+        Converts data from a dictionary tiered format to a flattened list of trials. Destructive to list of trials.
+        """
         if self.verbose: print("Starting to Flatten")
         output_list = []
         for individual in self.individuals:
@@ -285,7 +245,7 @@ class DataHandler:
         self.flat = True
         if self.verbose: print("Flattening Complete")
 
-    def save_as_csv(self, name, dest_folder="data/csv_saves/",seperate_flat_files = False):
+    def save_as_csv(self, name, dest_folder=DATA_DEST + "/csv_saves/",seperate_flat_files = False):
         if self.verbose: print("Starting CSV Writing")
         use_columns = self.trial_labels + ["meta"]
         if self.flat and seperate_flat_files: #saves each trial in a seperate folder
@@ -314,6 +274,7 @@ class DataHandler:
         print("deleting time!")
         self.flat_trials = None
         self.data_dict = None
+    
     def print_structure(self):
         print("Structure")
         if not self.flat:
@@ -326,23 +287,23 @@ class DataHandler:
         print()
 
 
-    
-
-
-
-
-
 
 if __name__ == "__main__":
 
     SINGLE_INDIVIDUAL_FILES = True #decides if files are read per individual or all at once
 
     if SINGLE_INDIVIDUAL_FILES: #read from the files for each individual
-        import_pickle_files_seperately()
+        all_data = DataImporter(verbose=True, data_folder=DATA_DEST)
+        for individual_data in all_data:
+            print("===Imported data for", all_data.current_individual)
+            individual_data.flatten()
+            print(individual_data.flat_trials[0])
+
+            del individual_data
     elif not SINGLE_INDIVIDUAL_FILES: #read from the single overall file
         start_time = datetime.now() #start the read timer
 
-        file_dest="data/object_savedata_dictionary.pkl"
+        file_dest= DATA_DEST + "/object_savedata_dictionary.pkl"
         print("Starting read from file",file_dest)
         data = import_from_obj(file_dest) #import data from pickle object
 

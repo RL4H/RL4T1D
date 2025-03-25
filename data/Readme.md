@@ -2,45 +2,31 @@
 
 This folder is set up to import and make use of the collected data from previously ran experiments.
 
-The data itself is too large to be stored in the repository, so to use it on your local machine you will have to download the files from onedrive and put them in the correct place. The file structure is as follows:
+Once you have downloaded the data, you will find it in a structure like the following:
+
 
 ```
---- data
-    --- adolescent
-        --- A2C
-        --- AUXML
-        --- BBHE
-        --- BBI
-        --- G2P2C
-        --- PPO
-        --- SAC
-        --- TD3
-        --- DPG
-        --- DDPG
-    --- adult
-        --- A2C
-        --- AUXML
-        --- BBHE
-        --- BBI
-        --- G2P2C
-        --- PPO
-        --- SAC
-        --- TD3
+--- simulated_data
+    --- object_save
+        --- data_dictionary_adolescent0_data.pkl
+        --- data_dictionary_adolescent1_data.pkl
+            ...
+        --- data_dictionary_adult8_data.pkl
+        --- data_dictionary_adult9_data.pkl
+
 ``` 
-The BBHE and BBI folders contain csv files in the format `logs_worker_[individual number]_[trial number].csv`.
 
-All other folders contain sub folders following the format `[model name][individual number]_[seed number].csv`.
+To run the sample scripts, alter the `DATA_DEST` variable at the top to the root of the data folder ('simulated_data' in the structure shown above). If you keep the files together as in the suggested download, the relative file reference should be correct.
 
-If you are setting up the data for yourself, take care to remove other subfolders between the model folders and the files/folders specified above.
+`sample_script_1.py` performs a basic import on the data, going through each individual and printing the first trial preview as a raw numpy array.
 
-Additionally, if the SAVE_TO_PICKLE variable is set to true when importing the data (running `import_data.py` as main), a pickled version of the data will be stored in `object_save/object_dictionary.pkl`.
+`sample_script_2.py` counts the total time elpased for all trials.
 
-To run this file, simply navigate to the root of the repo and run the following command:
+`sample_script_3.py` converts the trials to a .csv format.
 
-```
->>> python /data/import_data.py
-```
+`sample_script_4.py` generates a table of mean and standard deviation for glucose and insulin data across individuals and algorithms.
 
-To run this file, you will need the pickle module on top of the other modules needed for the rest of this repository.
-
-In the `utilise_data.py` file, there are examples of how to read and write the data.
+To run these files, you will need the following modules:
+- numpy
+- pandas
+- pickle

@@ -1,77 +1,29 @@
-###  EXAMPLE LOOP
-from import_data import DataImporter
+""" 
+This code is written as an example usage of the data importing code attached to the D4RL paper.
 
-all_data = DataImporter(verbose=True)
+This script goes through the glucose and insulin data, taking mean and standard deviation, and propogating it through the data to improve performance.
+"""
 
-for individual_data in all_data:
-    print("Imported data for", all_data.current_individual)
-    del individual_data
-
-
-####  EXAMPLE 1 - Calculates full time of simulations.
-from import_data import DataImporter
-
-all_data = DataImporter(verbose=True)
-
-total_simulated_minutes = 0
-
-for individual_data in all_data:
-    print("Imported data for", all_data.current_individual)
-    individual_data.flatten()
-
-    individual_minutes = 0
-    for trial in individual_data.flat_trials:
-        rows, _ = trial.shape
-        if rows > 0:
-            individual_minutes += 5 * (rows - 1) #each row is 5 minutes of data, except first row
-    
-    print("Counted", individual_minutes, "minutes of data for", all_data.current_individual)
-    total_simulated_minutes += individual_minutes
-    del individual_data
-
-
-print(f"Total minutes: {total_simulated_minutes}m")
-print(f"Total hours: {total_simulated_minutes//60}h")
-years = total_simulated_minutes // (60 * 24 * 365)
-weeks = (total_simulated_minutes - (years * (60 * 24 * 365))) // (60 * 24 * 7)
-days = (total_simulated_minutes - (years * (60 * 24 * 365)) - (weeks * (60 * 24 * 7))) // (60 * 24)
-hours = (total_simulated_minutes % (60 * 24)) // 60
-minutes = (total_simulated_minutes % (60 * 24)) % 60
-print(f"Total time: {years}y {weeks} weeks, {days}d {hours}h {minutes}m")
-
-####  EXAMPLE 2 - Retrieve raw data
-from import_data import DataImporter
-
-all_data = DataImporter(verbose=True)
-
-SAVE_PATH = "../data/raw_csv/"
-SAVE_FLAT = True
-
-for individual_data in all_data:
-    if SAVE_FLAT:
-        individual_data.flatten()
-    individual_name = all_data.current_individual
-    individual_data.save_as_csv(individual_name,SAVE_PATH)
-#     del individual_data
-
-####  EXAMPLE 3 - Generate table of glucose and insulin data by person and algorithm
 from import_data import DataImporter, MODEL_TYPES
 import numpy as np
 import gc
 from functools import reduce
 
-import os
-print(os.getcwd())
 
-
-SAVE_PATH = "data/summaries/"
-FILE_NAME = "summary"
 
 CGM_COLUMN = 0
 INS_COLUMN = 2
 
 USE_ALGORITHMS = MODEL_TYPES
 COLUMN_HEADINGS = USE_ALGORITHMS + ["OVERALL"]
+
+DATA_DEST = "../SimulatedData" #FIXME change data destination for your script
+
+SAVE_PATH = DATA_DEST + "/summaries/"
+SAVE_FILE_NAME = "summary"
+
+
+all_data = DataImporter(verbose=True, models=USE_ALGORITHMS, data_folder=DATA_DEST)
 
 def combine_mn(avg_1, n_1, avg_2, n_2):
     return ((avg_1 * n_1) + (avg_2 * n_2)) / (n_1 + n_2) 
@@ -87,7 +39,7 @@ def combine_sd_n(sd_1_n_1, sd_2_n_2):
     sd_2,n_2 = sd_2_n_2
     return combine_sd(sd_1, n_1, sd_2, n_2), (n_1+n_2)
 
-all_data = DataImporter(verbose=True, models=USE_ALGORITHMS)
+
 
 glucose_rows = []
 insulin_rows = []
@@ -156,22 +108,22 @@ print("column lengths:",column_n, len(glucose_rows[0]))
 
 md_lines = ["Readings are given as mean±sd"]
 
-#Make insulin table
-md_lines.append("## Insulin Table Readings")
+#Make glucose table
+md_lines.append("## Glucose Table Readings")
 md_lines.append(' | '.join(["Individual"] + COLUMN_HEADINGS)) 
 md_lines.append(' | '.join([":---"]*(column_n + 1)))
 for c,row in enumerate(glucose_rows):
     md_lines.append(' | '.join([all_data.individuals[c]] + [str(round(mn,2)) + "±" + str(round(sd,2)) for mn,sd in row]))
 
 md_lines.append('')
-#Make glucose table
-md_lines.append("## Glucose Table Readings")
+#Make insulin table
+md_lines.append("## Insulin Table Readings")
 md_lines.append(' | '.join(["Individual"] + COLUMN_HEADINGS)) 
 md_lines.append(' | '.join([":---"]*(column_n + 1)))
 for c,row in enumerate(insulin_rows):
     md_lines.append(' | '.join([all_data.individuals[c]] + [str(round(mn,2)) + "±" + str(round(sd,2)) for mn,sd in row]))
 
-with open(SAVE_PATH+FILE_NAME+".md",'w',encoding="utf8") as f:
+with open(SAVE_PATH+SAVE_FILE_NAME+".md",'w',encoding="utf8") as f:
     f.write('\n'.join(md_lines))
 
 
@@ -180,7 +132,7 @@ csv_lines = [','.join(["Individual"] + COLUMN_HEADINGS)]
 for c,row in enumerate(glucose_rows):
     csv_lines.append(','.join([all_data.individuals[c]] + [str(mn)+'_'+str(sd) for mn,sd in row]))
 
-with open(SAVE_PATH+FILE_NAME+"_glucose.csv",'w',encoding="utf8") as f:
+with open(SAVE_PATH+SAVE_FILE_NAME+"_glucose.csv",'w',encoding="utf8") as f:
     f.write('\n'.join(csv_lines))
 
 
@@ -188,6 +140,6 @@ csv_lines = [','.join(["Individual"] + COLUMN_HEADINGS)]
 for c,row in enumerate(insulin_rows):
     csv_lines.append(','.join([all_data.individuals[c]] + [str(mn)+'_'+str(sd) for mn,sd in row]))
 
-with open(SAVE_PATH+FILE_NAME+"_insulin.csv",'w',encoding="utf8") as f:
+with open(SAVE_PATH+SAVE_FILE_NAME+"_insulin.csv",'w',encoding="utf8") as f:
     f.write('\n'.join(csv_lines))
 

@@ -9,9 +9,9 @@ import json
 from omegaconf import OmegaConf
 import gc
 
+DATA_DEST = "../SimulatedData" #FIXME change data destination for your script
+
 AGE_VALUES = ["adolescent", "adult"] 
-
-
 
 
 MODEL_TYPES = ["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC", "TD3", "DDPG", "DPG"]
@@ -40,7 +40,7 @@ INDIVIDUALS = ADULT_INDIVIDUALS + ADOLESCENT_INDIVIDUALS
 
 
 # stores where object is saved to when run as main
-OBJECT_SAVE_FILE = "../data" + "/object_save/data_dictionary.pkl"
+OBJECT_SAVE_FILE = DATA_DEST + "/object_save/data_dictionary.pkl"
 
 # stores which file names are excluded for csv type model data folders
 EXCLUDE_FILES = ["quadratic.csv", "real.csv"]
@@ -49,7 +49,7 @@ EXCLUDE_FILES = ["quadratic.csv", "real.csv"]
 EXCLUDE_IN_FILES = "summary"
 
 def import_all_data(
-        dest="../data", 
+        dest=DATA_DEST, 
         age_range = AGE_VALUES,
         model_range = MODEL_TYPES,
         individual_range = INDIVIDUALS,
@@ -229,7 +229,7 @@ def open_arg_file(file_dest):
 
 
 
-def import_raw_files(file_dest_folder="../data/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
+def import_raw_files(file_dest_folder=DATA_DEST+"/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
     overall_start_time = datetime.now()
 
     total_importing_time = 0
@@ -295,9 +295,9 @@ if __name__ == "__main__":
     else: #read all data as single object and saves it as such
 
         start_time = datetime.now() #start the write timer
-        file_dest="../data/object_save/data_dictionary_whole.pkl"
+        file_dest=DATA_DEST + "/object_save/data_dictionary_whole.pkl"
         
-        data = import_all_data("../data", show_progress=True) #import data from files
+        data = import_all_data(DATA_DEST, show_progress=True) #import data from files
         print("\nSuccesfully imported.")
 
         end_time = datetime.now() #end the read timer

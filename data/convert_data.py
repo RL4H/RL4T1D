@@ -4,6 +4,8 @@ import os
 import numpy as np
 from random import randrange
 
+DATA_DEST = "../SimulatedData" #FIXME change data destination
+
 
 def convert_to_frames(data_obj, window_size=16, default_starting_window=True, default_starting_value=0):
     #data_obj is a 2D numpy array , rows x columns. Columns are :  cgm, meal, ins, t, meta_data
@@ -38,7 +40,7 @@ if __name__ == "__main__":
     start_time = datetime.now() #start the read timer
 
     overall_data_dict = dict()
-    file_dest="../data/object_save/data_dictionary_" + individual + "_data.pkl"
+    file_dest=DATA_DEST + "/data_dictionary_" + individual + "_data.pkl"
     print("Starting import for",individual,"from",file_dest)
     
     data = import_from_obj(file_dest) #import data from pickle object
