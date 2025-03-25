@@ -6,7 +6,7 @@ Once you have downloaded the data, you will find it in a structure like the foll
 
 
 ```
---- simulated_data
+--- SimulatedData
     --- object_save
         --- data_dictionary_adolescent0_data.pkl
         --- data_dictionary_adolescent1_data.pkl
