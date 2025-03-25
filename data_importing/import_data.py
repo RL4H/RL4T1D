@@ -9,7 +9,7 @@ import json
 from omegaconf import OmegaConf
 import gc
 import xport
-
+import xport.v56
 
 from decouple import config
 MAIN_PATH = config('MAIN_PATH')
@@ -128,9 +128,15 @@ def import_pickle_files_seperately(file_dest_folder=SIM_DATA_PATH + "/object_sav
 
 ## For clinical Data
 def import_xpt_file(file_dest):
+    
     with open(file_dest, 'rb') as f:
-        for row in xport.Reader(f):
-            print(row)
+        library = xport.v56.load(f)
+    print("Library Loaded")
+    
+    df = library["DX"]
+    print("Dataset parsed")
+    print(df)
+
 
 
 ### Classes
@@ -361,8 +367,9 @@ class DataHandler:
 if __name__ == "__main__":
 
     SINGLE_INDIVIDUAL_FILES = True #decides if files are read per individual or all at once
-    DATA_TYPE = "simulated" #simulated | clinical
+    DATA_TYPE = "clinical" #simulated | clinical
     if DATA_TYPE == "clinical":
+        print("Clinical Time")
         import_xpt_file(CLN_DATA_PATH+"/DX.xpt")
     else:
         if SINGLE_INDIVIDUAL_FILES: #read from the files for each individual
