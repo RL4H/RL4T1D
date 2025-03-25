@@ -8,6 +8,7 @@ import pickle
 import json
 from omegaconf import OmegaConf
 import gc
+import xport
 
 
 from decouple import config
@@ -17,6 +18,8 @@ sys.path.insert(1, MAIN_PATH)
 SIM_DATA_PATH = config('SIM_DATA_PATH')
 if SIM_DATA_PATH == '':
     raise ImportError("Environment variable 'SIM_DATA_PATH' not defined.")
+
+CLN_DATA_PATH = config('CLN_DATA_PATH')
 
 AGE_VALUES = ["adolescent", "adult"] 
 
@@ -60,6 +63,7 @@ PICKLE_FILE_NAME_START = "data_dictionary_"
 
 ### Helpers
 
+## For Simulated Data
 def import_from_obj(file_dest=OBJECT_SAVE_FILE):
     with open(file_dest, 'rb') as f:
         data_dict = pickle.load(f)
@@ -122,13 +126,23 @@ def import_pickle_files_seperately(file_dest_folder=SIM_DATA_PATH + "/object_sav
     print("Executed in",duration.total_seconds(), "seconds")
     print(f"Overall files have size {overall_file_size / (1024 * 1024):.2f}MB")
 
+## For clinical Data
+def import_xpt_file(file_dest):
+    with open(file_dest, 'rb') as f:
+        for row in xport.Reader(f):
+            print(row)
+
+
+### Classes
 
 class DataImporter:
     def __init__(self, 
+            data_type="simulated", #simulated or clinical
             data_folder="data/",
             verbose = True,
-            individuals = INDIVIDUALS, ages=AGE_VALUES, models = MODEL_TYPES, experts=EXPERTS,
+            individuals = INDIVIDUALS, ages=AGE_VALUES, models = MODEL_TYPES, experts=EXPERTS, #options for simulated
         ):
+        self.data_type = data_type
         self.individuals, self.ages, self.models, self.experts = individuals, ages, models, experts
         self.verbose = verbose
         self.source_folder = data_folder + "object_save/"
@@ -342,25 +356,29 @@ class DataHandler:
 
 
 
+### Main Loop
 
 if __name__ == "__main__":
 
     SINGLE_INDIVIDUAL_FILES = True #decides if files are read per individual or all at once
+    DATA_TYPE = "simulated" #simulated | clinical
+    if DATA_TYPE == "clinical":
+        import_xpt_file(CLN_DATA_PATH+"/DX.xpt")
+    else:
+        if SINGLE_INDIVIDUAL_FILES: #read from the files for each individual
+            import_pickle_files_seperately()
+        elif not SINGLE_INDIVIDUAL_FILES: #read from the single overall file
+            start_time = datetime.now() #start the read timer
 
-    if SINGLE_INDIVIDUAL_FILES: #read from the files for each individual
-        import_pickle_files_seperately()
-    elif not SINGLE_INDIVIDUAL_FILES: #read from the single overall file
-        start_time = datetime.now() #start the read timer
+            file_dest=SIM_DATA_PATH + "/object_savedata_dictionary.pkl"
+            print("Starting read from file",file_dest)
+            data = import_from_obj(file_dest) #import data from pickle object
 
-        file_dest=SIM_DATA_PATH + "/object_savedata_dictionary.pkl"
-        print("Starting read from file",file_dest)
-        data = import_from_obj(file_dest) #import data from pickle object
+            end_time = datetime.now() #end the read timer
+            duration = end_time - start_time
+            print("Executed in",duration.total_seconds(), "seconds")
 
-        end_time = datetime.now() #end the read timer
-        duration = end_time - start_time
-        print("Executed in",duration.total_seconds(), "seconds")
-
-        file_size = os.path.getsize(file_dest) #obtain file size of read file
-        print(f"Read file has size {file_size / (1024 * 1024):.2f}MB")
+            file_size = os.path.getsize(file_dest) #obtain file size of read file
+            print(f"Read file has size {file_size / (1024 * 1024):.2f}MB")
     
 
