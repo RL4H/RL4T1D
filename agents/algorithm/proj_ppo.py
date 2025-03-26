@@ -35,8 +35,8 @@ class ProjectionPPO:
         self.expert = exp_samples
         self.discount_factor = cfg.agent.gamma
         self.tol = cfg.agent.tol
-        self.n_traj = cfg.agent.n_training_workers
-        self.traj_len = cfg.agent.n_step
+        self.n_traj = cfg.agent.n_sim
+        self.traj_len = cfg.agent.l_sim
         # self.rl_u_init = rl_u_init
         # self.rl_updates = rl_updates
         #self.env = T1DEnv(args=args.env, mode='testing', worker_id=1)
@@ -45,7 +45,7 @@ class ProjectionPPO:
         self.k = 12
         #self.args = args
         self.iters = 0
-        # self.irl_path = os.path.abspath('results/mmp_proj_test/irl.txt')
+        self.irl_path = os.path.abspath('../results/mmp_proj_test/irl.txt')
         # self.rl_path = os.path.abspath('results/mmp_proj_test/rl.txt')
         #might need to change this to account for PPO -> doesnt look like it
         self.controlspace = ControlSpace(control_space_type=self.cfg.agent.control_space_type,
@@ -116,11 +116,11 @@ class ProjectionPPO:
         return feature_exp
 
     def train(self, max_iters=5):
-        #clear both result files
-        # irl_path = os.path.abspath('../..results/mmp_proj_test/irl')
-        #rl_path = os.path.abspath('../..results/mmp_proj_test/rl')
-        # open(irl_path, 'w').close()
-        # open(self.rl_path, 'w').close() #-- needs to be uncommented
+        
+        #randomly initialise w
+        self.w = torch.rand(12)
+        self.rl_agent.update_worker_rwd(self.w) 
+
         iters = 0
         data = []  #used for plotting
         #get expert feature expectation
@@ -134,9 +134,10 @@ class ProjectionPPO:
         self.proj = pol_exp
         self.w = expert_exp - self.proj
         #wrting to results
-        # f1 = open(self.irl_path, 'w')
-        # f1.write(", ".join(['_'+str(iters), str(self.proj), str(self.w)])+"\n")
-        # f1.close()
+        f1 = open(self.irl_path, 'w')
+        f1.write(", ".join(['_'+str(iters), str(self.proj), str(self.w)])+"\n")
+        f1.close()
+        print("able to write")
         #print('irl: ', iters, self.proj, self.w)
         self.rl_agent.update_worker_rwd(self.w.to(self.device))  # update reward function
         # Now use RL algorithm to find a new policy
@@ -161,13 +162,12 @@ class ProjectionPPO:
             #print("irl: ",iters, p, w, t)
             self.proj = p
             self.w = w
-            # file = open(self.irl_path, 'a')
-            # file.write(", ".join(['_'+str(iters), str(self.proj), str(self.w),str(t) ])+"\n")
-            # file.close()
+            file = open(self.irl_path, 'a')
+            file.write(", ".join(['_'+str(iters), str(self.proj), str(self.w),str(t) ])+"\n")
+            file.close()
             converged = t <= self.tol or iters == max_iters
             if converged:
                 break
-            #print("w in mmp: ", self.w)
             self.rl_agent.update_worker_rwd(self.w)  #update reward function
             t_1= time.perf_counter()
             print("IRL: ", (t_1 - t_0)/60)
