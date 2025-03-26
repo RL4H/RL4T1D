@@ -171,17 +171,30 @@ def import_all_data(
 
     return data_dict
 
+#TODO: convert to floats here
 CSV_HEADERS = ["cgm", "carbs", "ins", "t"]
+CSV_COLUMN_TYPES = {
+    'cgm'       : "float64",
+    "carbs"     : "float32",
+    "ins"       : "float64",
+    "t"         : "int32"
+}
 def import_from_csv_as_rows(file_dest, headers=CSV_HEADERS, meta_col=""):
-    df = pd.read_csv(file_dest, header=None, names=headers)
+    df = pd.read_csv(file_dest, header=None, names=headers, dtypes=CSV_COLUMN_TYPES)
     df["meta"] = meta_col
     df = df[headers + ["meta"]] #makes order consistent to other imports
     data_array = df.to_numpy()
     return data_array
 
+BIG_CSV_COLUMN_TYPES ={
+    "cgm" : CSV_COLUMN_TYPES["cgm"],
+    "meal" : CSV_COLUMN_TYPES["carbs"],
+    "rl_ins" : CSV_COLUMN_TYPES["ins"],
+    "t" : CSV_COLUMN_TYPES["t"],
+}
 def import_from_big_csv_as_rows(file_dest, columns=["cgm","meal","rl_ins","t"], meta_col_func= lambda x : str(x)):
     use_columns = ["epi"] + columns
-    df = pd.read_csv(file_dest, usecols=use_columns)
+    df = pd.read_csv(file_dest, usecols=use_columns,dtypes=BIG_CSV_COLUMN_TYPES)
     df["meta"] = df["epi"].apply(lambda epi : meta_col_func(int(float(epi)))) #adds meta column, including episode
     df = df[use_columns + ["meta"]] #reorders dataframe to same as other setup
 
