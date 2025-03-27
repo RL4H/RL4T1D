@@ -4,10 +4,17 @@ This code is written as an example usage of the data importing code attached to 
 This script goes through the glucose and insulin data, taking mean and standard deviation, and propogating it through the data to improve performance.
 """
 
-from import_data import DataImporter, MODEL_TYPES
+from decouple import config
+import sys
 import numpy as np
 import gc
 from functools import reduce
+
+MAIN_PATH = config('MAIN_PATH')
+sys.path.insert(1, MAIN_PATH)
+
+from utils.sim_data import DataImporter, MODEL_TYPES
+
 
 
 

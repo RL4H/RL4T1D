@@ -3,7 +3,13 @@ This code is written as an example usage of the data importing code attached to 
 
 This script converts the data for each individual into csv format and saves it.
 """
-from import_data import DataImporter
+from decouple import config
+import sys
+
+MAIN_PATH = config('MAIN_PATH')
+sys.path.insert(1, MAIN_PATH)
+
+from utils.sim_data import DataImporter
 
 DATA_DEST = "../SimulatedData" #FIXME change data destination for your script
 all_data = DataImporter(verbose=True, data_folder=DATA_DEST)
