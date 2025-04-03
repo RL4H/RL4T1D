@@ -15,5 +15,5 @@
 module load pytorch/1.9.0
 cd /scratch/sj53/jt3998/RL4T1D/experiments
 
-python3 new_run_irl.py experiment.name=p6s2 agent=irl hydra/job_logging=disabled env.patient_id=6 experiment.seed=2 agent.n_training_workers=16 agent.total_interactions=200000 irl_file=irl_p6s2
+python3 new_run_irl.py experiment.name=p6s2 agent=irl hydra/job_logging=disabled env.patient_id=6 experiment.seed=2 agent.n_training_workers=16 agent.total_interactions=200000 agent.irl_file=irl_p6s2
 wait
