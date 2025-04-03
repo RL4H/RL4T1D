@@ -45,14 +45,14 @@ class ProjectionPPO:
         self.k = 12
         #self.args = args
         self.iters = 0
-        self.irl_path = os.path.abspath('../results/mmp_proj_test/irl.txt')
-        # self.rl_path = os.path.abspath('results/mmp_proj_test/rl.txt')
+        self.irl_path = os.path.abspath('../results/mmp_proj_test/'+cfg.agent.irl_file+'.txt')
+        #self.rl_path = os.path.abspath('results/mmp_proj_test/rl.txt')
         #might need to change this to account for PPO -> doesnt look like it
         self.controlspace = ControlSpace(control_space_type=self.cfg.agent.control_space_type,
                                          insulin_min=self.env.action_space.low[0],
                                          insulin_max=self.env.action_space.high[0])
 
-    # calculate projection: should be the same
+    # calculate projection: seem valid
     def projection(self, feat_exp_expert, feat_exp, proj_prev):
         diff = feat_exp - proj_prev
 
@@ -134,17 +134,15 @@ class ProjectionPPO:
         self.proj = pol_exp
         self.w = expert_exp - self.proj
         #wrting to results
-        f1 = open(self.irl_path, 'w')
+        f1 = open(self.irl_path, 'w+')
         f1.write(", ".join(['_'+str(iters), str(self.proj), str(self.w)])+"\n")
         f1.close()
-        print("able to write")
-        #print('irl: ', iters, self.proj, self.w)
         self.rl_agent.update_worker_rwd(self.w.to(self.device))  # update reward function
         # Now use RL algorithm to find a new policy
         #print('rl_train')
 
         t_0 = time.perf_counter()
-        self.rl_agent.run() #training the agent
+        #self.rl_agent.run() #training the agent
         t_1 = time.perf_counter()
         print('RL: ', (t_1 - t_0)/60)
         

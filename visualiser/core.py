@@ -111,6 +111,7 @@ class ExperimentVisualise:
         self.plot_version = plot_version
         with open(self.MAIN_PATH + 'args.json') as json_file:
             self.args = json.load(json_file)
+            # print(self.args)
         self.training_workers = self.args['n_training_workers']
         self.testing_workers = self.args['n_testing_workers']
         self.experiment_dir = self.args['experiment_dir']
