@@ -18,38 +18,38 @@ SIM_DATA_PATH = config("SIM_DATA_PATH")
 
 DATA_DEST = SIM_DATA_PATH
 
-AGE_VALUES = ["adolescent", "adult"] 
+COHORT_VALUES = ["adolescent", "adult"] 
 
 
-MODEL_TYPES = ["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC", "TD3", "DDPG", "DPG"]
+AGENT_TYPES = ["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC", "TD3", "DDPG", "DPG"]
 
-# stores which encoding version is used for each model's data
-FOLDER_TYPE_MODELS = ["A2C", "AUXML", "G2P2C", "PPO", "SAC", "DDPG", "TD3", "DPG"]
-FOLDER_TYPE_EXPERTS = ["training","testing","evaluation"]
+# stores which encoding version is used for each agent's data
+FOLDER_TYPE_AGENTS = ["A2C", "AUXML", "G2P2C", "PPO", "SAC", "DDPG", "TD3", "DPG"]
+FOLDER_TYPE_PROTOCOLS = ["training","testing","evaluation"]
 
-ONLY_ADOLESCENT_MODELS = ["DDPG", "DPG"]
-ONLY_ADULT_MODELS = []
+ONLY_ADOLESCENT_AGENTS = ["DDPG", "DPG"]
+ONLY_ADULT_AGENTS = []
 
-CSV_TYPE_MODELS = ["BBHE", "BBI"]
-CSV_TYPE_EXPERTS = ["clinical"]
+CSV_TYPE_AGENTS = ["BBHE", "BBI"]
+CSV_TYPE_PROTOCOLS = ["clinical"]
 
-EXPERTS = FOLDER_TYPE_EXPERTS + CSV_TYPE_EXPERTS
+PROTOCOLS = FOLDER_TYPE_PROTOCOLS + CSV_TYPE_PROTOCOLS
 
 
-ADOLESCENT_INDIVIDUAL_NUMBER = 10
-ADULT_INDIVIDUAL_NUMBER = 10
+ADOLESCENT_SUBJECT_NUMBER = 10
+ADULT_SUBJECT_NUMBER = 10
 
-ADULT_INDIVIDUALS = ["adult" + str(num) for num in range(ADULT_INDIVIDUAL_NUMBER)]
-ADOLESCENT_INDIVIDUALS = ["adolescent" + str(num) for num in range(ADOLESCENT_INDIVIDUAL_NUMBER)]
+ADULT_SUBJECTS = ["adult" + str(num) for num in range(ADULT_SUBJECT_NUMBER)]
+ADOLESCENT_SUBJECTS = ["adolescent" + str(num) for num in range(ADOLESCENT_SUBJECT_NUMBER)]
 
-INDIVIDUALS = ADULT_INDIVIDUALS + ADOLESCENT_INDIVIDUALS
+SUBJECTS = ADULT_SUBJECTS + ADOLESCENT_SUBJECTS
 
 
 
 # default file dest for saving pkl objects
 OBJECT_SAVE_FILE = DATA_DEST + "/object_save/data_dictionary.pkl"
 
-# stores which file names are excluded for csv type model data folders
+# stores which file names are excluded for csv type agent data folders
 EXCLUDE_FILES = ["quadratic.csv", "real.csv"]
 
 # stores which words are exclusionary to be contained in file names for the folder type data, within the testing/data/ and training/data/ subfolders.
@@ -73,6 +73,19 @@ BIG_CSV_COLUMN_TYPES ={
 PICKLE_FILE_NAME_END = "_data"
 PICKLE_FILE_NAME_START = "data_dictionary_"
 
+#import patient attributes
+with open("./utils/patient_attrs.csv",'r') as f:
+    lines = [line.split(',') for line in f.read().splitlines()]
+
+patient_attr_names = lines[0]
+patient_attr_dict = dict()
+for line in lines[1:]:
+    patient_attr_dict[line[0].lower()] = dict()
+    for c,var in enumerate(patient_attr_names):
+        patient_attr_dict[line[0].lower()][var] = line[c]
+
+def get_patient_attrs(subject): return patient_attr_dict[subject.lower()]
+    
 
 ### Helpers
 
@@ -148,33 +161,33 @@ def import_raw_files(file_dest_folder=DATA_DEST+"/object_save/", file_name_start
     total_importing_time = 0
     total_saving_time = 0
 
-    for individual in INDIVIDUALS:
-        print("Starting import for",individual)
+    for subject in SUBJECTS:
+        print("Starting import for",subject)
         start_time = datetime.now() #start the write timer
-        file_dest = file_dest_folder + file_name_start + individual + file_name_end + ".pkl"
+        file_dest = file_dest_folder + file_name_start + subject + file_name_end + ".pkl"
         
-        data = import_all_data(DATA_DEST, show_progress=True, individual_range=[individual]) #import data from files
+        data = import_all_data(DATA_DEST, show_progress=True, subject_range=[subject]) #import data from files
         print("\nSuccesfully imported.")
 
         end_time = datetime.now() #end the read timer
         duration = end_time - start_time
         total_importing_time += duration.total_seconds()
-        print(f"Data for {individual} model imported in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s")
+        print(f"Data for {subject} agent imported in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s")
 
         obj_size = sys.getsizeof(data) #get size of object #FIXME doesn't seem to work correctly
         obj_size_mb = obj_size / (1024 ** 2)
         print("Returned object is",round(obj_size_mb,10),"MB")
 
         print("===Data Breakdown:===")
-        for individual in data:
-            print("Individual:",individual)
-            for expert in data[individual]:
-                print("\t",expert,':',sep='')
-                for model in data[individual][expert]:
-                    specific_length = len(data[individual][expert][model])
-                    print("\t\tModel", model,"with length",specific_length)
+        for subject in data:
+            print("Subject:",subject)
+            for protocol in data[subject]:
+                print("\t",protocol,':',sep='')
+                for agent in data[subject][protocol]:
+                    specific_length = len(data[subject][protocol][agent])
+                    print("\t\tAgent", agent,"with length",specific_length)
                     if specific_length > 0:
-                        print("\t\t\tItem 0 has shape",data[individual][expert][model][0].shape)
+                        print("\t\t\tItem 0 has shape",data[subject][protocol][agent][0].shape)
         
         #save the data to pickle
         start_time = datetime.now() #start the write timer
@@ -198,93 +211,93 @@ def import_raw_files(file_dest_folder=DATA_DEST+"/object_save/", file_name_start
 
 def import_all_data(
         dest=DATA_DEST, 
-        age_range = AGE_VALUES,
-        model_range = MODEL_TYPES,
-        individual_range = INDIVIDUALS,
-        csv_type_list = CSV_TYPE_MODELS,
-        folder_type_list = FOLDER_TYPE_MODELS,
+        cohort_range = COHORT_VALUES,
+        agent_range = AGENT_TYPES,
+        subject_range = SUBJECTS,
+        csv_type_list = CSV_TYPE_AGENTS,
+        folder_type_list = FOLDER_TYPE_AGENTS,
         show_progress = False
         ):
     """ Imports simulation data from a given folder.
 
     Args:
         dest (str, optional): The folder to search through. Defaults to "../data".
-        age_range (list[str], optional): The list of ages to retrieve data from. Defaults to AGE_VALUES.
-        model_range (list[str], optional): The models to retrieve data from. Defaults to MODEL_TYPES.
-        individual_range (list[str], optional): The individuals to retrieve data from for folder type data. Defaults to INDIVIDUALS.
-        csv_type_list (list[str], optional): The list of model names encoded as csv type data. Defaults to CSV_TYPE_MODELS.
-        folder_type_list (list[str], optional): The list of model names encoded as folder type data. Defaults to FOLDER_TYPE_MODELS.
+        cohort_range (list[str], optional): The list of cohorts to retrieve data from. Defaults to cohort_VALUES.
+        agent_range (list[str], optional): The agents to retrieve data from. Defaults to AGENT_TYPES.
+        subject_range (list[str], optional): The subjects to retrieve data from for folder type data. Defaults to SUBJECTS.
+        csv_type_list (list[str], optional): The list of agent names encoded as csv type data. Defaults to CSV_TYPE_AGENTS.
+        folder_type_list (list[str], optional): The list of agent names encoded as folder type data. Defaults to FOLDER_TYPE_AGENTS.
         show_progress (bool, optional): Decides if progress is printed to console. Defaults to False.
 
     Returns:
-        _type_: A layered dictionary contains numpy arrays of simulation data as columns in each trial. Follows individual > expert > model > [trial data].
+        _type_: A layered dictionary contains numpy arrays of simulation data as columns in each trial. Follows subject > protocol > agent > [trial data].
     """
     
     data_dict = dict() #consider file type for this! will be very slow
     
     #set up dictionary structure
-    # individual > expert > model > [trial data]
-    for individual in individual_range:
-        data_dict[individual] = dict()
-        for expert in CSV_TYPE_EXPERTS:
-            data_dict[individual][expert] = dict()
-            for model in CSV_TYPE_MODELS:
-                data_dict[individual][expert][model] = []
-        for expert in FOLDER_TYPE_EXPERTS:
-            data_dict[individual][expert] = dict()
-            for model in FOLDER_TYPE_MODELS:
-                data_dict[individual][expert][model] = []
+    # subject > protocol > agent > [trial data]
+    for subject in subject_range:
+        data_dict[subject] = dict()
+        for protocol in CSV_TYPE_PROTOCOLS:
+            data_dict[subject][protocol] = dict()
+            for agent in CSV_TYPE_AGENTS:
+                data_dict[subject][protocol][agent] = []
+        for protocol in FOLDER_TYPE_PROTOCOLS:
+            data_dict[subject][protocol] = dict()
+            for agent in FOLDER_TYPE_AGENTS:
+                data_dict[subject][protocol][agent] = []
 
-    for age in age_range:
-        if show_progress: print("=Age:",age)
+    for cohort in cohort_range:
+        if show_progress: print("=Cohort:",cohort)
         
-        #removed excluded models from range given age group
-        use_model_range = model_range[:] #copies list so it doesn't mutate the original object
-        for model in (ONLY_ADOLESCENT_MODELS if age == "adult" else ONLY_ADULT_MODELS):
-            use_model_range.remove(model)
+        #removed excluded agents from range given cohort group
+        use_agent_range = agent_range[:] #copies list so it doesn't mutate the original object
+        for agent in (ONLY_ADOLESCENT_AGENTS if cohort == "adult" else ONLY_ADULT_AGENTS):
+            use_agent_range.remove(agent)
 
 
-        for model in use_model_range:
-            model_folder = dest + '/' + age + '/' + model + '/'
+        for agent in use_agent_range:
+            agent_folder = dest + '/' + cohort + '/' + agent + '/'
 
-            if show_progress: print(model_folder)
-            if model in csv_type_list:
+            if show_progress: print(agent_folder)
+            if agent in csv_type_list:
 
-                available_files = os.listdir(model_folder)
+                available_files = os.listdir(agent_folder)
 
                 for excl_file in EXCLUDE_FILES:
                     if excl_file in available_files: 
                         available_files.remove(excl_file)
-                        if show_progress: print("\t>>Excluded",excl_file,"from",model_folder)
+                        if show_progress: print("\t>>Excluded",excl_file,"from",agent_folder)
 
                 for file in available_files:
-                    individual_number = int(file.split('_')[-2]) - (20 if age == "adult" else 0)
-                    run_individual = age + str(individual_number)
+                    subject_number = int(file.split('_')[-2]) - (20 if cohort == "adult" else 0)
+                    run_subject = cohort + str(subject_number)
                     trial_number = file.split('_')[-1].split('.')[0]
-                    expert_type = "clinical"
-                    file_dest = model_folder + file
-                    if run_individual in individual_range:
-                        if show_progress: print('\t' + file_dest, run_individual)
+                    protocol_type = "clinical"
+                    file_dest = agent_folder + file
+                    if run_subject in subject_range:
+                        if show_progress: print('\t' + file_dest, run_subject)
                         meta_col = '_'.join([
-                            model, 
-                            expert_type, 
+                            agent, 
+                            protocol_type, 
                             "0", #seed number
                             trial_number,
-                            run_individual
+                            run_subject
                         ])
-                        data_dict[run_individual][expert_type][model].append(import_from_csv_as_rows(file_dest, meta_col=meta_col))
+                        data_dict[run_subject][protocol_type][agent].append(import_from_csv_as_rows(file_dest, meta_col=meta_col))
 
-                # data_dict[age][model] = np.array(data_dict[age])
+                # data_dict[cohort][agent] = np.array(data_dict[cohort])
 
 
-            elif model in folder_type_list:
-                available_folders = os.listdir(model_folder)
+            elif agent in folder_type_list:
+                available_folders = os.listdir(agent_folder)
                 for folder in available_folders:
-                    folder_dest = model_folder + folder
+                    folder_dest = agent_folder + folder
                     run_seed = folder[-1]
-                    run_individual = age + folder[-3]
+                    run_subject = cohort + folder[-3]
 
-                    if run_individual in individual_range:
+                    if run_subject in subject_range:
                         if show_progress: print('\t' + folder_dest)
                         args = open_arg_file(folder_dest + '/args.json')
                         #taking validation and testing together in one list
@@ -295,23 +308,23 @@ def import_all_data(
                                 if not EXCLUDE_IN_FILES in file:
                                     running_trial_number = 0
 
-                                    #decide expert type
+                                    #decide protocol type
                                     worker_number = int(file.split('_')[2][:-4])
-                                    if trial_folder == "/training/data/": expert_type = "training"
-                                    elif 6000 > worker_number >= 5000: expert_type = "testing"
-                                    elif worker_number >= 6000: expert_type = "evaluation"
+                                    if trial_folder == "/training/data/": protocol_type = "training"
+                                    elif 6000 > worker_number >= 5000: protocol_type = "testing"
+                                    elif worker_number >= 6000: protocol_type = "evaluation"
 
                                     file_dest = trial_folder_dest + file
                                     meta_col_func = (lambda epi : '_'.join([
-                                        model, 
-                                        expert_type,
+                                        agent, 
+                                        protocol_type,
                                         run_seed,
                                         str(running_trial_number + epi), 
-                                        run_individual
+                                        run_subject
                                     ]))
                                     new_data_arrays = import_from_big_csv_as_rows(file_dest, meta_col_func=meta_col_func)
                                     for new_data_array in new_data_arrays:
-                                        data_dict[run_individual][expert_type][model].append(new_data_array)
+                                        data_dict[run_subject][protocol_type][agent].append(new_data_array)
 
                                     running_trial_number += len(new_data_arrays) #update running trial number based on number of trials retrieved from file
 
@@ -350,14 +363,17 @@ class DataImporter:
     def __init__(self, 
             data_folder=DATA_DEST,
             verbose = True,
-            individuals = INDIVIDUALS, ages=AGE_VALUES, models = MODEL_TYPES, experts=EXPERTS,
+            subjects = SUBJECTS, 
+            cohorts=COHORT_VALUES, 
+            agents = AGENT_TYPES, 
+            protocols=PROTOCOLS,
         ):
-        self.individuals, self.ages, self.models, self.experts = individuals, ages, models, experts
+        self.subjects, self.cohorts, self.agents, self.protocols = subjects, cohorts, agents, protocols
         self.verbose = verbose
         self.source_folder = data_folder + "/object_save/"
         self.current_data = None
         self.current_index = 0
-        self.current_individual = self.individuals[0]
+        self.current_subject = self.subjects[0]
         
     def start(self):
         self.current_index = -1
@@ -368,12 +384,12 @@ class DataImporter:
 
     def __next__(self):
         self.current_index += 1
-        if self.current_index < len(self.individuals):
-            self.current_individual = self.individuals[self.current_index]
+        if self.current_index < len(self.subjects):
+            self.current_subject = self.subjects[self.current_index]
             self.import_current()
             return self.current_data
         else:
-            self.current_individual = None
+            self.current_subject = None
             self.delete_current()
             raise StopIteration
     
@@ -388,9 +404,9 @@ class DataImporter:
         self.delete_current()
         if self.verbose: print("\tFinished deleting previous data.")
         #import file
-        file_dest = self.source_folder + PICKLE_FILE_NAME_START + self.current_individual + PICKLE_FILE_NAME_END + ".pkl"
+        file_dest = self.source_folder + PICKLE_FILE_NAME_START + self.current_subject + PICKLE_FILE_NAME_END + ".pkl"
         if self.verbose: 
-            print("\tStarting import for",self.current_individual,"from",file_dest)
+            print("\tStarting import for",self.current_subject,"from",file_dest)
             start_time = datetime.now() #start the write timer
     
         raw_data = import_from_obj(file_dest) #import data from pickle object
@@ -403,52 +419,55 @@ class DataImporter:
 
         #strip irrelevant parts of imported object based on defined parameter ranges 
         if self.verbose: print("\tStripping Irrelevant Sections")
-        for expert in list(raw_data[self.current_individual].keys()):
-            if not (expert in self.experts):
-                print("\t\tDeleted expert",expert)
-                del raw_data[self.current_individual][expert]
+        for protocol in list(raw_data[self.current_subject].keys()):
+            if not (protocol in self.protocols):
+                print("\t\tDeleted protocol",protocol)
+                del raw_data[self.current_subject][protocol]
             else:
-                for model in list(raw_data[self.current_individual][expert].keys()):
-                    if not (model in self.models):
-                        print("\t\tDeleted model",model)
-                        del raw_data[self.current_individual][expert][model]
+                for agent in list(raw_data[self.current_subject][protocol].keys()):
+                    if not (agent in self.agents):
+                        print("\t\tDeleted agent",agent)
+                        del raw_data[self.current_subject][protocol][agent]
         if self.verbose: print("\tFinished stripping sections.")
 
         self.current_data = DataHandler(raw_data)
         raw_data = None
 
     def check_finished(self):
-        return self.current_individual == None
+        return self.current_subject == None
 
-    def get_trials(self, individuals_override = None, ages_override=None, models_override= None, experts_override=None):
-        individuals = self.individuals if individuals_override == None else individuals_override
-        ages = self.ages if ages_override == None else ages_override
-        models = self.models if models_override == None else models_override
-        experts = self.experts if experts_override == None else experts_override
+    def get_trials(self, subjects_override = None, cohorts_override=None, agents_override= None, protocols_override=None):
+        subjects = self.subjects if subjects_override == None else subjects_override
+        cohorts = self.cohorts if cohorts_override == None else cohorts_override
+        agents = self.agents if agents_override == None else agents_override
+        protocols = self.protocols if protocols_override == None else protocols_override
 
-        #TODO: add a layer to filter out individuals if ages, models, or experts limit them, since reading the files is the main bottleneck.
+        #TODO: add a layer to filter out subjects if cohorts, agents, or protocols limit them, since reading the files is the main bottleneck.
 
         trial_data = dict()
-        for individual in individuals:
-            file_dest = self.source_folder + PICKLE_FILE_NAME_START + self.individual + PICKLE_FILE_NAME_END + ".pkl"
+        for subject in subjects:
+            file_dest = self.source_folder + PICKLE_FILE_NAME_START + self.subject + PICKLE_FILE_NAME_END + ".pkl"
             
             current_data = import_from_obj(file_dest) #import data from pickle object
 
             if self.verbose: print("\tStripping Irrelevant Sections")
 
-            for expert in current_data[individual]:
-                if not (expert in experts):
-                    del current_data[individual][expert]
+            for protocol in current_data[subject]:
+                if not (protocol in protocols):
+                    del current_data[subject][protocol]
                 else:
-                    for model in current_data[individual][expert]:
-                        if not (model in models):
-                            del current_data[individual][expert][model]
+                    for agent in current_data[subject][protocol]:
+                        if not (agent in agents):
+                            del current_data[subject][protocol][agent]
             if self.verbose: print("\tFinished stripping sections.")
 
-            trial_data[individual] = current_data[individual]
+            trial_data[subject] = current_data[subject]
             del current_data
 
         return DataHandler(trial_data)
+
+    def get_current_subject_attrs(self):
+        return get_patient_attrs(self.current_subject)
 
 class DataHandler:
     """
@@ -460,20 +479,20 @@ class DataHandler:
         self.flat = False
         self.verbose = verbose
 
-        #detect range of individuals, experts, models, and ages
-        self.individuals, self.experts, self.models, self.ages = [], [] , [], []
-        for individual in list(data_dict.keys()):
-            for expert in list(data_dict[individual].keys()):
-                for model in list(data_dict[individual][expert].keys()):
-                    if data_dict[individual][expert][model] != []: #only add if empty
-                        if not individual in self.individuals: self.individuals.append(individual)
-                        age = individual[:-1]
-                        if not age in self.ages: self.ages.append(age)
-                        if not expert in self.experts: self.experts.append(expert)
-                        if not model in self.models: self.models.append(model)
+        #detect range of subjects, protocols, agents, and cohorts
+        self.subjects, self.protocols, self.agents, self.cohorts = [], [] , [], []
+        for subject in list(data_dict.keys()):
+            for protocol in list(data_dict[subject].keys()):
+                for agent in list(data_dict[subject][protocol].keys()):
+                    if data_dict[subject][protocol][agent] != []: #only add if empty
+                        if not subject in self.subjects: self.subjects.append(subject)
+                        cohort = subject[:-1]
+                        if not cohort in self.cohorts: self.cohorts.append(cohort)
+                        if not protocol in self.protocols: self.protocols.append(protocol)
+                        if not agent in self.agents: self.agents.append(agent)
                     else:
-                        del data_dict[individual][expert][model]
-                        if self.verbose: print("Pruned empty dictionary entry",individual,expert,model)
+                        del data_dict[subject][protocol][agent]
+                        if self.verbose: print("Pruned empty dictionary entry",subject,protocol,agent)
         
         self.gen_summaries()
 
@@ -482,7 +501,7 @@ class DataHandler:
         Returns the raw data object held by the handler.
 
         Returns:
-            a list of 2D numpy arrays representing trials if flat, a tiered dictionary with keys of invividual name -> expert type -> model type -> trial (2D numpy array) if not flat.
+            a list of 2D numpy arrays representing trials if flat, a tiered dictionary with keys of invividual name -> protocol type -> agent type -> trial (2D numpy array) if not flat.
         """
         if self.flat:
             return self.flat_trials
@@ -494,10 +513,10 @@ class DataHandler:
         self.trials_count = 0
         self.minutes_count = 0
 
-        for individual in self.data_dict:
-            for expert in self.data_dict[individual]:
-                for model in self.data_dict[individual][expert]:
-                    trial_data = self.data_dict[individual][expert][model]
+        for subject in self.data_dict:
+            for protocol in self.data_dict[subject]:
+                for agent in self.data_dict[subject][protocol]:
+                    trial_data = self.data_dict[subject][protocol][agent]
 
                     self.trials_count += len(trial_data)
                     for trial in trial_data:
@@ -514,11 +533,11 @@ class DataHandler:
         """
         if self.verbose: print("Starting to Flatten")
         output_list = []
-        for individual in self.individuals:
-            for expert in list(self.data_dict[individual].keys()):
-                for model in list(self.data_dict[individual][expert].keys()):
-                    output_list += self.data_dict[individual][expert][model]
-                    del self.data_dict[individual][expert][model]
+        for subject in self.subjects:
+            for protocol in list(self.data_dict[subject].keys()):
+                for agent in list(self.data_dict[subject][protocol].keys()):
+                    output_list += self.data_dict[subject][protocol][agent]
+                    del self.data_dict[subject][protocol][agent]
         del self.data_dict
         self.flat_trials = output_list
         print("made flat", len(self.flat_trials))
@@ -539,15 +558,15 @@ class DataHandler:
             df = pd.DataFrame(np.vstack(self.flat_trials), columns=use_columns)
             df.to_csv(dest_folder + name + ".csv", sep=',', index=False, header=True)
         else: #saves trials in seperate files, organised by folders.
-            for individual in self.data_dict:
-                os.makedirs(dest_folder + individual)
-                for expert in self.data_dict[individual]:
-                    os.makedirs(dest_folder + name + '/' + individual + '/' + expert)
-                    for model in self.data_dict[individual][expert]:
-                        os.makedirs(dest_folder + name + '/' + individual + '/' + expert + '/' + model)
-                        data = self.data_dict[individual][expert][model]
+            for subject in self.data_dict:
+                os.makedirs(dest_folder + subject)
+                for protocol in self.data_dict[subject]:
+                    os.makedirs(dest_folder + name + '/' + subject + '/' + protocol)
+                    for agent in self.data_dict[subject][protocol]:
+                        os.makedirs(dest_folder + name + '/' + subject + '/' + protocol + '/' + agent)
+                        data = self.data_dict[subject][protocol][agent]
                         df = pd.DataFrame(np.vstack(data), columns=use_columns)
-                        df.to_csv(dest_folder + name + '/' + individual + '/' + expert + '/' + model + "/trials.csv", sep=',', index=False, header=True)
+                        df.to_csv(dest_folder + name + '/' + subject + '/' + protocol + '/' + agent + "/trials.csv", sep=',', index=False, header=True)
         if self.verbose: print("Finished CSV Writing to",dest_folder + name)
 
     def delete(self):
@@ -558,13 +577,17 @@ class DataHandler:
     def print_structure(self):
         print("Structure")
         if not self.flat:
-            for individual in self.data_dict:
-                print(individual)
-                for expert in self.data_dict[individual]:
-                    print("\t",expert)
-                    for model in self.data_dict[individual][expert]:
-                        print("\t\t",model,"with",len(self.data_dict[individual][expert][model]),"trials")
+            for subject in self.data_dict:
+                print(subject)
+                for protocol in self.data_dict[subject]:
+                    print("\t",protocol)
+                    for agent in self.data_dict[subject][protocol]:
+                        print("\t\t",agent,"with",len(self.data_dict[subject][protocol][agent]),"trials")
         print()
+    def get_subject_attrs(self):
+        """Returns list of dictionary objects giving attributes of current subjects.
+        """
+        return [get_patient_attrs(subject) for subject in self.subjects]
 
 
 
@@ -572,16 +595,16 @@ if __name__ == "__main__":
     main_function = input("| pickle | convert | import |\nChoose: \n").lower()
 
     if main_function == "convert":
-        individual = "adult0"
+        subject = "adult0"
         overall_data_dict = dict()
-        file_dest=DATA_DEST + "/object_save/data_dictionary_" + individual + "_data.pkl"
+        file_dest=DATA_DEST + "/object_save/data_dictionary_" + subject + "_data.pkl"
         data = import_from_obj(file_dest) #import data from pickle object
-        overall_data_dict[individual] = data[individual]
+        overall_data_dict[subject] = data[subject]
 
-        #Follows individual > expert > model > [trial data].
-        expert = "clinical"
-        model = "BBHE"
-        example_trials = data[individual][expert][model]
+        #Follows subject > protocol > agent > [trial data].
+        protocol = "clinical"
+        agent = "BBHE"
+        example_trials = data[subject][protocol][agent]
         trial_len = len(example_trials)
         print("Trials have length",trial_len)
 
@@ -601,9 +624,13 @@ if __name__ == "__main__":
 
     elif main_function == "import":
         all_data = DataImporter(verbose=True, data_folder=DATA_DEST)
-        for individual_data in all_data:
-            print("===Imported data for", all_data.current_individual)
-            individual_data.flatten()
-            print(individual_data.flat_trials[0])
+        for subject_data in all_data:
+            print("===Imported data for", all_data.current_subject)
+            print("\tSubject attrs:",all_data.get_current_subject_attrs())
+            subject_data.flatten()
+            print(subject_data.flat_trials[0])
 
-            del individual_data
+            del subject_data
+    
+    else:
+        raise ValueError("Invalid choice.")
