@@ -3,7 +3,7 @@ import abc
 import time
 import torch
 
-from utils.worker import OnPolicyWorker, OffPolicyWorker
+from utils.worker import OnPolicyWorker, OffPolicyWorker, OfflineSampler
 from utils.buffers import onpolicy_buffers, offpolicy_buffers
 from metrics.metrics import time_in_range
 from metrics.statistics import calc_stats
@@ -51,6 +51,15 @@ class Agent:
                                              worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
             self.buffer = offpolicy_buffers.ReplayMemory(self.args)
 
+        elif type == "Offline": #FIXME
+            self.training_agents = [OfflineSampler(args=self.args, env_args=self.env_args, mode='training',
+                                           worker_id=i+args.training_agent_id_offset) for i in range(self.args.n_training_workers)]
+            self.testing_agents = [OffPolicyWorker(args=self.args, env_args=self.env_args, mode='testing',
+                                          worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
+            self.validation_agents = [OffPolicyWorker(args=self.args, env_args=self.env_args, mode='testing',
+                                             worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
+            self.buffer = offpolicy_buffers.ReplayMemory(self.args)
+
         self.logger = logger
 
     @abc.abstractmethod
@@ -70,8 +79,11 @@ class Agent:
                 if self.agent_type == "OnPolicy":
                     self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer.Rollout, logger=self.logger.logWorker)
                     self.buffer.save_rollout(training_agent_index=i)
-                else:
+                elif self.agent_type == "OffPolicy":
                     self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer, logger=self.logger.logWorker)
+                elif self.agent_type == "Offline": #FIXME
+                    self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer, logger=self.logger.logWorker) 
+
 
             logs = self.update()  # update the models
             self.logger.save_rollout(logs)  # logging

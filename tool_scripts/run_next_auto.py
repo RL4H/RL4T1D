@@ -88,7 +88,7 @@ def set_agent_parameters(cfg):
         print('Please select an agent for the experiment. Hint: a2c, sac, ppo, g2p2c, offline')
     return agent
 
-with open("../offline_testing/default_args.json",'r') as fp:
+with open("tool_scripts/default_args.json",'r') as fp:
     args_dict = json.load(fp)
     fp.close()
 

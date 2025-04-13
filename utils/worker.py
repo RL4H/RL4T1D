@@ -89,3 +89,15 @@ class OffPolicyWorker(Worker):
                 if self.worker_mode != 'training': break
                 self._reset()
         return
+
+class OfflineSampler(Worker):
+    def __init__(self, args, env_args, mode, worker_id, importer):
+        Worker.__init__(self, args, env_args, mode, worker_id)
+        self.importer = importer
+
+    def rollout(self, policy=None, buffer=None,logger=None):
+        logger = logger[self.worker_id]
+
+        return
+
+

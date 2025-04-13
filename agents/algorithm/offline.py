@@ -10,7 +10,7 @@ import sys
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-from data_importing.import_data import DataImporter
+from utils.sim_data import DataImporter
 
 # CURRENTLY JUST A COPY OF PPO FILE (+ a few things); just here as a placeholder to set up custom agent registration
 class Offline(Agent):

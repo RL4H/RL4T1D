@@ -108,7 +108,8 @@
         "seed": 0
     },
     "agent": {
-        "agent": "custom",
+        "agent": "offline",
+        "data_type" : "simulated",
         "debug": true,
         "n_rnn_hidden": 16,
         "n_rnn_layers": 1,
