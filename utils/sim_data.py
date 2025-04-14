@@ -602,8 +602,8 @@ class DataHandler:
         return [get_patient_attrs(subject) for subject in self.subjects]
 
 class DataQueue: 
-    def __init__(self, importer, minimum_length=100, maximum_length = 2000):
-        self.importer, self.minimum_length, self.maximum_length = importer, minimum_length, maximum_length
+    def __init__(self, importer, minimum_length=100, maximum_length = 2000, mapping = convert_to_frames):
+        self.importer, self.minimum_length, self.maximum_length, self.mapping = importer, minimum_length, maximum_length, mapping
         self.queue = []
         self.queue_revolutions = 0
         self.subjects_n = len(self.importer.subjects)
@@ -629,11 +629,17 @@ class DataQueue:
 
                 handled_length = len(handled_data) - self.current_subject_trial_ind
                 if self.handled_length > remaining_length:
-                    self.queue += handled_data.flat_trials[self.current_subject_trial_ind:self.current_subject_trial_ind + remaining_length]
+                    for trial in handled_data.flat_trials[self.current_subject_trial_ind:self.current_subject_trial_ind + remaining_length]:
+                        self.queue.append(
+                            self.mapping(trial) if self.mapping != None else trial
+                        )
                     self.current_subject_trial_ind += remaining_length
                     remaining_length = 0
                 else:
-                    self.queue += handled_data[self.current_subject_trial_ind:]
+                    for trial in handled_data[self.current_subject_trial_ind:]:
+                        self.queue.append(
+                            self.mapping(trial) if self.mapping != None else trial
+                        )
                     remaining_length -= handled_length
                     self.next_subject()
     def pop(self):
