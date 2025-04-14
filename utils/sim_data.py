@@ -399,12 +399,9 @@ class DataImporter:
             self.current_data = None
             gc.collect()
 
-    def import_current(self):
-        if self.verbose: print("\tDeleting previous data.")
-        self.delete_current()
-        if self.verbose: print("\tFinished deleting previous data.")
+    def import_subject(self, subject):
         #import file
-        file_dest = self.source_folder + PICKLE_FILE_NAME_START + self.current_subject + PICKLE_FILE_NAME_END + ".pkl"
+        file_dest = self.source_folder + PICKLE_FILE_NAME_START + subject + PICKLE_FILE_NAME_END + ".pkl"
         if self.verbose: 
             print("\tStarting import for",self.current_subject,"from",file_dest)
             start_time = datetime.now() #start the write timer
@@ -430,8 +427,20 @@ class DataImporter:
                         del raw_data[self.current_subject][protocol][agent]
         if self.verbose: print("\tFinished stripping sections.")
 
-        self.current_data = DataHandler(raw_data)
+        handled_data = DataHandler(raw_data)
         raw_data = None
+        return handled_data
+    
+    def import_current(self):
+        if self.verbose: print("\tDeleting previous data.")
+        self.delete_current()
+        if self.verbose: print("\tFinished deleting previous data.")
+
+        handled_data = self.import_current(self.current_subject)
+        self.current_data = handled_data
+
+
+        
 
     def check_finished(self):
         return self.current_subject == None
@@ -468,6 +477,9 @@ class DataImporter:
 
     def get_current_subject_attrs(self):
         return get_patient_attrs(self.current_subject)
+    
+    def create_queue(self):
+        self.queue = DataQueue()
 
 class DataHandler:
     """
@@ -588,6 +600,47 @@ class DataHandler:
         """Returns list of dictionary objects giving attributes of current subjects.
         """
         return [get_patient_attrs(subject) for subject in self.subjects]
+
+class DataQueue: 
+    def __init__(self, importer, minimum_length=100, maximum_length = 2000):
+        self.importer, self.minimum_length, self.maximum_length = importer, minimum_length, maximum_length
+        self.queue = []
+        self.queue_revolutions = 0
+        self.subjects_n = len(self.importer.subjects)
+    def start(self):
+        self.current_subject_ind = 0
+        self.current_subject = self.importer.subjects[self.current_subject_ind]
+        self.current_subject_trial_ind = 0
+        self.sync_queue()
+    def next_subject(self):
+        self.current_subject_ind += 1
+        if self.current_subject_ind >= self.subjects_n:
+            self.current_subject_ind = 0
+            self.queue_revolutions += 1
+        self.current_subject_trial_ind = 0
+        self.current_subject = self.importer.subjects[self.current_subject_ind]
+    def sync_queue(self):
+        if len(self.queue) < self.minimum_length:
+            remaining_length = self.maximum_length - len(self.queue)
+            while remaining_length > 0:
+                handled_data = self.importer.import_subject(self.current_subject)
+                handled_data.flatten()
+                gc.collect()
+
+                handled_length = len(handled_data) - self.current_subject_trial_ind
+                if self.handled_length > remaining_length:
+                    self.queue += handled_data.flat_trials[self.current_subject_trial_ind:self.current_subject_trial_ind + remaining_length]
+                    self.current_subject_trial_ind += remaining_length
+                    remaining_length = 0
+                else:
+                    self.queue += handled_data[self.current_subject_trial_ind:]
+                    remaining_length -= handled_length
+                    self.next_subject()
+    def pop(self):
+        out = self.queue.pop(0)
+        self.sync_queue()
+        return out
+
 
 
 
