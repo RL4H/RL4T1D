@@ -439,9 +439,6 @@ class DataImporter:
         handled_data = self.import_current(self.current_subject)
         self.current_data = handled_data
 
-
-        
-
     def check_finished(self):
         return self.current_subject == None
 
@@ -478,8 +475,8 @@ class DataImporter:
     def get_current_subject_attrs(self):
         return get_patient_attrs(self.current_subject)
     
-    def create_queue(self):
-        self.queue = DataQueue()
+    def create_queue(self, minimum_length=100, maximum_length=2000, mapping=convert_to_frames):
+        self.queue = DataQueue(self, minimum_length, maximum_length, mapping)
 
 class DataHandler:
     """
@@ -642,6 +639,8 @@ class DataQueue:
                         )
                     remaining_length -= handled_length
                     self.next_subject()
+            del handled_data
+        gc.collect()
     def pop(self):
         out = self.queue.pop(0)
         self.sync_queue()
