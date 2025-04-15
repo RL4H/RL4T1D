@@ -10,9 +10,7 @@ import sys
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-from utils.sim_data import DataImporter
 
-# CURRENTLY JUST A COPY OF PPO FILE (+ a few things); just here as a placeholder to set up custom agent registration
 class Offline(Agent):
     def __init__(self, args, env_args, logger, load_model, actor_path, critic_path):
         super(Offline, self).__init__(args, env_args=env_args, logger=logger, type="Offline")
@@ -35,13 +33,6 @@ class Offline(Agent):
         print("Setting up offline Agent")
         print(f"Using {args.data_type} data.")
 
-        # import custom data and setup buffer
-        try:
-            self.importer = DataImporter()
-            self.importer.create_queue() #fixme determine minimum and maximum buffer size
-            print("Succesfully instantiated data importer object.")
-        except:
-            print("No object save found at data/object_save/data_dictionary.pkl")
 
     def update_buffer(self):
         pass

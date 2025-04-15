@@ -11,6 +11,9 @@ from metrics.statistics import calc_stats
 import pandas as pd
 from omegaconf import OmegaConf, open_dict
 
+def patient_id_to_label(patient_id): #FIXME move to utils file
+    if patient_id < 0 or patient_id >= 30: raise ValueError("Invalid patient id")
+    return ["adolescent","adult","child"][patient_id//10] + str(patient_id % 10)
 
 class Agent:
     def __init__(self, args, env_args, logger, type="None"):
@@ -51,14 +54,27 @@ class Agent:
                                              worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
             self.buffer = offpolicy_buffers.ReplayMemory(self.args)
 
-        elif type == "Offline": #FIXME
-            self.training_agents = [OfflineSampler(args=self.args, env_args=self.env_args, mode='training',
-                                           worker_id=i+args.training_agent_id_offset) for i in range(self.args.n_training_workers)]
-            self.testing_agents = [OffPolicyWorker(args=self.args, env_args=self.env_args, mode='testing',
-                                          worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
-            self.validation_agents = [OffPolicyWorker(args=self.args, env_args=self.env_args, mode='testing',
-                                             worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
-            self.buffer = offpolicy_buffers.ReplayMemory(self.args)
+        elif type == "Offline":
+            if args.data_type == "simulated":
+                from utils.sim_data import DataImporter
+
+                self.training_agents = [OfflineSampler(args=self.args, env_args=self.env_args, mode='training',
+                                            worker_id=i+args.training_agent_id_offset) for i in range(self.args.n_training_workers)]
+                self.testing_agents = [OffPolicyWorker(args=self.args, env_args=self.env_args, mode='testing',
+                                            worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
+                self.validation_agents = [OffPolicyWorker(args=self.args, env_args=self.env_args, mode='testing',
+                                                worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
+                
+                # setup imported data buffer
+                importer = DataImporter(subjects=[patient_id_to_label(self.args.patient_id)])
+                self.buffer = importer.create_queue(minimum_length=args.batch_size*2) #FIXME determine minimum and maximum buffer size, and maybe add args as param?
+                
+            elif args.data_type == "clinical":
+                import utils.cln_data as cln_data
+                raise NotImplementedError("Clinical data importing not implemented.")
+            
+            else:
+                raise KeyError("Invlid data_type parameter.")
 
         self.logger = logger
 

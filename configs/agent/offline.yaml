@@ -44,9 +44,6 @@ n_val_trials: 500
 
 #data source
 data_type: "simulated" #simulated | clinical
-data_experts : [] 
-data_cohorts : [] 
-data_individuals : []
 
 
 
