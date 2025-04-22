@@ -67,7 +67,8 @@ class Agent:
                 
                 # setup imported data buffer
                 importer = DataImporter(subjects=[patient_id_to_label(self.args.patient_id)])
-                self.buffer = importer.create_queue(minimum_length=args.batch_size*2) #FIXME determine minimum and maximum buffer size, and maybe add args as param?
+                importer.create_queue(minimum_length=args.batch_size*2) #FIXME determine minimum and maximum buffer size, and maybe add args as param?
+                self.buffer = importer.queue
                 
             elif args.data_type == "clinical":
                 import utils.cln_data as cln_data
