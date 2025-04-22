@@ -9,9 +9,14 @@ from omegaconf import OmegaConf
 import gc
 from random import randrange
 from decouple import config
+from collections import namedtuple, deque
+from environment.reward_func import composite_reward
 
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
+
+Transition = namedtuple('Transition',
+                        ('state', 'feat', 'action', 'reward', 'next_state', 'next_feat', 'done'))
 
 SIM_DATA_PATH = config("SIM_DATA_PATH")
 # CLN_DATA_PATH = config("CLN_DATA_PATH")
@@ -354,6 +359,41 @@ def convert_to_frames(data_obj, window_size=16, default_starting_window=True, de
     
     return data_frames
 
+
+
+def convert_trial_into_transitions(data_obj, window_size=16, default_starting_window=True, default_starting_value=0, reward_func=(lambda s : composite_reward(None, s))):
+    #data_obj is a 2D numpy array , rows x columns. Columns are :  cgm, meal, ins, t, meta_data
+    rows, _ = data_obj.shape
+    ins_column = data_obj[:, 2]
+    cgm_column = data_obj[:, 0]
+
+    assert rows > window_size
+    
+    states = np.zeros((rows, 2, window_size)) if default_starting_window else np.zeros((rows-window_size, 2, window_size))
+
+    for row in range(rows):
+        if row < window_size and default_starting_window:
+            ins_window = np.append(np.array([default_starting_value]*(window_size-row)), ins_column[0: row])
+            cgm_window = np.append(np.array([default_starting_value]*(window_size-row)), cgm_column[0: row])
+        else:
+            ins_window = ins_column[row-window_size: row]
+            cgm_window = cgm_column[row-window_size: row]
+
+        states[row] = np.array([ins_window, cgm_window])
+    
+    transitions = []
+    for row_n in range(rows-1):
+        state = states[row_n]
+        feat = None #unused
+        action = state[0][-1]
+        reward = reward_func(state)
+        next_state = states[row_n+1]
+        next_feat = None #unused
+        done = (row_n == rows - 2)
+        transitions.append(Transition(state, feat, action, reward, next_state, next_feat, done))
+
+    return transitions
+
 ### Classes
 
 class DataImporter:
@@ -367,8 +407,10 @@ class DataImporter:
             cohorts=COHORT_VALUES, 
             agents = AGENT_TYPES, 
             protocols=PROTOCOLS,
+            args=None
         ):
         self.subjects, self.cohorts, self.agents, self.protocols = subjects, cohorts, agents, protocols
+        self.args = args
         self.verbose = verbose
         self.source_folder = data_folder + "/object_save/"
         self.current_data = None
@@ -475,8 +517,9 @@ class DataImporter:
     def get_current_subject_attrs(self):
         return get_patient_attrs(self.current_subject)
     
-    def create_queue(self, minimum_length=100, maximum_length=2000, mapping=convert_to_frames):
+    def create_queue(self, minimum_length=100, maximum_length=2000, mapping=convert_trial_into_transitions):
         self.queue = DataQueue(self, minimum_length, maximum_length, mapping)
+        return self.queue
 
 class DataHandler:
     """
@@ -504,7 +547,6 @@ class DataHandler:
                         if self.verbose: print("Pruned empty dictionary entry",subject,protocol,agent)
         
         self.gen_summaries()
-
     def get_raw(self):
         """
         Returns the raw data object held by the handler.
@@ -515,8 +557,7 @@ class DataHandler:
         if self.flat:
             return self.flat_trials
         else:
-            return self.data_dict
-        
+            return self.data_dict      
     def gen_summaries(self):
         if self.flat: raise NotImplementedError("gen_summaries() only implemented for unflattened data.")
         self.trials_count = 0
@@ -531,11 +572,9 @@ class DataHandler:
                     for trial in trial_data:
                         rows, _ = trial.shape
                         self.minutes_count += (rows - 1)*5 #5 minute time interval
-
     def print_summary(self):
         print(f"{self.trials_count} trials stored.")
         print(f"{self.minutes_count // 60}h {self.minutes_count % 60}m worth of data stored.")
-
     def flatten(self):
         """
         Converts data from a dictionary tiered format to a flattened list of trials. Destructive to list of trials.
@@ -552,7 +591,6 @@ class DataHandler:
         print("made flat", len(self.flat_trials))
         self.flat = True
         if self.verbose: print("Flattening Complete")
-
     def save_as_csv(self, name, dest_folder=DATA_DEST + "/csv_saves/",seperate_flat_files = False):
         if self.verbose: print("Starting CSV Writing")
         use_columns = self.trial_labels + ["meta"]
@@ -577,12 +615,10 @@ class DataHandler:
                         df = pd.DataFrame(np.vstack(data), columns=use_columns)
                         df.to_csv(dest_folder + name + '/' + subject + '/' + protocol + '/' + agent + "/trials.csv", sep=',', index=False, header=True)
         if self.verbose: print("Finished CSV Writing to",dest_folder + name)
-
     def delete(self):
         print("deleting time!")
         self.flat_trials = None
-        self.data_dict = None
-    
+        self.data_dict = None  
     def print_structure(self):
         print("Structure")
         if not self.flat:
@@ -624,27 +660,22 @@ class DataQueue:
                 handled_data.flatten()
                 gc.collect()
 
-                handled_length = len(handled_data) - self.current_subject_trial_ind
-                if self.handled_length > remaining_length:
-                    for trial in handled_data.flat_trials[self.current_subject_trial_ind:self.current_subject_trial_ind + remaining_length]:
-                        self.queue.append(
-                            self.mapping(trial) if self.mapping != None else trial
-                        )
-                    self.current_subject_trial_ind += remaining_length
-                    remaining_length = 0
-                else:
-                    for trial in handled_data[self.current_subject_trial_ind:]:
-                        self.queue.append(
-                            self.mapping(trial) if self.mapping != None else trial
-                        )
-                    remaining_length -= handled_length
-                    self.next_subject()
+                while self.current_subject_trial_ind < len(handled_data):
+                    trial_mapping = self.mapping(handled_data.flat_trials[self.current_subject_trial_ind])
+                    mapping_len = len(trial_mapping)
+
+                    self.queue += trial_mapping
+                    remaining_length -= mapping_len
+                    self.current_subject_trial_ind += 1
+
             del handled_data
         gc.collect()
     def pop(self):
         out = self.queue.pop(0)
         self.sync_queue()
         return out
+    def pop_batch(self,n):
+        return [self.pop() for _ in range(n)]
 
 
 

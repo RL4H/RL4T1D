@@ -66,7 +66,7 @@ class Agent:
                                                 worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
                 
                 # setup imported data buffer
-                importer = DataImporter(subjects=[patient_id_to_label(self.args.patient_id)])
+                importer = DataImporter(subjects=[patient_id_to_label(self.args.patient_id)],args=args)
                 importer.create_queue(minimum_length=args.batch_size*2) #FIXME determine minimum and maximum buffer size, and maybe add args as param?
                 self.buffer = importer.queue
                 
