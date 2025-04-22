@@ -10,6 +10,7 @@ from datetime import timedelta, datetime
 import matplotlib.dates as mdates
 import matplotlib.lines as mlines
 import math
+import os
 
 
 def experiment_error_check(cohort, algorithm, algoAbbreviation,
@@ -112,39 +113,39 @@ class ExperimentVisualise:
         with open(self.MAIN_PATH + 'args.json') as json_file:
             self.args = json.load(json_file)
             # print(self.args)
-        self.training_workers = self.args['n_training_workers']
-        self.testing_workers = self.args['n_testing_workers']
-        self.experiment_dir = self.args['experiment_dir']
+        self.training_workers = self.args['agent']['n_training_workers']
+        self.testing_workers = self.args['agent']['n_testing_workers']
+        self.experiment_dir = self.args['agent']['experiment_dir']
         self.training_seeds = [x for x in range(0, self.training_workers)]
 
         t_seeds = 500 if test_seeds is None else test_seeds
         self.testing_seeds = [t_seeds+x for x in range(0, self.testing_workers)]
-        self.ins_max = self.args['action_scale']
+        self.ins_max = self.args['env']['insulin_max']
         
     def get_testing_rewards(self, type=None):
         if type == 'normal':
             data = get_normal(self.MAIN_PATH, self.testing_seeds,
-                                    '/testing/data/testing_episode_summary_', 'reward')
+                                    '/testing/wirker_episode_summary_', 'reward')
         elif type == 'min_max':
             data = get_min_max_mean(self.MAIN_PATH, self.testing_seeds,
-                                    '/testing/data/testing_episode_summary_', 'reward')
+                                    '/testing/worker_episode_summary_', 'reward')
         data['steps'] = np.arange(len(data))
-        data['steps'] = (data['steps'] + 1 ) * self.training_workers * self.args['n_step']
+        data['steps'] = (data['steps'] + 1 ) * self.training_workers * self.args['agent']['n_step']
         return data
 
     def get_testing_metric(self, metric, type=None):
         if type == 'normal':
             data = get_normal(self.MAIN_PATH, self.testing_seeds,
-                                    '/testing/data/testing_episode_summary_', metric)
+                                    '/testing/worker_episode_summary_', metric)
         elif type == 'min_max':
             data = get_min_max_mean(self.MAIN_PATH, self.testing_seeds,
-                                    '/testing/data/testing_episode_summary_', metric)
+                                    '/testing/worker_episode_summary_', metric)
         data['steps'] = np.arange(len(data))
-        data['steps'] = (data['steps'] + 1 ) * self.training_workers * self.args['n_step']
+        data['steps'] = (data['steps'] + 1 ) * self.training_workers * self.args['agent']['n_step']
         return data
 
     def get_file_paths(self):
-        return self.MAIN_PATH, self.testing_seeds, '/testing/data/testing_episode_summary_'
+        return self.MAIN_PATH, self.testing_seeds, '/testing/worker_episode_summary_'
 
     def get_training_logs(self):
         model_log = pd.read_csv(self.MAIN_PATH + '/model_log.csv')
@@ -174,10 +175,10 @@ class ExperimentVisualise:
 
     def get_test_episode(self, tester, episode):
         if self.version == 1.0:
-            df = pd.read_csv(self.MAIN_PATH + '/testing/data/logs_test_worker_' + str(self.testing_seeds[tester]) +'.csv')
+            df = pd.read_csv(self.MAIN_PATH + '/testing/logs_test_worker_' + str(self.testing_seeds[tester]) +'.csv')
         elif self.version == 1.1:
-            df = pd.read_csv(self.MAIN_PATH + '/testing/data/logs_worker_' + str(self.testing_seeds[tester]) + '.csv')
-        df = df.loc[df['epi'] == episode]
+            df = pd.read_csv(self.MAIN_PATH + '/testing/worker_episode_' + str(self.testing_seeds[tester]) + '.csv')
+        df = df.loc[df['episode'] == episode]
         if self.plot_version == 1.0:
             df['day_hour'] = df['day_hour'].astype(int)
             df['day_min'] = df['day_min'].astype(int)
@@ -200,7 +201,7 @@ class ExperimentVisualise:
         print('\n Experiment summary...')
         latest_epi = math.inf
         for tester in self.testing_seeds:
-            df = pd.read_csv(self.MAIN_PATH + '/testing/data/testing_episode_summary_' + str(tester) +'.csv')
+            df = pd.read_csv(self.MAIN_PATH + '/testing/worker_episode_summary_' + str(tester) +'.csv')
             print(df.tail(1).to_dict())
             if df['epi'].iloc[-1] < latest_epi:
                 latest_epi = df['epi'].iloc[-1]
@@ -210,7 +211,7 @@ class ExperimentVisualise:
         arr = []
         target =  ['normo', 'hypo', 'hyper', 'sev_hypo', 'sev_hyper', 'lgbi', 'hgbi', 'ri', 'reward']
         for tester in self.testing_seeds:
-            df = pd.read_csv(self.MAIN_PATH + '/testing/data/testing_episode_summary_' + str(tester) +'.csv')
+            df = pd.read_csv(self.MAIN_PATH + '/testing/worker_episode_summary_' + str(tester) +'.csv')
             arr.append(df.iloc[-1:])
         res = pd.concat(arr)
         failures = res[res['t'] < 312].count()['t']
@@ -743,14 +744,14 @@ def plot_testing_metric(dict, type, dis_len, metric, goal, fill, label=False):
             ax.plot(d1['steps'], d1['mean'], color=dict[exp]['color'], label=l)
             if fill:
                 ax.fill_between(d1['steps'], d1['min'], d1['max'], color=dict[exp]['color'], alpha=0.2)
-    ax.axhline(y=goal, color='k', linestyle='--')
+    #ax.axhline(y=goal, color='k', linestyle='--')
     ax.set_title(metric)
     ax.legend(loc="lower right")
     ax.set_ylabel(metric)
     ax.set_xlabel('Interactions')
     ax.grid()
     ax.set_xlim(0, dis_len)
-    #ax.set_ylim(0, 1000000)
+    ax.set_ylim(-1050, 18250)
     plt.show()
 
 def plot_testing_average_metric(dict, groups, type, dis_len, metric, goal, fill, title=None):
@@ -765,6 +766,7 @@ def plot_testing_average_metric(dict, groups, type, dis_len, metric, goal, fill,
             FILES = create_file_paths(path, seeds, filename, FILES)
         cur_length, full_arr, refined = [], [], []
         for file in FILES:
+            #file = file = os.path.abspath(file)
             reward_summary = pd.read_csv(file)
             cur_length.append(reward_summary.shape[0])
             full_arr.append(reward_summary[metric])
@@ -782,7 +784,7 @@ def plot_testing_average_metric(dict, groups, type, dis_len, metric, goal, fill,
             data['min'] = data.min(axis=1)
 
         data['steps'] = np.arange(len(data))
-        data['steps'] = (data['steps'] + 1) * dict[i]['id'].training_workers * dict[i]['id'].args['n_step']
+        data['steps'] = (data['steps'] + 1) * dict[i]['id'].training_workers * dict[i]['id'].args['agent']['n_step']
 
         ax.plot(data['steps'], data['mean'], color=dict[i]['color'], label=dict[i]['label'])
         if fill:
@@ -796,8 +798,8 @@ def plot_testing_average_metric(dict, groups, type, dis_len, metric, goal, fill,
     ax.set_ylabel('Total Reward', fontsize=24) #ax.set_ylabel(metric)
     ax.set_xlabel('Steps', fontsize=24)
     ax.grid()
-    ax.set_xlim(0, dis_len)
-    ax.set_ylim(0, 320)
+    ax.set_xlim(0.6*dis_len, dis_len)
+    ax.set_ylim(-50, 100)
     plt.show()
 
 
