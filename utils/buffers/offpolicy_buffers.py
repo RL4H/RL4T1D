@@ -2,7 +2,7 @@ from collections import namedtuple, deque
 import random
 import torch
 
-Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'done'))
+Transition = namedtuple('Transition', ('state', 'feat', 'action', 'reward', 'next_state', 'next_feat', 'done'))
 
 
 class ReplayMemory(object):
@@ -18,6 +18,7 @@ class ReplayMemory(object):
         self.memory.append(Transition(*tensor_args))
 
     def sample(self, batch_size):
+        print("Sampling:",len(self.memory),'/',batch_size)
         return random.sample(self.memory, batch_size)
 
     def __len__(self):

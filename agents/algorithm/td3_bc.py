@@ -4,7 +4,7 @@ import torch.nn as nn
 import numpy as np
 
 from agents.algorithm.agent import Agent
-from agents.models.actor_critic import ActorCritic
+from agents.models.actor_critic_td3_bc import ActorCritic
 
 from decouple import config
 import sys
@@ -16,12 +16,14 @@ from collections import namedtuple, deque
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-Transition = namedtuple('Transition',
-                        ('state', 'feat', 'action', 'reward', 'next_state', 'next_feat', 'done'))
+Transition = namedtuple('Transition', ('state', 'feat', 'action', 'reward', 'next_state', 'next_feat', 'done'))
 
+
+DEFAULT_FEAT = 0
 
 class TD3_BC(Agent):
     def __init__(self, args, env_args, logger, load_model, actor_path, critic_path):
+        print("features:",args.n_features,args.custom_arg)
         super(TD3_BC, self).__init__(args, env_args=env_args, logger=logger, type="Offline")
         self.device = args.device
         self.completed_interactions = 0
@@ -33,6 +35,47 @@ class TD3_BC(Agent):
         self.pi_lr = args.pi_lr
         self.vf_lr = args.vf_lr
         self.alpha = 2.5 #FIXME make arg for this
+
+        ### TD3 Params
+        self.n_step = args.n_step
+        self.feature_history = args.feature_history
+        self.n_handcrafted_features = args.n_handcrafted_features
+        self.n_features = 32#args.n_features
+        print("n_features=",args.n_features,"overwritten to",self.n_features)
+        self.grad_clip = args.grad_clip
+
+        self.gamma = args.gamma
+        self.n_training_workers = args.n_training_workers
+        self.n_testing_workers = args.n_testing_workers
+        self.device = self.device
+
+        self.replay_buffer_size = args.replay_buffer_size
+        self.batch_size = args.batch_size
+        self.sample_size = args.sample_size
+
+        self.target_update_interval = 2  # 100
+        self.n_updates = 0
+
+        self.soft_tau = args.soft_tau
+        self.train_pi_iters = args.n_pi_epochs
+        self.shuffle_rollout = args.shuffle_rollout
+        # self.soft_q_lr = args.vf_lr
+        self.value_lr = args.vf_lr
+        self.policy_lr = args.pi_lr
+        self.grad_clip = args.grad_clip
+
+        # self.mu_penalty = args.mu_penalty
+        # self.action_penalty_limit = args.action_penalty_limit
+        # self.action_penalty_coef = args.action_penalty_coef
+
+        # self.replay_buffer_type = args.replay_buffer_type
+        # self.replay_buffer_alpha = args.replay_buffer_alpha
+        # self.replay_buffer_beta = args.replay_buffer_beta
+        # self.replay_buffer_temporal_decay = args.replay_buffer_temporal_decay
+
+
+        self.weight_decay = 0
+
 
         ### TD3 networks:
         self.td3 = ActorCritic(args, load_model, actor_path, critic_path, self.device).to(self.device)
@@ -99,10 +142,11 @@ class TD3_BC(Agent):
 
         for i in range(self.train_pi_iters):
             # sample from buffer
-            transitions = [self.buffer.pop() for _ in range(self.sample_size)]
+            transitions = self.buffer.sample(self.sample_size)
             
 
             batch = Transition(*zip(*transitions))
+            print("Batch:",batch.state)
             cur_state_batch = torch.cat(batch.state)
             cur_feat_batch = torch.cat(batch.feat)
             actions_batch = torch.cat(batch.action).unsqueeze(1)

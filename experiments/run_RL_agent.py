@@ -40,9 +40,13 @@ def set_agent_parameters(cfg):
     elif cfg.agent.agent == 'offline':
         from agents.algorithm.offline import Offline
         agent = Offline(args=cfg.agent, env_args=cfg.env, logger=logger, load_model=False, actor_path='', critic_path='')
+    
+    elif cfg.agent.agent == 'td3_bc':
+        from agents.algorithm.td3_bc import TD3_BC
+        agent = TD3_BC(args=cfg.agent, env_args=cfg.env, logger=logger, load_model=False, actor_path='', critic_path='')
 
     else:
-        print('Please select an agent for the experiment. Hint: a2c, sac, ppo, g2p2c, offline')
+        print('Please select an agent for the experiment. Hint: a2c, sac, ppo, g2p2c, offline, td3_bc')
     return agent
 
 

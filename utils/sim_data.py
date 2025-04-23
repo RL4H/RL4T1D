@@ -15,8 +15,8 @@ from environment.reward_func import composite_reward
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-Transition = namedtuple('Transition',
-                        ('state', 'feat', 'action', 'reward', 'next_state', 'next_feat', 'done'))
+Transition = namedtuple('Transition', ('state', 'feat', 'action', 'reward', 'next_state', 'next_feat', 'done'))
+
 
 SIM_DATA_PATH = config("SIM_DATA_PATH")
 # CLN_DATA_PATH = config("CLN_DATA_PATH")
@@ -79,7 +79,7 @@ PICKLE_FILE_NAME_END = "_data"
 PICKLE_FILE_NAME_START = "data_dictionary_"
 
 #import patient attributes
-with open("./utils/patient_attrs.csv",'r') as f:
+with open(MAIN_PATH + "/utils/patient_attrs.csv",'r') as f:
     lines = [line.split(',') for line in f.read().splitlines()]
 
 patient_attr_names = lines[0]
@@ -383,12 +383,12 @@ def convert_trial_into_transitions(data_obj, window_size=16, default_starting_wi
     
     transitions = []
     for row_n in range(rows-1):
-        state = states[row_n]
-        feat = None #unused
-        action = state[0][-1]
+        state = states[row_n][1][-1]
+        feat = np.concatenate((states[row_n][0], states[row_n][1]))
+        action = states[row_n][0][-1]
         reward = reward_func(state)
-        next_state = states[row_n+1]
-        next_feat = None #unused
+        next_state = states[row_n+1][1][-1]
+        next_feat = np.concatenate((states[row_n+1][0], states[row_n+1][1]))
         done = (row_n == rows - 2)
         transitions.append(Transition(state, feat, action, reward, next_state, next_feat, done))
 
@@ -656,20 +656,31 @@ class DataQueue:
         if len(self.queue) < self.minimum_length:
             remaining_length = self.maximum_length - len(self.queue)
             while remaining_length > 0:
+                print("Importing data for",self.current_subject,"at index",self.current_subject_ind)
                 handled_data = self.importer.import_subject(self.current_subject)
                 handled_data.flatten()
+
+                handled_len = len(handled_data.flat_trials)
+                print("Data Imported and flattened with", handled_len,"trials.")
                 gc.collect()
 
-                while self.current_subject_trial_ind < len(handled_data):
+                while remaining_length > 0 and self.current_subject_trial_ind < handled_len:
+                    print("\tMapping step",self.current_subject_trial_ind, handled_len)
                     trial_mapping = self.mapping(handled_data.flat_trials[self.current_subject_trial_ind])
                     mapping_len = len(trial_mapping)
 
                     self.queue += trial_mapping
                     remaining_length -= mapping_len
                     self.current_subject_trial_ind += 1
+                
+                if self.current_subject_trial_ind >= handled_len:
+                    self.current_subject_trial_ind = 0
 
+
+            del handled_data.flat_trials
             del handled_data
-        gc.collect()
+            gc.collect()
+            print("Sync completed")
     def pop(self):
         out = self.queue.pop(0)
         self.sync_queue()

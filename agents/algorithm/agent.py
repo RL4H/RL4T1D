@@ -57,18 +57,19 @@ class Agent:
         elif type == "Offline":
             if args.data_type == "simulated":
                 from utils.sim_data import DataImporter
-
-                self.training_agents = [OfflineSampler(args=self.args, env_args=self.env_args, mode='training',
-                                            worker_id=i+args.training_agent_id_offset) for i in range(self.args.n_training_workers)]
-                self.testing_agents = [OffPolicyWorker(args=self.args, env_args=self.env_args, mode='testing',
-                                            worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
-                self.validation_agents = [OffPolicyWorker(args=self.args, env_args=self.env_args, mode='testing',
-                                                worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
                 
                 # setup imported data buffer
                 importer = DataImporter(subjects=[patient_id_to_label(self.args.patient_id)],args=args)
                 importer.create_queue(minimum_length=args.batch_size*2) #FIXME determine minimum and maximum buffer size, and maybe add args as param?
-                self.buffer = importer.queue
+                importer.queue.start()
+                # self.buffer = importer.queue
+
+                self.training_agents = [OfflineSampler(args=self.args, env_args=self.env_args, mode='training', worker_id=i+args.training_agent_id_offset,importer_queue=importer.queue) for i in range(self.args.n_training_workers)]
+                self.testing_agents = [OffPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
+                self.validation_agents = [OffPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
+
+                
+                self.buffer = offpolicy_buffers.ReplayMemory(self.args)
                 
             elif args.data_type == "clinical":
                 import utils.cln_data as cln_data

@@ -91,13 +91,22 @@ class OffPolicyWorker(Worker):
         return
 
 class OfflineSampler(Worker):
-    def __init__(self, args, env_args, mode, worker_id, importer):
+    def __init__(self, args, env_args, mode, worker_id, importer_queue):
         Worker.__init__(self, args, env_args, mode, worker_id)
-        self.importer = importer
+        self.importer_queue = importer_queue
 
     def rollout(self, policy=None, buffer=None,logger=None):
         logger = logger[self.worker_id]
 
+        for _ in range(0, self.rollout_steps):
+            item = self.importer_queue.pop()
+            # print("Saving transition, ",item)
+            buffer.store(*item)
+
         return
+
+        
+
+
 
 
