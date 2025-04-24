@@ -146,14 +146,18 @@ class TD3_BC(Agent):
             
 
             batch = Transition(*zip(*transitions))
-            print("Batch:",batch.state)
             cur_state_batch = torch.cat(batch.state)
             cur_feat_batch = torch.cat(batch.feat)
-            actions_batch = torch.cat(batch.action).unsqueeze(1)
+            actions_batch = torch.cat(batch.action)#.unsqueeze(1)
             reward_batch = torch.cat(batch.reward).unsqueeze(1)
             next_state_batch = torch.cat(batch.next_state)
             next_feat_batch = torch.cat(batch.next_feat)
             done_batch = torch.cat(batch.done).unsqueeze(1)
+
+            print("\nBatch Stuff!")
+            print("cur_state_batch_size:", cur_state_batch.shape)
+            print("cur_feat_batch_size:",cur_feat_batch.shape)
+            print("actions_batch:",actions_batch.shape)
 
             # value network update
             new_action, next_log_prob = self.td3.evaluate_target_policy_noise(next_state_batch, next_feat_batch)

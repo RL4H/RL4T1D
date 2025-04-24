@@ -11,7 +11,6 @@ from random import randrange
 from decouple import config
 from collections import namedtuple, deque
 from environment.reward_func import composite_reward
-
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
@@ -102,7 +101,7 @@ def convert_mins_to_string(raw_mins):
     return f"{days}:{hours:02}:{mins:02}"
 
 def convert_string_to_mins(time_string):
-    days,hours,mins,seconds = tuple([int(i) for i in time_string.split(':')])
+    days,hours,mins = tuple([int(i) for i in time_string.split(':')])
     return days*60*24 + hours*60 + mins
 
 def import_from_csv_as_rows(file_dest, headers=CSV_HEADERS, meta_col=""):
@@ -361,7 +360,38 @@ def convert_to_frames(data_obj, window_size=16, default_starting_window=True, de
 
 
 
-def convert_trial_into_transitions(data_obj, window_size=16, default_starting_window=True, default_starting_value=0, reward_func=(lambda s : composite_reward(None, s))):
+# def risk_index(BG, horizon):
+#     # BG is in mg/dL, horizon in samples
+#     with warnings.catch_warnings():
+#         warnings.simplefilter('ignore')
+#         BG_to_compute = np.array(BG[-horizon:])
+#         BG_to_compute[BG_to_compute < 1] = 1
+#         fBG = 1.509 * (np.log(BG_to_compute)**1.084 - 5.381)
+#         rl = 10 * fBG[fBG < 0]**2
+#         rh = 10 * fBG[fBG > 0]**2
+#         LBGI = np.nan_to_num(np.mean(rl))
+#         HBGI = np.nan_to_num(np.mean(rh))
+#         RI = LBGI + HBGI
+#     return LBGI, HBGI, RI
+
+# def custom_reward(bg_hist, **kwargs):
+#     return -risk_index([bg_hist[-1]], 1)[-1]
+
+# def composite_reward(args, state=None, reward=None):
+#     MAX_GLUCOSE = 600
+#     if reward == None:
+#         reward = custom_reward([state])
+#     x_max, x_min = 0, custom_reward([MAX_GLUCOSE]) #get_IS_Rew(MAX_GLUCOSE, 4) # custom_reward([MAX_GLUCOSE])
+#     reward = ((reward - x_min) / (x_max - x_min))
+#     if state <= 40:
+#         reward = -15
+#     elif state >= MAX_GLUCOSE:
+#         reward = 0
+#     else:
+#         reward = reward
+#     return reward
+
+def convert_trial_into_transitions(data_obj, window_size=12, default_starting_window=True, default_starting_value=0, reward_func=(lambda s : composite_reward(None, s[-1][0]))):
     #data_obj is a 2D numpy array , rows x columns. Columns are :  cgm, meal, ins, t, meta_data
     rows, _ = data_obj.shape
     ins_column = data_obj[:, 2]
@@ -369,7 +399,7 @@ def convert_trial_into_transitions(data_obj, window_size=16, default_starting_wi
 
     assert rows > window_size
     
-    states = np.zeros((rows, 2, window_size)) if default_starting_window else np.zeros((rows-window_size, 2, window_size))
+    states = np.zeros((rows, window_size, 2)) if default_starting_window else np.zeros((rows-window_size, 2, window_size))
 
     for row in range(rows):
         if row < window_size and default_starting_window:
@@ -379,17 +409,18 @@ def convert_trial_into_transitions(data_obj, window_size=16, default_starting_wi
             ins_window = ins_column[row-window_size: row]
             cgm_window = cgm_column[row-window_size: row]
 
-        states[row] = np.array([ins_window, cgm_window])
+        states[row] = np.array(np.stack((cgm_window, ins_window), axis=-1).astype(np.float32))
+
     
     transitions = []
     for row_n in range(rows-1):
-        state = states[row_n][1][-1]
-        feat = np.concatenate((states[row_n][0], states[row_n][1]))
-        action = states[row_n][0][-1]
-        reward = reward_func(state)
-        next_state = states[row_n+1][1][-1]
-        next_feat = np.concatenate((states[row_n+1][0], states[row_n+1][1]))
-        done = (row_n == rows - 2)
+        state = states[row_n]
+        feat = [convert_string_to_mins(data_obj[row_n][3])]
+        action = [states[row_n][-1][1]]
+        reward = [reward_func(state)]
+        next_state = states[row_n+1]
+        next_feat = [convert_string_to_mins(data_obj[row_n+1][3])]
+        done = [int(row_n == rows - 2)]
         transitions.append(Transition(state, feat, action, reward, next_state, next_feat, done))
 
     return transitions
@@ -635,7 +666,7 @@ class DataHandler:
         return [get_patient_attrs(subject) for subject in self.subjects]
 
 class DataQueue: 
-    def __init__(self, importer, minimum_length=100, maximum_length = 2000, mapping = convert_to_frames):
+    def __init__(self, importer, minimum_length=1024, maximum_length = 8192, mapping = convert_to_frames):
         self.importer, self.minimum_length, self.maximum_length, self.mapping = importer, minimum_length, maximum_length, mapping
         self.queue = []
         self.queue_revolutions = 0
