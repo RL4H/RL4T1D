@@ -95,16 +95,17 @@ class LogWorker:  # TODO: improve handling the logs.
         self.keys = keys
         self.worker_mode = mode
         self.worker_id = worker_id
-        self.episode_history = np.zeros(combined_shape(args.max_epi_length, 13), dtype=np.float32)
+        self.episode_history = np.zeros(combined_shape(args.max_epi_length, 15), dtype=np.float32)
 
-    def update(self, counter, episode, state, policy_step, pump_action, rl_action, reward, info):
+    def update(self, counter, episode, state, policy_step, pump_action, rl_action, reward, info, clin_rew, irl_iter):
         self.episode_history[counter] = [episode, counter, state.CGM,
                                                   info['meal'] * info['sample_time'],
                                                   pump_action, reward, rl_action, policy_step['mu'][0],
                                                   policy_step['std'][0],
                                                   policy_step['log_prob'][0], policy_step['state_value'][0],
                                                   info['day_hour'],
-                                                  info['day_min']]
+                                                  info['day_min'], 
+                                                  clin_rew, irl_iter ]
 
     def save(self, episode, counter):
 

@@ -138,6 +138,7 @@ class ProjectionPPO:
         f1.write(", ".join(['_'+str(iters), str(self.proj), str(self.w)])+"\n")
         f1.close()
         self.rl_agent.update_worker_rwd(self.w.to(self.device))  # update reward function
+        self.rl_agent.increment_irl_iter()
         # Now use RL algorithm to find a new policy
         #print('rl_train')
 
@@ -167,11 +168,14 @@ class ProjectionPPO:
             if converged:
                 break
             self.rl_agent.update_worker_rwd(self.w)  #update reward function
+            self.rl_agent.increment_irl_iter()
             t_1= time.perf_counter()
             print("IRL: ", (t_1 - t_0)/60)
             #Now use RL algorithm to find a new policy
             print("rl_train second time")
             t_0 = time.perf_counter()
+            if iters == max_iters - 1: #final time to be trained, so train for longer
+                self.rl_agent.args.total_interactions = self.cfg.agent.final_iter_interactions
             self.rl_agent.run()  #traiing rl_agent
             t_1= time.perf_counter()
             print("RL: ", (t_1 - t_0)/60)

@@ -9,6 +9,7 @@ class Worker(T1DEnv):
         T1DEnv.__init__(self, env_args, mode, worker_id)
         self.worker_id = worker_id
         self.episode, self.counter = 0, 0
+        self.irl_iter = 0
         self.rwd_params = rwd_params
         self.rollout_steps = args.n_step if self.worker_mode == 'training' else args.max_test_epi_len
         self.stop_factor = (args.max_epi_length - 1) if self.worker_mode == 'training' else (args.max_test_epi_len - 1)
@@ -36,7 +37,7 @@ class OnPolicyWorker(Worker):
             rl_action = policy.get_action(self.state)  # get RL action
             pump_action = self.controlspace.map(agent_action=rl_action['action'][0])  # map RL action => control space (pump)
 
-            state, reward, is_done, info = self.env.step(pump_action)
+            state, clin_reward, is_done, info = self.env.step(pump_action)
             if self.rwd_params is not None:
                 obs = torch.tensor([x[0] for x in state]).to(self.args.device) #need to check this is correct for PPO
                 reward = torch.matmul(self.rwd_params, obs).cpu()
@@ -46,7 +47,7 @@ class OnPolicyWorker(Worker):
                 is_first = True if self.counter == 0 else False
                 buffer.store(self.state, rl_action['action'][0], reward, rl_action['state_value'], rl_action['log_prob'], info['cgm'].CGM, is_first)
 
-            logger.update(self.counter, self.episode, info['cgm'], rl_action, pump_action, 0, reward, info)
+            logger.update(self.counter, self.episode, info['cgm'], rl_action, pump_action, 0, reward, info, clin_reward, self.irl_iter)
 
             self.state = state  # update -> state.
             self.counter += 1

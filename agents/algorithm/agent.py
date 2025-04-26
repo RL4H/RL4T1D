@@ -153,3 +153,11 @@ class Agent:
         for x in self.validation_agents:
             x.update_rwd_params(w)
 
+    def increment_irl_iter(self):
+        for x in self.training_agents:
+            x.irl_iter += 1
+        for x in self.testing_agents:
+            x.irl_iter += 1
+        for x in self.validation_agents:
+            x.irl_iter += 1
+
