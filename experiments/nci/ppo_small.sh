@@ -1,7 +1,7 @@
 #!/bin/bash
 #PBS -P sj53
 #PBS -q gpuvolta
-#PBS -l walltime=3:00:00
+#PBS -l walltime=12:00:00
 #PBS -l mem=24GB
 #PBS -l jobfs=0
 #PBS -l ngpus=1
