@@ -1,14 +1,14 @@
 agent: 'irl'
-n_samples_expert: 10
-l_expert: 50
-i_irl: 3
+n_samples_expert: 50
+l_expert: 256
+i_irl: 6
 i_update_init: 3
 i_update: 3
 n_sim: 50
 l_sim: 256
 tol: 0.001
 irl_file: 'irl'
-final_iter_interactions: 150000
+final_iter_interactions: 800000
 
 
 
