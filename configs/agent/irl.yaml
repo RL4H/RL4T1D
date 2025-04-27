@@ -1,6 +1,6 @@
 agent: 'irl'
-n_samples_expert: 50
-l_expert: 256
+n_samples_expert: 10
+l_expert: 50
 i_irl: 3
 i_update_init: 3
 i_update: 3

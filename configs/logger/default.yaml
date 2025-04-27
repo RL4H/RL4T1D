@@ -33,6 +33,8 @@ worker_episode:
   - 'state_val'
   - 'day_hour'
   - 'day_min'
+  - 'clin_rew'
+  - 'irl_iter'
 
 worker_episode_summary:
   - 'epi'
