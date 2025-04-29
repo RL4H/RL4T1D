@@ -40,8 +40,6 @@ class TD3_BC(Agent):
         self.n_step = args.n_step
         self.feature_history = args.feature_history
         self.n_handcrafted_features = args.n_handcrafted_features
-        self.n_features = 32#args.n_features
-        print("n_features=",args.n_features,"overwritten to",self.n_features)
         self.grad_clip = args.grad_clip
 
         self.gamma = args.gamma
@@ -78,67 +76,46 @@ class TD3_BC(Agent):
 
 
         ### TD3 networks:
-        self.td3 = ActorCritic(args, load_model, actor_path, critic_path, self.device).to(self.device)
+        self.policy = ActorCritic(args, load_model, actor_path, critic_path, self.device).to(self.device)
+
         self.value_criterion1 = nn.MSELoss()
         self.value_criterion2 = nn.MSELoss()
-        self.value_optimizer1 = torch.optim.Adam(self.td3.value_net1.parameters(), lr=self.value_lr,
-                                                 weight_decay=self.weight_decay)
-        self.value_optimizer2 = torch.optim.Adam(self.td3.value_net2.parameters(), lr=self.value_lr,
-                                                 weight_decay=self.weight_decay)
-        self.policy_optimizer = torch.optim.Adam(self.td3.policy_net.parameters(), lr=self.policy_lr,
-                                                 weight_decay=self.weight_decay)
-        for target_param, param in zip(self.td3.policy_net.parameters(), self.td3.policy_net_target.parameters()):
+        self.value_optimizer1 = torch.optim.Adam(self.policy.value_net1.parameters(), lr=self.value_lr, weight_decay=self.weight_decay)
+        self.value_optimizer2 = torch.optim.Adam(self.policy.value_net2.parameters(), lr=self.value_lr, weight_decay=self.weight_decay)
+
+        self.policy_optimizer = torch.optim.Adam(self.policy.policy_net.parameters(), lr=self.policy_lr, weight_decay=self.weight_decay)
+        for target_param, param in zip(self.policy.policy_net.parameters(), self.policy.policy_net_target.parameters()):
             target_param.data.copy_(param.data)
 
-        for p in self.td3.policy_net_target.parameters():
+        for p in self.policy.policy_net_target.parameters():
             p.requires_grad = False
 
-        for target_param, param in zip(self.td3.value_net1.parameters(), self.td3.value_net_target1.parameters()):
-            target_param.data.copy_(param.data)
-        for target_param, param in zip(self.td3.value_net2.parameters(), self.td3.value_net_target2.parameters()):
+        for target_param, param in zip(self.policy.value_net1.parameters(), self.policy.value_net_target1.parameters()):
             target_param.data.copy_(param.data)
 
-        for p in self.td3.value_net_target1.parameters():
-            p.requires_grad = False
-        for p in self.td3.value_net_target2.parameters():
+        for target_param, param in zip(self.policy.value_net2.parameters(), self.policy.value_net_target2.parameters()):
+            target_param.data.copy_(param.data)
+
+        for p in self.policy.value_net_target1.parameters():
             p.requires_grad = False
 
-        print('Policy Parameters: {}'.format(
-            sum(p.numel() for p in self.td3.policy_net.parameters() if p.requires_grad)))
-        print(
-            'Value network 1 Parameters: {}'.format(
-                sum(p.numel() for p in self.td3.value_net1.parameters() if p.requires_grad)))
-        print(
-            'Value network 2 Parameters: {}'.format(
-                sum(p.numel() for p in self.td3.value_net2.parameters() if p.requires_grad)))
+        for p in self.policy.value_net_target2.parameters():
+            p.requires_grad = False
 
-        self.save_log([['policy_loss', 'value_loss', 'pi_grad', 'val_grad']], '/model_log')
-        self.model_logs = torch.zeros(4, device=self.device)
-        self.save_log([['ri', 'alive_steps', 'normo', 'hypo', 'sev_hypo', 'hyper', 'lgbi', 'hgbi',
-                        'sev_hyper', 'rollout', 'trial']], '/evaluation_log')
-        self.save_log([['status', 'rollout', 't_rollout', 't_update', 't_test']], '/experiment_summary')
-        self.save_log([[1, 0, 0, 0, 0]], '/experiment_summary')
-        self.completed_interactions = 0
+        print('Policy Parameters: {}'.format(sum(p.numel() for p in self.policy.policy_net.parameters() if p.requires_grad)))
+        print('Value network 1 Parameters: {}'.format(sum(p.numel() for p in self.policy.value_net1.parameters() if p.requires_grad)))
+        print('Value network 2 Parameters: {}'.format(sum(p.numel() for p in self.policy.value_net2.parameters() if p.requires_grad)))
         
 
         # readout
         print("Setting up offline Agent")
         print(f"Using {args.data_type} data.")
 
-    def save_log(self, log_name, file_name):
-        with open(self.args.experiment_dir + file_name + '.csv', 'a+') as f:
-            csvWriter = csv.writer(f, delimiter=',')
-            csvWriter.writerows(log_name)
-            f.close()
-
     def update(self):
         print("Running network update...")
 
-        cl, pl, ql1, ql2, count = torch.zeros(1, device=self.device), torch.zeros(1, device=self.device), \
-            torch.zeros(1, device=self.device), \
-            torch.zeros(1, device=self.device), torch.zeros(1, device=self.device)
-        pi_grad, val_grad, q2_grad, coeff_grad = torch.zeros(1, device=self.device), torch.zeros(1, device=self.device), \
-            torch.zeros(1, device=self.device), torch.zeros(1, device=self.device)
+        cl, pl = torch.zeros(1, device=self.device), torch.zeros(1, device=self.device)
+        pi_grad, val_grad = torch.zeros(1, device=self.device), torch.zeros(1, device=self.device)
 
         for i in range(self.train_pi_iters):
             # sample from buffer
@@ -148,25 +125,20 @@ class TD3_BC(Agent):
             batch = Transition(*zip(*transitions))
             cur_state_batch = torch.cat(batch.state)
             cur_feat_batch = torch.cat(batch.feat)
-            actions_batch = torch.cat(batch.action)#.unsqueeze(1)
+            actions_batch = torch.cat(batch.action)
             reward_batch = torch.cat(batch.reward).unsqueeze(1)
             next_state_batch = torch.cat(batch.next_state)
             next_feat_batch = torch.cat(batch.next_feat)
             done_batch = torch.cat(batch.done).unsqueeze(1)
 
-            print("\nBatch Stuff!")
-            print("cur_state_batch_size:", cur_state_batch.shape)
-            print("cur_feat_batch_size:",cur_feat_batch.shape)
-            print("actions_batch:",actions_batch.shape)
-
             # value network update
-            new_action, next_log_prob = self.td3.evaluate_target_policy_noise(next_state_batch, next_feat_batch)
-            next_values = torch.min(self.td3.value_net_target1(next_state_batch, next_feat_batch, new_action),
-                                    self.td3.value_net_target2(next_state_batch, next_feat_batch, new_action))
+            new_action, next_log_prob = self.policy.evaluate_target_policy_noise(next_state_batch, next_feat_batch)
+            next_values = torch.min(self.policy.value_net_target1(next_state_batch, next_feat_batch, new_action),
+                                    self.policy.value_net_target2(next_state_batch, next_feat_batch, new_action))
             target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
 
-            predicted_value1 = self.td3.value_net1(cur_state_batch, cur_feat_batch, actions_batch)
-            predicted_value2 = self.td3.value_net2(cur_state_batch, cur_feat_batch, actions_batch)
+            predicted_value1 = self.policy.value_net1(cur_state_batch, cur_feat_batch, actions_batch)
+            predicted_value2 = self.policy.value_net2(cur_state_batch, cur_feat_batch, actions_batch)
 
             value_loss1 = self.value_criterion1(target_value.detach(), predicted_value1)
             value_loss2 = self.value_criterion2(target_value.detach(), predicted_value2)
@@ -182,11 +154,11 @@ class TD3_BC(Agent):
 
             cl += value_loss1.detach()
 
-            for param in self.td3.value_net1.parameters():
+            for param in self.policy.value_net1.parameters():
                 if param.grad is not None:
                     val_grad += param.grad.sum()
 
-            for param in self.td3.value_net2.parameters():
+            for param in self.policy.value_net2.parameters():
                 if param.grad is not None:
                     val_grad += param.grad.sum()
 
@@ -195,67 +167,68 @@ class TD3_BC(Agent):
             # actor update
             if self.n_updates % self.target_update_interval == 0:
                 # freeze value networks save compute: ref: openai:
-                for p in self.td3.value_net1.parameters():
+                for p in self.policy.value_net1.parameters():
                     p.requires_grad = False
-                for p in self.td3.value_net2.parameters():
-                    p.requires_grad = False
-
-                for p in self.td3.value_net_target1.parameters():
-                    p.requires_grad = False
-                for p in self.td3.value_net_target2.parameters():
+                for p in self.policy.value_net2.parameters():
                     p.requires_grad = False
 
-                policy_action, _ = self.td3.evaluate_policy_no_noise(cur_state_batch, cur_feat_batch)
-                policy_loss = torch.min(self.td3.value_net1(cur_state_batch, cur_feat_batch, policy_action),
-                                        self.td3.value_net2(cur_state_batch, cur_feat_batch, policy_action))
+                for p in self.policy.value_net_target1.parameters():
+                    p.requires_grad = False
+                for p in self.policy.value_net_target2.parameters():
+                    p.requires_grad = False
 
+                # evaluate action taken by policy, in a batch
+                policy_action, _ = self.policy.evaluate_policy_no_noise(cur_state_batch, cur_feat_batch)
+
+                # take minimum evaluation by critics
+                policy_loss = torch.min(
+                    self.policy.value_net1(cur_state_batch, cur_feat_batch, policy_action), 
+                    self.policy.value_net2(cur_state_batch, cur_feat_batch, policy_action)
+                )
+
+                # evaluate mean of q values
                 q_mean = policy_loss.mean()
-                
-                lmbda = self.alpha / ( policy_loss.abs().mean() )
-                pi = cur_state_batch
-                action = policy_action
-                policy_loss = -lmbda * q_mean + nn.functional.mse_loss(pi,action)
 
+                # assign lambda constant to scale correctly
+                lmbda = self.alpha / ( policy_loss.abs().mean() )
+
+                # calculate policy loss, ref: Fujimoto and Gu (2021)
+                policy_loss = -lmbda * q_mean + nn.functional.mse_loss(policy_action,actions_batch)
+
+                # perform optimisation
                 self.policy_optimizer.zero_grad()
                 policy_loss.backward()
                 self.policy_optimizer.step()
 
                 pl += policy_loss.detach()
-                pi_grad += torch.nn.utils.clip_grad_norm_(self.td3.policy_net.parameters(), 10)
+                pi_grad += torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 10)
 
                 # save compute: ref: openai:
-                for p in self.td3.value_net1.parameters():
+                for p in self.policy.value_net1.parameters():
                     p.requires_grad = True
-                for p in self.td3.value_net2.parameters():
+                for p in self.policy.value_net2.parameters():
                     p.requires_grad = True
 
-                for p in self.td3.value_net_target1.parameters():
+                for p in self.policy.value_net_target1.parameters():
                     p.requires_grad = True
-                for p in self.td3.value_net_target2.parameters():
+                for p in self.policy.value_net_target2.parameters():
                     p.requires_grad = True
 
                 # Update target networks
                 with torch.no_grad():
                     print("################updated target networks")
-                    for param, target_param in zip(self.td3.value_net1.parameters(),
-                                                   self.td3.value_net_target1.parameters()):
+                    for param, target_param in zip(self.policy.value_net1.parameters(), self.policy.value_net_target1.parameters()):
                         target_param.data.mul_((1 - self.soft_tau))
                         target_param.data.add_(self.soft_tau * param.data)
-                    for param, target_param in zip(self.td3.value_net2.parameters(),
-                                                   self.td3.value_net_target2.parameters()):
-                        target_param.data.mul_((1 - self.soft_tau))
-                        target_param.data.add_(self.soft_tau * param.data)
-
-                    for param, target_param in zip(self.td3.policy_net.parameters(),
-                                                   self.td3.policy_net_target.parameters()):
+                    for param, target_param in zip(self.policy.value_net2.parameters(), self.policy.value_net_target2.parameters()):
                         target_param.data.mul_((1 - self.soft_tau))
                         target_param.data.add_(self.soft_tau * param.data)
 
-        self.model_logs[0] = cl  # value loss or coeff loss
-        self.model_logs[1] = pl
-        self.model_logs[2] = pi_grad
-        self.model_logs[3] = val_grad
+                    for param, target_param in zip(self.policy.policy_net.parameters(), self.policy.policy_net_target.parameters()):
+                        target_param.data.mul_((1 - self.soft_tau))
+                        target_param.data.add_(self.soft_tau * param.data)
 
-        self.save_log([self.model_logs.detach().cpu().flatten().numpy()], '/model_log')
-        print('success')
+        # logging
+        data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_gradient=val_grad)
+        return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}
 

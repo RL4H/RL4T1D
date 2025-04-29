@@ -15,6 +15,8 @@ def patient_id_to_label(patient_id): #FIXME move to utils file
     if patient_id < 0 or patient_id >= 30: raise ValueError("Invalid patient id")
     return ["adolescent","adult","child"][patient_id//10] + str(patient_id % 10)
 
+
+DEBUG_SHOW = True #FIXME remove
 class Agent:
     def __init__(self, args, env_args, logger, type="None"):
         self.args = args
@@ -60,16 +62,20 @@ class Agent:
                 
                 # setup imported data buffer
                 importer = DataImporter(subjects=[patient_id_to_label(self.args.patient_id)],args=args)
-                importer.create_queue(minimum_length=args.batch_size*2) #FIXME determine minimum and maximum buffer size, and maybe add args as param?
+                importer.create_queue(minimum_length=args.batch_size*2, maximum_length=args.batch_size*20) #FIXME determine minimum and maximum buffer size, and maybe add args as param?
                 importer.queue.start()
+                if DEBUG_SHOW: print("Queue Started!")
                 # self.buffer = importer.queue
 
                 self.training_agents = [OfflineSampler(args=self.args, env_args=self.env_args, mode='training', worker_id=i+args.training_agent_id_offset,importer_queue=importer.queue) for i in range(self.args.n_training_workers)]
-                self.testing_agents = [OffPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
-                self.validation_agents = [OffPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
+                if DEBUG_SHOW: print("Training Agents Initialised")
+                self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
+                if DEBUG_SHOW: print("Testing Agents Initialised")
+                self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
+                if DEBUG_SHOW: print("Validation Agents Initialised")
 
-                
                 self.buffer = offpolicy_buffers.ReplayMemory(self.args)
+                if DEBUG_SHOW: print("Agent setup completed")
                 
             elif args.data_type == "clinical":
                 import utils.cln_data as cln_data

@@ -11,6 +11,7 @@ from random import randrange
 from decouple import config
 from collections import namedtuple, deque
 from environment.reward_func import composite_reward
+from utils.core import linear_scaling, calculate_features
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
@@ -360,66 +361,38 @@ def convert_to_frames(data_obj, window_size=16, default_starting_window=True, de
 
 
 
-# def risk_index(BG, horizon):
-#     # BG is in mg/dL, horizon in samples
-#     with warnings.catch_warnings():
-#         warnings.simplefilter('ignore')
-#         BG_to_compute = np.array(BG[-horizon:])
-#         BG_to_compute[BG_to_compute < 1] = 1
-#         fBG = 1.509 * (np.log(BG_to_compute)**1.084 - 5.381)
-#         rl = 10 * fBG[fBG < 0]**2
-#         rh = 10 * fBG[fBG > 0]**2
-#         LBGI = np.nan_to_num(np.mean(rl))
-#         HBGI = np.nan_to_num(np.mean(rh))
-#         RI = LBGI + HBGI
-#     return LBGI, HBGI, RI
 
-# def custom_reward(bg_hist, **kwargs):
-#     return -risk_index([bg_hist[-1]], 1)[-1]
 
-# def composite_reward(args, state=None, reward=None):
-#     MAX_GLUCOSE = 600
-#     if reward == None:
-#         reward = custom_reward([state])
-#     x_max, x_min = 0, custom_reward([MAX_GLUCOSE]) #get_IS_Rew(MAX_GLUCOSE, 4) # custom_reward([MAX_GLUCOSE])
-#     reward = ((reward - x_min) / (x_max - x_min))
-#     if state <= 40:
-#         reward = -15
-#     elif state >= MAX_GLUCOSE:
-#         reward = 0
-#     else:
-#         reward = reward
-#     return reward
-
-def convert_trial_into_transitions(data_obj, window_size=12, default_starting_window=True, default_starting_value=0, reward_func=(lambda s : composite_reward(None, s[-1][0]))):
+def convert_trial_into_transitions(data_obj, args, reward_func=(lambda s : composite_reward(None, s[-1][0]))):
     #data_obj is a 2D numpy array , rows x columns. Columns are :  cgm, meal, ins, t, meta_data
+    #FIXME make features scale to args
+    window_size = args.obs_window
+
     rows, _ = data_obj.shape
-    ins_column = data_obj[:, 2]
+    # ins_column = np.array([linear_scaling(ins, args.insulin_min, args.insulin_max) for ins in data_obj[:, 2]])
+    # cgm_column = np.array([linear_scaling(cgm, args.glucose_min, args.glucose_max) for cgm in data_obj[:, 0]])
+
+    ins_column = data_obj[:, 2] #FIXME decide where scaling goes
     cgm_column = data_obj[:, 0]
 
-    assert rows > window_size
+    assert rows > window_size #no windows can be generated from a trial shorter than a row size
     
-    states = np.zeros((rows, window_size, 2)) if default_starting_window else np.zeros((rows-window_size, 2, window_size))
+    states = np.zeros((rows-window_size, window_size, 2))
 
-    for row in range(rows):
-        if row < window_size and default_starting_window:
-            ins_window = np.append(np.array([default_starting_value]*(window_size-row)), ins_column[0: row])
-            cgm_window = np.append(np.array([default_starting_value]*(window_size-row)), cgm_column[0: row])
-        else:
-            ins_window = ins_column[row-window_size: row]
-            cgm_window = cgm_column[row-window_size: row]
+    for row in range(0, rows-window_size):
+        ins_window = ins_column[row: row + window_size]
+        cgm_window = cgm_column[row: row + window_size]
 
         states[row] = np.array(np.stack((cgm_window, ins_window), axis=-1).astype(np.float32))
 
-    
     transitions = []
-    for row_n in range(rows-1):
+    for row_n in range(rows-window_size-1):
         state = states[row_n]
-        feat = [convert_string_to_mins(data_obj[row_n][3])]
+        feat = [calculate_features(data_obj[row_n + window_size])]
         action = [states[row_n][-1][1]]
         reward = [reward_func(state)]
         next_state = states[row_n+1]
-        next_feat = [convert_string_to_mins(data_obj[row_n+1][3])]
+        next_feat = [calculate_features(data_obj[row_n + window_size + 1])]
         done = [int(row_n == rows - 2)]
         transitions.append(Transition(state, feat, action, reward, next_state, next_feat, done))
 
@@ -671,6 +644,7 @@ class DataQueue:
         self.queue = []
         self.queue_revolutions = 0
         self.subjects_n = len(self.importer.subjects)
+        assert maximum_length >= minimum_length
     def start(self):
         self.current_subject_ind = 0
         self.current_subject = self.importer.subjects[self.current_subject_ind]
@@ -687,17 +661,17 @@ class DataQueue:
         if len(self.queue) < self.minimum_length:
             remaining_length = self.maximum_length - len(self.queue)
             while remaining_length > 0:
-                print("Importing data for",self.current_subject,"at index",self.current_subject_ind)
+                # print("Importing data for",self.current_subject,"at index",self.current_subject_ind)
                 handled_data = self.importer.import_subject(self.current_subject)
                 handled_data.flatten()
 
                 handled_len = len(handled_data.flat_trials)
-                print("Data Imported and flattened with", handled_len,"trials.")
+                # print("Data Imported and flattened with", handled_len,"trials.")
                 gc.collect()
 
                 while remaining_length > 0 and self.current_subject_trial_ind < handled_len:
-                    print("\tMapping step",self.current_subject_trial_ind, handled_len)
-                    trial_mapping = self.mapping(handled_data.flat_trials[self.current_subject_trial_ind])
+                    # print("\tMapping step",self.current_subject_trial_ind, handled_len)
+                    trial_mapping = self.mapping(handled_data.flat_trials[self.current_subject_trial_ind], self.importer.args)
                     mapping_len = len(trial_mapping)
 
                     self.queue += trial_mapping
@@ -708,10 +682,10 @@ class DataQueue:
                     self.current_subject_trial_ind = 0
 
 
-            del handled_data.flat_trials
-            del handled_data
+                del handled_data.flat_trials
+                del handled_data
             gc.collect()
-            print("Sync completed")
+            # print("Sync completed")
     def pop(self):
         out = self.queue.pop(0)
         self.sync_queue()

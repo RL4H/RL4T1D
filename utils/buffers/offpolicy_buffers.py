@@ -18,7 +18,6 @@ class ReplayMemory(object):
         self.memory.append(Transition(*tensor_args))
 
     def sample(self, batch_size):
-        print("Sampling:",len(self.memory),'/',batch_size)
         return random.sample(self.memory, batch_size)
 
     def __len__(self):

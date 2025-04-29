@@ -29,12 +29,15 @@ with open(experiment_dir+'args.json','r') as f:
 
 ## Display Args
 
-print("======================================== ARGS for '" + chosen_exp + "'")
-for k in args:
-    print('>',k,':')
-    for sub_k in args[k]:
-        print('\t',k,'.',sub_k,': ', args[k][sub_k],sep='')
-print("========================================")
+def display_args(args_dict):
+    print("======================================== ARGS for '" + chosen_exp + "'")
+    for k in args_dict:
+        print('>',k,':')
+        for sub_k in args_dict[k]:
+            print('\t',k,'.',sub_k,': ', args_dict[k][sub_k],sep='')
+    print("========================================")
+
+display_args(args)
 
 ## Display Test Data
 print("### Test Data Trials ###")

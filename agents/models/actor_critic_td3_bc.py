@@ -20,8 +20,7 @@ class FeatureExtractor(nn.Module):
         self.n_layers = args.n_rnn_layers
         self.bidirectional = args.bidirectional
         self.directions = args.rnn_directions
-        self.LSTM = nn.LSTM(input_size=self.n_features, hidden_size=self.n_hidden, num_layers=self.n_layers,
-                            batch_first=True, bidirectional=self.bidirectional)  # (seq_len, batch, input_size)
+        self.LSTM = nn.LSTM(input_size=2, hidden_size=self.n_hidden, num_layers=self.n_layers, batch_first=True, bidirectional=self.bidirectional)  # (seq_len, batch, input_size)
 
     def forward(self, s, feat, mode):
         if mode == 'batch':
@@ -279,10 +278,21 @@ class ActorCritic(nn.Module):
         self.value_net_target2 = deepcopy(self.value_net2)  # QNetwork(args, device)
 
     def get_action(self, s, feat, mode='forward', worker_mode='training'):
+        #FIXME maybe scale action here?
         s = torch.as_tensor(s, dtype=torch.float32, device=self.device)
         feat = torch.as_tensor(feat, dtype=torch.float32, device=self.device)
         mu, sigma, action, log_prob = self.policy_net.forward(s, feat, mode=mode, worker_mode=worker_mode)
-        return action.detach().cpu().numpy(), mu.detach().cpu().numpy(), sigma.detach().cpu().numpy()
+    
+        
+        # data = dict(mu=mu[0], std=sigma[0], action=action[0], log_prob=log_prob[0], state_value=mu[0]) #FIXME give actual state_value
+        # return {k: v.detach().cpu().numpy() for k, v in data.items()}
+        return dict (
+            mu = mu.detach().cpu().numpy(),
+            std = sigma.detach().cpu().numpy(),
+            action = action.detach().cpu().numpy(),
+            log_prob = [log_prob],
+            state_value = mu.detach().cpu().numpy()
+        )
 
     def get_action_no_noise(self, s, feat, mode='forward', worker_mode='training'):
         s = torch.as_tensor(s, dtype=torch.float32, device=self.device)
@@ -303,34 +313,16 @@ class ActorCritic(nn.Module):
         return action, log_prob
 
     def save(self, episode):
-        # if self.sac_v2:
-        #     policy_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net.pth'
-        #     soft_q_net1_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_soft_q_net1.pth'
-        #     soft_q_net2_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_soft_q_net2.pth'
-        #     torch.save(self.policy_net, policy_net_path)
-        #     torch.save(self.soft_q_net1, soft_q_net1_path)
-        #     torch.save(self.soft_q_net2, soft_q_net2_path)
-        # else:
-        #     policy_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net.pth'
-        #     soft_q_net1_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_soft_q_net1.pth'
-        #     soft_q_net2_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_soft_q_net2.pth'
-        #     value_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_value_net.pth'
-        #     torch.save(self.policy_net, policy_net_path)
-        #     torch.save(self.soft_q_net1, soft_q_net1_path)
-        #     torch.save(self.soft_q_net2, soft_q_net2_path)
-        #     torch.save(self.value_net, value_net_path)
         policy_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net.pth'
         policy_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net_target.pth'
-        # soft_q_net1_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_soft_q_net1.pth'
-        # soft_q_net2_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_soft_q_net2.pth'
+        
         value_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_value_net.pth'
         value_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_value_net_target.pth'
 
         torch.save(self.policy_net, policy_net_path)
         torch.save(self.policy_net_target, policy_net_target_path)
-        # torch.save(self.soft_q_net1, soft_q_net1_path)
-        # torch.save(self.soft_q_net2, soft_q_net2_path)
-        torch.save(self.value_net1, value_net_path)#TODO: update to include network 2
+        
+        torch.save(self.value_net1, value_net_path)
         torch.save(self.value_net_target1, value_net_target_path)
 
 
@@ -338,15 +330,6 @@ def NormedLinear(*args, scale=1.0):
     out = nn.Linear(*args)
     out.weight.data *= scale / out.weight.norm(dim=1, p=2, keepdim=True)
     return out
-
-
-# class PolicyNoise():
-#     def __init__(self, mu, sigma):
-#         self.mu = mu
-#         self.sigma = sigma
-#
-#     def __call__(self):
-#         return torch.distributions.Normal(self.mu, self.sigma)
 
 
 class ExploratoryNoise:

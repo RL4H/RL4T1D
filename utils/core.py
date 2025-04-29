@@ -93,3 +93,9 @@ def r_kl(log_p, log_q):
     log_ratio = log_p - log_q
     approx_kl = torch.mean(torch.exp(log_ratio)*log_ratio - (torch.exp(log_ratio) - 1))
     return approx_kl
+    
+
+def calculate_features(data_row):
+    cgm, meal, ins, t, meal_data = tuple(data_row)
+    days,hours,mins = tuple([int(i) for i in t.split(':')])
+    return [hours]

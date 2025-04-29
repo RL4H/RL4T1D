@@ -2,6 +2,7 @@ from environment.t1denv import T1DEnv
 from utils.control_space import ControlSpace
 import torch
 from copy import deepcopy
+import numpy as np
 
 
 class Worker(T1DEnv):
@@ -14,7 +15,6 @@ class Worker(T1DEnv):
         self.controlspace = ControlSpace(control_space_type=args.control_space_type,
                                          insulin_min=self.action_space.low[0],
                                          insulin_max=self.action_space.high[0])
-
     def _reset(self):
         self.episode += 1
         self.counter = 0
@@ -29,10 +29,22 @@ class OnPolicyWorker(Worker):
         logger = logger[self.worker_id]
         if self.worker_mode != 'training':  # always a fresh env for testing.
             self._reset()
+            self.ins_history = [0] * self.args.obs_window #FIXME make consistent with params
 
         for _ in range(0, self.rollout_steps):
 
-            rl_action = policy.get_action(self.state)  # get RL action
+            if len(self.args.obs_features) == 0:
+                rl_action = policy.get_action(self.state)
+            else:
+                features = [ ((self.rollout_steps * 5) // 60) % 24 ] #FIXME undo hard coding of features
+
+                cgm_window = np.hstack(self.state)
+                ins_window = self.ins_history[-self.args.obs_window:]
+
+                ins_cgm_state = np.array(np.stack((cgm_window, ins_window), axis=-1).astype(np.float32))
+                rl_action = policy.get_action(ins_cgm_state, features)
+
+            self.ins_history.append(rl_action['action'][0])
             pump_action = self.controlspace.map(agent_action=rl_action['action'][0])  # map RL action => control space (pump)
 
             state, reward, is_done, info = self.env.step(pump_action)
@@ -53,6 +65,7 @@ class OnPolicyWorker(Worker):
                 # stop rollout if this is a testing worker; else reset an env and continue.
                 if self.worker_mode != 'training': break
                 self._reset()
+                self.ins_history = [0] * self.args.obs_window #FIXME make consistent with params
         return
 
 
@@ -67,7 +80,12 @@ class OffPolicyWorker(Worker):
 
         for _ in range(0, self.rollout_steps):
 
-            rl_action = policy.get_action(self.state)
+            if len(self.args.obs_features) == 0:
+                rl_action = policy.get_action(self.state)
+            else:
+                features = [ ((self.rollout_steps * 5) // 60) % 24 ] #FIXME undo hard coding of features
+                rl_action = policy.get_action(self.state, features)
+
             pump_action = self.controlspace.map(agent_action=rl_action['action'][0])  # map RL action => control space (pump)
 
             state, reward, is_done, info = self.env.step(pump_action)
@@ -92,8 +110,15 @@ class OffPolicyWorker(Worker):
 
 class OfflineSampler(Worker):
     def __init__(self, args, env_args, mode, worker_id, importer_queue):
-        Worker.__init__(self, args, env_args, mode, worker_id)
+        # Worker.__init__(self, args, env_args, mode, worker_id)
         self.importer_queue = importer_queue
+        self.args, self.env_args = args, env_args
+        self.worker_mode, self.worker_id = mode, worker_id
+        
+        self.rollout_steps = args.n_step if self.worker_mode == 'training' else args.max_test_epi_len
+        self.stop_factor = (args.max_epi_length - 1) if self.worker_mode == 'training' else (args.max_test_epi_len - 1)
+        
+        self.episode, self.counter = 0, 0
 
     def rollout(self, policy=None, buffer=None,logger=None):
         logger = logger[self.worker_id]
