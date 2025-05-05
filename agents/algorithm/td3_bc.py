@@ -34,7 +34,7 @@ class TD3_BC(Agent):
         self.batch_size = args.batch_size
         self.pi_lr = args.pi_lr
         self.vf_lr = args.vf_lr
-        self.alpha = 2.5 #FIXME make arg for this
+        self.alpha = args.alpha
 
         ### TD3 Params
         self.n_step = args.n_step
@@ -57,19 +57,9 @@ class TD3_BC(Agent):
         self.soft_tau = args.soft_tau
         self.train_pi_iters = args.n_pi_epochs
         self.shuffle_rollout = args.shuffle_rollout
-        # self.soft_q_lr = args.vf_lr
         self.value_lr = args.vf_lr
         self.policy_lr = args.pi_lr
         self.grad_clip = args.grad_clip
-
-        # self.mu_penalty = args.mu_penalty
-        # self.action_penalty_limit = args.action_penalty_limit
-        # self.action_penalty_coef = args.action_penalty_coef
-
-        # self.replay_buffer_type = args.replay_buffer_type
-        # self.replay_buffer_alpha = args.replay_buffer_alpha
-        # self.replay_buffer_beta = args.replay_buffer_beta
-        # self.replay_buffer_temporal_decay = args.replay_buffer_temporal_decay
 
 
         self.weight_decay = 0

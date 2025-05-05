@@ -359,18 +359,20 @@ def convert_to_frames(data_obj, window_size=16, default_starting_window=True, de
     
     return data_frames
 
+def patient_id_to_label(patient_id):
+    if patient_id < 0 or patient_id >= 30: raise ValueError("Invalid patient id")
+    return ["adolescent","adult","child"][patient_id//10] + str(patient_id % 10)
 
 
 
-
-def convert_trial_into_transitions(data_obj, args, reward_func=(lambda s : composite_reward(None, s[-1][0]))):
+def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda s : composite_reward(None, s[-1][0]))):
     #data_obj is a 2D numpy array , rows x columns. Columns are :  cgm, meal, ins, t, meta_data
     #FIXME make features scale to args
     window_size = args.obs_window
 
     rows, _ = data_obj.shape
-    # ins_column = np.array([linear_scaling(ins, args.insulin_min, args.insulin_max) for ins in data_obj[:, 2]])
-    # cgm_column = np.array([linear_scaling(cgm, args.glucose_min, args.glucose_max) for cgm in data_obj[:, 0]])
+    ins_column = np.array([linear_scaling(ins, args.insulin_min, args.insulin_max) for ins in data_obj[:, 2]])
+    cgm_column = np.array([linear_scaling(cgm, args.glucose_min, args.glucose_max) for cgm in data_obj[:, 0]])
 
     ins_column = data_obj[:, 2] #FIXME decide where scaling goes
     cgm_column = data_obj[:, 0]
@@ -388,11 +390,11 @@ def convert_trial_into_transitions(data_obj, args, reward_func=(lambda s : compo
     transitions = []
     for row_n in range(rows-window_size-1):
         state = states[row_n]
-        feat = [calculate_features(data_obj[row_n + window_size])]
+        feat = [calculate_features(data_obj[row_n + window_size], args, env_args)]
         action = [states[row_n][-1][1]]
         reward = [reward_func(state)]
         next_state = states[row_n+1]
-        next_feat = [calculate_features(data_obj[row_n + window_size + 1])]
+        next_feat = [calculate_features(data_obj[row_n + window_size + 1], args, env_args)]
         done = [int(row_n == rows - 2)]
         transitions.append(Transition(state, feat, action, reward, next_state, next_feat, done))
 
@@ -411,10 +413,12 @@ class DataImporter:
             cohorts=COHORT_VALUES, 
             agents = AGENT_TYPES, 
             protocols=PROTOCOLS,
-            args=None
+            args=None,
+            env_args=None
         ):
         self.subjects, self.cohorts, self.agents, self.protocols = subjects, cohorts, agents, protocols
         self.args = args
+        self.env_args = env_args
         self.verbose = verbose
         self.source_folder = data_folder + "/object_save/"
         self.current_data = None
@@ -639,7 +643,7 @@ class DataHandler:
         return [get_patient_attrs(subject) for subject in self.subjects]
 
 class DataQueue: 
-    def __init__(self, importer, minimum_length=1024, maximum_length = 8192, mapping = convert_to_frames):
+    def __init__(self, importer, minimum_length=1024, maximum_length = 8192, mapping = convert_trial_into_transitions):
         self.importer, self.minimum_length, self.maximum_length, self.mapping = importer, minimum_length, maximum_length, mapping
         self.queue = []
         self.queue_revolutions = 0
@@ -671,7 +675,7 @@ class DataQueue:
 
                 while remaining_length > 0 and self.current_subject_trial_ind < handled_len:
                     # print("\tMapping step",self.current_subject_trial_ind, handled_len)
-                    trial_mapping = self.mapping(handled_data.flat_trials[self.current_subject_trial_ind], self.importer.args)
+                    trial_mapping = self.mapping(handled_data.flat_trials[self.current_subject_trial_ind], self.importer.args, self.importer.env_args)
                     mapping_len = len(trial_mapping)
 
                     self.queue += trial_mapping

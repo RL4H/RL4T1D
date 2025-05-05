@@ -103,9 +103,6 @@ class ActionModule(nn.Module):
         self.target_action_std = args.target_action_std
         self.target_action_lim = args.target_action_lim
 
-
-
-
     def forward(self, extract_states, worker_mode='training'):
         fc_output1 = F.relu(self.fc_layer1(extract_states))
         fc_output2 = F.relu(self.fc_layer2(fc_output1))

@@ -3,11 +3,13 @@ from utils.control_space import ControlSpace
 import torch
 from copy import deepcopy
 import numpy as np
+from utils.core import linear_scaling
 
 
 class Worker(T1DEnv):
     def __init__(self, args, env_args, mode, worker_id):
         T1DEnv.__init__(self, env_args, mode, worker_id)
+        self.env_args = env_args
         self.worker_id = worker_id
         self.episode, self.counter = 0, 0
         self.rollout_steps = args.n_step if self.worker_mode == 'training' else args.max_test_epi_len
@@ -18,7 +20,7 @@ class Worker(T1DEnv):
     def _reset(self):
         self.episode += 1
         self.counter = 0
-        self.state = self.reset()
+        self.state, self.info = self.reset()
 
 
 class OnPolicyWorker(Worker):
@@ -29,20 +31,23 @@ class OnPolicyWorker(Worker):
         logger = logger[self.worker_id]
         if self.worker_mode != 'training':  # always a fresh env for testing.
             self._reset()
-            self.ins_history = [0] * self.args.obs_window #FIXME make consistent with params
+
+        self.ins_history = [0] * self.args.obs_window #FIXME make consistent with params
 
         for _ in range(0, self.rollout_steps):
 
-            if len(self.args.obs_features) == 0:
+            if len(self.args.obs_features) == 0 or 1:
                 rl_action = policy.get_action(self.state)
+                print(self.state, list(np.hstack(self.state)))
             else:
-                features = [ ((self.rollout_steps * 5) // 60) % 24 ] #FIXME undo hard coding of features
+                features = [ self.info[feat] for feat in self.env_args.obs_features]
 
-                cgm_window = np.hstack(self.state)
-                ins_window = self.ins_history[-self.args.obs_window:]
+                cgm_window =  np.array([linear_scaling(cgm, self.args.glucose_min, self.args.glucose_max) for cgm in list(np.hstack(self.state))])
+                ins_window =  np.array([linear_scaling(cgm, self.args.insulin_min, self.args.insulin_max) for cgm in self.ins_history[-self.args.obs_window:]])
 
                 ins_cgm_state = np.array(np.stack((cgm_window, ins_window), axis=-1).astype(np.float32))
                 rl_action = policy.get_action(ins_cgm_state, features)
+
 
             self.ins_history.append(rl_action['action'][0])
             pump_action = self.controlspace.map(agent_action=rl_action['action'][0])  # map RL action => control space (pump)
@@ -56,6 +61,8 @@ class OnPolicyWorker(Worker):
             logger.update(self.counter, self.episode, info['cgm'], rl_action, pump_action, 0, reward, info)
 
             self.state = state  # update -> state.
+            self.info = info
+
             self.counter += 1
             if is_done or self.counter > self.stop_factor:  # episode termination criteria.
                 logger.save(self.episode, self.counter)

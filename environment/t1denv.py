@@ -13,8 +13,8 @@ class T1DEnv:
         self.reset()
 
     def reset(self):
-        self.state = self.env.reset()
-        return self.state
+        self.state, self.info = self.env.reset()
+        return self.state, self.info
 
     def step(self, action):
         state, reward, is_done, info = self.env.step(action)

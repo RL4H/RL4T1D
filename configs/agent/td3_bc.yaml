@@ -72,4 +72,6 @@ soft_tau: 0.005
 
 custom_arg: "hello there!"
 
+alpha : 2.5
+
 

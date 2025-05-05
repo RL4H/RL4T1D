@@ -105,8 +105,8 @@ class T1DSimEnv(gym.Env):
         obs, _, _, _ = self.env.reset()
         self.cur_state = self.obs_space.update({'cgm': obs.CGM, 'insulin': 0, 'time_to_meal': 0,
                                           'future_carb': 0, 'meal_type': 0, 'day_hour': 0, 'day_min': 0})
-        cur_cgm = self.calibration_process()
-        return self.cur_state
+        cur_cgm, info = self.calibration_process()
+        return self.cur_state, info
 
     def calibration_process(self):
         self.reinit_flag, cur_cgm = False, 0
@@ -133,7 +133,7 @@ class T1DSimEnv(gym.Env):
             self.reinit_flag = True
         if self.reinit_flag:
             self._reset()
-        return cur_cgm
+        return cur_cgm, info
 
     def _seed(self, seed=None):
         self.np_random, seed1 = seeding.np_random(seed=seed)

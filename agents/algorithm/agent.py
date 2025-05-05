@@ -10,10 +10,7 @@ from metrics.statistics import calc_stats
 
 import pandas as pd
 from omegaconf import OmegaConf, open_dict
-
-def patient_id_to_label(patient_id): #FIXME move to utils file
-    if patient_id < 0 or patient_id >= 30: raise ValueError("Invalid patient id")
-    return ["adolescent","adult","child"][patient_id//10] + str(patient_id % 10)
+from utils.sim_data import patient_id_to_label
 
 
 DEBUG_SHOW = True #FIXME remove
@@ -61,8 +58,8 @@ class Agent:
                 from utils.sim_data import DataImporter
                 
                 # setup imported data buffer
-                importer = DataImporter(subjects=[patient_id_to_label(self.args.patient_id)],args=args)
-                importer.create_queue(minimum_length=args.batch_size*2, maximum_length=args.batch_size*20) #FIXME determine minimum and maximum buffer size, and maybe add args as param?
+                importer = DataImporter(subjects=[patient_id_to_label(self.args.patient_id)],args=args,env_args=env_args)
+                importer.create_queue(minimum_length=args.batch_size*2, maximum_length=args.batch_size*20)
                 importer.queue.start()
                 if DEBUG_SHOW: print("Queue Started!")
                 # self.buffer = importer.queue
@@ -105,7 +102,7 @@ class Agent:
                     self.buffer.save_rollout(training_agent_index=i)
                 elif self.agent_type == "OffPolicy":
                     self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer, logger=self.logger.logWorker)
-                elif self.agent_type == "Offline": #FIXME
+                elif self.agent_type == "Offline": 
                     self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer, logger=self.logger.logWorker) 
 
 
