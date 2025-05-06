@@ -36,9 +36,8 @@ class OnPolicyWorker(Worker):
 
         for _ in range(0, self.rollout_steps):
 
-            if len(self.args.obs_features) == 0 or 1:
+            if len(self.args.obs_features) == 0:
                 rl_action = policy.get_action(self.state)
-                print(self.state, list(np.hstack(self.state)))
             else:
                 features = [ self.info[feat] for feat in self.env_args.obs_features]
 
