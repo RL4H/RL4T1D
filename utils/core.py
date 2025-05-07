@@ -100,8 +100,10 @@ def calculate_features(data_row, args, env_args):
     days,hours,mins = tuple([int(i) for i in t.split(':')])
 
     info = dict()
+
+    info["insulin"] = linear_scaling(x=ins, x_min=args.insulin_min, x_max=args.insulin_max)
+    info["glucose"] = linear_scaling(x=cgm, x_min=args.glucose_min, x_max=args.glucose_max)
     
-    info['state'] = linear_scaling(x=cgm, x_min=args.glucose_min, x_max=args.glucose_max)
     info['future_carb'] = 0 #FIXME implement
     info['remaining_time'] = 0 #FIXME implement
     info['day_hour'] = linear_scaling(x=hours, x_min=0, x_max=23)

@@ -15,7 +15,7 @@ from utils.core import linear_scaling, calculate_features
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-Transition = namedtuple('Transition', ('state', 'feat', 'action', 'reward', 'next_state', 'next_feat', 'done'))
+Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'done'))
 
 
 SIM_DATA_PATH = config("SIM_DATA_PATH")
@@ -371,32 +371,17 @@ def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda
     window_size = args.obs_window
 
     rows, _ = data_obj.shape
-    ins_column = np.array([linear_scaling(ins, args.insulin_min, args.insulin_max) for ins in data_obj[:, 2]])
-    cgm_column = np.array([linear_scaling(cgm, args.glucose_min, args.glucose_max) for cgm in data_obj[:, 0]])
 
-    ins_column = data_obj[:, 2] #FIXME decide where scaling goes
-    cgm_column = data_obj[:, 0]
-
-    assert rows > window_size #no windows can be generated from a trial shorter than a row size
-    
-    states = np.zeros((rows-window_size, window_size, 2))
-
-    for row in range(0, rows-window_size):
-        ins_window = ins_column[row: row + window_size]
-        cgm_window = cgm_column[row: row + window_size]
-
-        states[row] = np.array(np.stack((cgm_window, ins_window), axis=-1).astype(np.float32))
+    states = np.array([calculate_features(data_row for data_row in data_obj)])
 
     transitions = []
     for row_n in range(rows-window_size-1):
         state = states[row_n]
-        feat = [calculate_features(data_obj[row_n + window_size], args, env_args)]
         action = [states[row_n][-1][1]]
         reward = [reward_func(state)]
-        next_state = states[row_n+1]
-        next_feat = [calculate_features(data_obj[row_n + window_size + 1], args, env_args)]
+        next_state = [calculate_features(data_obj[row_n + window_size + 1], args, env_args)]
         done = [int(row_n == rows - 2)]
-        transitions.append(Transition(state, feat, action, reward, next_state, next_feat, done))
+        transitions.append(Transition(state, action, reward, next_state, done))
 
     return transitions
 

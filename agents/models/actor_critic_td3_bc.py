@@ -22,7 +22,7 @@ class FeatureExtractor(nn.Module):
         self.directions = args.rnn_directions
         self.LSTM = nn.LSTM(input_size=2, hidden_size=self.n_hidden, num_layers=self.n_layers, batch_first=True, bidirectional=self.bidirectional)  # (seq_len, batch, input_size)
 
-    def forward(self, s, feat, mode):
+    def forward(self, s, mode):
         if mode == 'batch':
             output, (hid, cell) = self.LSTM(s)
             lstm_output = hid.view(hid.size(1), -1)  # => batch , layers * hid
@@ -33,13 +33,15 @@ class FeatureExtractor(nn.Module):
             lstm_output = hid.squeeze(1)  # remove batch dimension
             lstm_output = torch.flatten(lstm_output)  # hid = layers * hidden_size
 
-        if self.use_handcraft == 1:  # concat_features = torch.cat((lstm_output, feat), dim=1)
-            if mode == 'batch':
-                extract_states = torch.cat((lstm_output, feat), dim=1)  # ==>torch.size[256 + 5]
-            else:
-                extract_states = torch.cat((lstm_output, feat), dim=0)
-        else:
-            extract_states = lstm_output
+        # if self.use_handcraft == 1:  # concat_features = torch.cat((lstm_output, feat), dim=1)
+        #     if mode == 'batch':
+        #         extract_states = torch.cat((lstm_output), dim=1)  # ==>torch.size[256 + 5]
+        #     else:
+        #         extract_states = torch.cat((lstm_output), dim=0)
+        # else:
+        
+        extract_states = lstm_output
+        
         return extract_states, lstm_output
 
 
@@ -222,8 +224,8 @@ class PolicyNetwork(nn.Module):
         self.ActionModule = ActionModule(args, self.device)
         self.distribution = torch.distributions.Normal
 
-    def forward(self, s, feat, mode='forward', worker_mode='training'):
-        extract_states, lstmOut = self.FeatureExtractor.forward(s, feat, mode)
+    def forward(self, s, mode='forward', worker_mode='training'):
+        extract_states, lstmOut = self.FeatureExtractor.forward(s, mode)
         mu, sigma, action, log_prob = self.ActionModule.forward(extract_states, worker_mode=worker_mode)
         return mu, sigma, action, log_prob
 
@@ -274,11 +276,9 @@ class ActorCritic(nn.Module):
         self.value_net_target1 = deepcopy(self.value_net1)#QNetwork(args, device)
         self.value_net_target2 = deepcopy(self.value_net2)  # QNetwork(args, device)
 
-    def get_action(self, s, feat, mode='forward', worker_mode='training'):
-        #FIXME maybe scale action here?
+    def get_action(self, s, mode='forward', worker_mode='training'):
         s = torch.as_tensor(s, dtype=torch.float32, device=self.device)
-        feat = torch.as_tensor(feat, dtype=torch.float32, device=self.device)
-        mu, sigma, action, log_prob = self.policy_net.forward(s, feat, mode=mode, worker_mode=worker_mode)
+        mu, sigma, action, log_prob = self.policy_net.forward(s, mode=mode, worker_mode=worker_mode)
     
         
         # data = dict(mu=mu[0], std=sigma[0], action=action[0], log_prob=log_prob[0], state_value=mu[0]) #FIXME give actual state_value

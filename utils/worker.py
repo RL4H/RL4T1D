@@ -36,16 +36,15 @@ class OnPolicyWorker(Worker):
 
         for _ in range(0, self.rollout_steps):
 
-            if len(self.args.obs_features) == 0:
-                rl_action = policy.get_action(self.state)
-            else:
-                features = [ self.info[feat] for feat in self.env_args.obs_features]
+            rl_action = policy.get_action(self.state)
 
-                cgm_window =  np.array([linear_scaling(cgm, self.args.glucose_min, self.args.glucose_max) for cgm in list(np.hstack(self.state))])
-                ins_window =  np.array([linear_scaling(cgm, self.args.insulin_min, self.args.insulin_max) for cgm in self.ins_history[-self.args.obs_window:]])
+            # features = [ self.info[feat] for feat in self.env_args.obs_features]
 
-                ins_cgm_state = np.array(np.stack((cgm_window, ins_window), axis=-1).astype(np.float32))
-                rl_action = policy.get_action(ins_cgm_state, features)
+            # cgm_window =  np.array([linear_scaling(cgm, self.args.glucose_min, self.args.glucose_max) for cgm in list(np.hstack(self.state))])
+            # ins_window =  np.array([linear_scaling(cgm, self.args.insulin_min, self.args.insulin_max) for cgm in self.ins_history[-self.args.obs_window:]])
+
+            # ins_cgm_state = np.array(np.stack((cgm_window, ins_window), axis=-1).astype(np.float32))
+            # rl_action = policy.get_action(ins_cgm_state, features)
 
 
             self.ins_history.append(rl_action['action'][0])
