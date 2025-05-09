@@ -11,7 +11,7 @@ from random import randrange
 from decouple import config
 from collections import namedtuple, deque
 from environment.reward_func import composite_reward
-from utils.core import linear_scaling, calculate_features
+from utils.core import linear_scaling, calculate_features, pump_to_rl_action
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
@@ -365,22 +365,27 @@ def patient_id_to_label(patient_id):
 
 
 
-def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda s : composite_reward(None, s[-1][0]))):
+def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward(None, cgm))):
     #data_obj is a 2D numpy array , rows x columns. Columns are :  cgm, meal, ins, t, meta_data
     #FIXME make features scale to args
     window_size = args.obs_window
 
     rows, _ = data_obj.shape
 
-    states = np.array([calculate_features(data_row for data_row in data_obj)])
+    states = np.array([calculate_features(data_row, args, env_args) for data_row in data_obj])
+
+    actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
+
+    rewards = [linear_scaling(cgm, args.glucose_min, args.glucose_max) for cgm in data_obj[:, 0]]
+
 
     transitions = []
-    for row_n in range(rows-window_size-1):
-        state = states[row_n]
-        action = [states[row_n][-1][1]]
-        reward = [reward_func(state)]
-        next_state = [calculate_features(data_obj[row_n + window_size + 1], args, env_args)]
-        done = [int(row_n == rows - 2)]
+    for row_n in range(window_size, rows-1):
+        state = np.array(states[row_n-window_size: row_n])
+        action = np.array([actions[row_n]])
+        reward = np.array([rewards[row_n]])
+        next_state = np.array(states[row_n-window_size+1: row_n+1])
+        done = np.array([int(row_n == rows - 2)])
         transitions.append(Transition(state, action, reward, next_state, done))
 
     return transitions

@@ -16,7 +16,7 @@ from collections import namedtuple, deque
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-Transition = namedtuple('Transition', ('state', 'feat', 'action', 'reward', 'next_state', 'next_feat', 'done'))
+Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'done'))
 
 
 DEFAULT_FEAT = 0
@@ -114,21 +114,19 @@ class TD3_BC(Agent):
 
             batch = Transition(*zip(*transitions))
             cur_state_batch = torch.cat(batch.state)
-            cur_feat_batch = torch.cat(batch.feat)
             actions_batch = torch.cat(batch.action)
             reward_batch = torch.cat(batch.reward).unsqueeze(1)
             next_state_batch = torch.cat(batch.next_state)
-            next_feat_batch = torch.cat(batch.next_feat)
             done_batch = torch.cat(batch.done).unsqueeze(1)
 
             # value network update
-            new_action, next_log_prob = self.policy.evaluate_target_policy_noise(next_state_batch, next_feat_batch)
-            next_values = torch.min(self.policy.value_net_target1(next_state_batch, next_feat_batch, new_action),
-                                    self.policy.value_net_target2(next_state_batch, next_feat_batch, new_action))
+            new_action, next_log_prob = self.policy.evaluate_target_policy_noise(next_state_batch)
+            next_values = torch.min(self.policy.value_net_target1(next_state_batch, new_action),
+                                    self.policy.value_net_target2(next_state_batch, new_action))
             target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
 
-            predicted_value1 = self.policy.value_net1(cur_state_batch, cur_feat_batch, actions_batch)
-            predicted_value2 = self.policy.value_net2(cur_state_batch, cur_feat_batch, actions_batch)
+            predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
+            predicted_value2 = self.policy.value_net2(cur_state_batch, actions_batch)
 
             value_loss1 = self.value_criterion1(target_value.detach(), predicted_value1)
             value_loss2 = self.value_criterion2(target_value.detach(), predicted_value2)
@@ -168,12 +166,12 @@ class TD3_BC(Agent):
                     p.requires_grad = False
 
                 # evaluate action taken by policy, in a batch
-                policy_action, _ = self.policy.evaluate_policy_no_noise(cur_state_batch, cur_feat_batch)
+                policy_action, _ = self.policy.evaluate_policy_no_noise(cur_state_batch)
 
                 # take minimum evaluation by critics
                 policy_loss = torch.min(
-                    self.policy.value_net1(cur_state_batch, cur_feat_batch, policy_action), 
-                    self.policy.value_net2(cur_state_batch, cur_feat_batch, policy_action)
+                    self.policy.value_net1(cur_state_batch, policy_action), 
+                    self.policy.value_net2(cur_state_batch, policy_action)
                 )
 
                 # evaluate mean of q values

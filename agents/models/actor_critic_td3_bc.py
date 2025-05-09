@@ -20,25 +20,17 @@ class FeatureExtractor(nn.Module):
         self.n_layers = args.n_rnn_layers
         self.bidirectional = args.bidirectional
         self.directions = args.rnn_directions
-        self.LSTM = nn.LSTM(input_size=2, hidden_size=self.n_hidden, num_layers=self.n_layers, batch_first=True, bidirectional=self.bidirectional)  # (seq_len, batch, input_size)
+        self.LSTM = nn.LSTM(input_size=self.n_features, hidden_size=self.n_hidden, num_layers=self.n_layers, batch_first=True, bidirectional=self.bidirectional)  # (seq_len, batch, input_size)
 
     def forward(self, s, mode):
         if mode == 'batch':
             output, (hid, cell) = self.LSTM(s)
             lstm_output = hid.view(hid.size(1), -1)  # => batch , layers * hid
-            feat = feat.squeeze(1)
         else:
             s = s.unsqueeze(0)  # add batch dimension
             output, (hid, cell) = self.LSTM(s)  # hid = layers * dir, batch, hidden
             lstm_output = hid.squeeze(1)  # remove batch dimension
             lstm_output = torch.flatten(lstm_output)  # hid = layers * hidden_size
-
-        # if self.use_handcraft == 1:  # concat_features = torch.cat((lstm_output, feat), dim=1)
-        #     if mode == 'batch':
-        #         extract_states = torch.cat((lstm_output), dim=1)  # ==>torch.size[256 + 5]
-        #     else:
-        #         extract_states = torch.cat((lstm_output), dim=0)
-        # else:
         
         extract_states = lstm_output
         
@@ -236,8 +228,8 @@ class ValueNetwork(nn.Module):
         self.FeatureExtractor = FeatureExtractor(args)
         self.ValueModule = ValueModule(args, device)
 
-    def forward(self, s, feat, mode='batch'):
-        extract_states, lstmOut = self.FeatureExtractor.forward(s, feat, mode)
+    def forward(self, s, mode='batch'):
+        extract_states, lstmOut = self.FeatureExtractor.forward(s, mode)
         value = self.ValueModule.forward(extract_states)
         return value
 
@@ -248,8 +240,8 @@ class QNetwork(nn.Module):
         self.FeatureExtractor = FeatureExtractor(args)
         self.QvalModel = QvalModel(args, device)
 
-    def forward(self, s, feat, action, mode='batch'):
-        extract_states, lstmOut = self.FeatureExtractor.forward(s, feat, mode)
+    def forward(self, s, action, mode='batch'):
+        extract_states, lstmOut = self.FeatureExtractor.forward(s, mode)
         qvalue = self.QvalModel.forward(extract_states, action, mode)
         return qvalue
 
@@ -291,22 +283,21 @@ class ActorCritic(nn.Module):
             state_value = mu.detach().cpu().numpy()
         )
 
-    def get_action_no_noise(self, s, feat, mode='forward', worker_mode='training'):
+    def get_action_no_noise(self, s, mode='forward', worker_mode='training'):
         s = torch.as_tensor(s, dtype=torch.float32, device=self.device)
-        feat = torch.as_tensor(feat, dtype=torch.float32, device=self.device)
-        mu, sigma, action, log_prob = self.policy_net.forward(s, feat, mode=mode, worker_mode='no noise')
+        mu, sigma, action, log_prob = self.policy_net.forward(s, mode=mode, worker_mode='no noise')
         return action.detach().cpu().numpy(), mu.detach().cpu().numpy(), sigma.detach().cpu().numpy()
 
-    def evaluate_policy(self, state, feat):  # evaluate batch
-        mu, sigma, action, log_prob = self.policy_net.forward(state, feat, mode='batch')
+    def evaluate_policy(self, state):  # evaluate batch
+        mu, sigma, action, log_prob = self.policy_net.forward(state, mode='batch')
         return action, log_prob
 
-    def evaluate_policy_no_noise(self, state, feat):  # evaluate batch
-        mu, sigma, action, log_prob = self.policy_net.forward(state, feat, mode='batch', worker_mode='no noise')
+    def evaluate_policy_no_noise(self, state):  # evaluate batch
+        mu, sigma, action, log_prob = self.policy_net.forward(state, mode='batch', worker_mode='no noise')
         return action, log_prob
 
-    def evaluate_target_policy_noise(self, state, feat):  # evaluate batch
-        mu, sigma, action, log_prob = self.policy_net_target.forward(state, feat, mode='batch', worker_mode='target')
+    def evaluate_target_policy_noise(self, state):  # evaluate batch
+        mu, sigma, action, log_prob = self.policy_net_target.forward(state, mode='batch', worker_mode='target')
         return action, log_prob
 
     def save(self, episode):

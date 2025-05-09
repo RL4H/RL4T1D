@@ -1,6 +1,7 @@
 import scipy.signal
 import numpy as np
 import torch
+import math
 
 
 # from environment.utils import risk_index
@@ -102,7 +103,7 @@ def calculate_features(data_row, args, env_args):
     info = dict()
 
     info["insulin"] = linear_scaling(x=ins, x_min=args.insulin_min, x_max=args.insulin_max)
-    info["glucose"] = linear_scaling(x=cgm, x_min=args.glucose_min, x_max=args.glucose_max)
+    info["cgm"] = linear_scaling(x=cgm, x_min=args.glucose_min, x_max=args.glucose_max)
     
     info['future_carb'] = 0 #FIXME implement
     info['remaining_time'] = 0 #FIXME implement
@@ -111,3 +112,46 @@ def calculate_features(data_row, args, env_args):
     info['meal_type'] = 0 #FIXME implement
 
     return [ info[feat] for feat in env_args.obs_features]
+
+
+def pump_to_rl_action(pump_action, args, env_args):
+    control_space_type = args.control_space_type
+    pump_max = args.insulin_max
+
+    if control_space_type == 'normal':
+        # pump_action = ((rl_action + 1) / 2) * pump_max
+        rl_action = (2 * pump_action / pump_max) - 1
+
+
+    elif control_space_type == 'sparse':
+        # if agent_action <= 0: agent_action = 0
+        # else: agent_action = agent_action * pump_max
+        #not reversible
+
+        raise NotImplementedError
+
+    elif control_space_type == 'exponential':
+        # pump_action = pump_max * (math.exp((rl_action - 1) * 4))
+        rl_action = math.log((pump_action / pump_max) / 4) + 1
+
+
+
+    elif control_space_type == 'quadratic':
+        # if agent_action < 0:
+        #     agent_action = (agent_action**2) * 0.05
+        #     agent_action = min(0.05, agent_action)
+        # elif agent_action == 0: agent_action = 0
+        # else: agent_action = (agent_action**2) * pump_max
+
+        raise NotImplementedError
+
+    elif control_space_type == 'proportional_quadratic':
+        # if agent_action <= 0.5:
+        #     agent_action = ((agent_action-0.5)**2) * (0.5/(1.5**2))
+        #     agent_action = min(0.5, agent_action)
+        # else:
+        #     agent_action = ((agent_action-0.5)**2) * (pump_max/(0.5**2))
+
+        raise NotImplementedError
+
+    return rl_action
