@@ -270,7 +270,6 @@ class ActorCritic(nn.Module):
         self.value_net_target2 = deepcopy(self.value_net2)  # QNetwork(args, device)
 
     def get_action(self, s, mode='forward', worker_mode='training'):
-        if randrange(0,100) == 0: print(worker_mode, s)
         s = torch.as_tensor(s, dtype=torch.float32, device=self.device)
         mu, sigma, action, log_prob = self.policy_net.forward(s, mode=mode, worker_mode=worker_mode)
     

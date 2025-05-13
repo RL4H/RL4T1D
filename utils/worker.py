@@ -36,7 +36,6 @@ class OnPolicyWorker(Worker):
 
         for _ in range(0, self.rollout_steps):
 
-            print("Testing State:",self.state)
             rl_action = policy.get_action(self.state)
 
 
@@ -123,7 +122,6 @@ class OfflineSampler(Worker):
 
         for _ in range(0, self.rollout_steps):
             item = self.importer_queue.pop()
-            print("Offline State:",item[0])
             # print("Saving transition, ",item)
             buffer.store(*item)
 
