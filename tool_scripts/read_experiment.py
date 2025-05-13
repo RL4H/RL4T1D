@@ -7,13 +7,13 @@ sys.path.insert(1, MAIN_PATH)
 
 from metrics.statistics_alt import get_summary_stats, read_file
 
-RESULT_TITLE = "CustomTest"
-EXPERIMENTS_DIR = "../results/"
+RESULT_TITLE = "offline_td3_ad0"
+EXPERIMENTS_DIR = "/results/"
 EXCEPTION_NAMES = ["mlflow"]
 
 
 
-exp_names = os.listdir(EXPERIMENTS_DIR)
+exp_names = os.listdir(MAIN_PATH + EXPERIMENTS_DIR)
 for excp in EXCEPTION_NAMES: 
     if excp in exp_names: exp_names.remove(excp)
     
@@ -24,7 +24,7 @@ print('\t'.join(exp_names))
 chosen_exp = exp_names[0]
 
 experiment_dir = EXPERIMENTS_DIR + chosen_exp + '/'
-with open(experiment_dir+'args.json','r') as f:
+with open(MAIN_PATH + experiment_dir+'args.json','r') as f:
     args = json.load(f)
 
 ## Display Args

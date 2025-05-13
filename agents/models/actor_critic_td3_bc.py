@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from copy import deepcopy
 from utils import core
 import math
+from random import randrange
 
 LOG_STD_MAX = 2
 LOG_STD_MIN = -20
@@ -269,6 +270,7 @@ class ActorCritic(nn.Module):
         self.value_net_target2 = deepcopy(self.value_net2)  # QNetwork(args, device)
 
     def get_action(self, s, mode='forward', worker_mode='training'):
+        if randrange(0,100) == 0: print(worker_mode, s)
         s = torch.as_tensor(s, dtype=torch.float32, device=self.device)
         mu, sigma, action, log_prob = self.policy_net.forward(s, mode=mode, worker_mode=worker_mode)
     

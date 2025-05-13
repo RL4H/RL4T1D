@@ -378,7 +378,6 @@ def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda
 
     rewards = [linear_scaling(cgm, args.glucose_min, args.glucose_max) for cgm in data_obj[:, 0]]
 
-
     transitions = []
     for row_n in range(window_size, rows-1):
         state = np.array(states[row_n-window_size: row_n])

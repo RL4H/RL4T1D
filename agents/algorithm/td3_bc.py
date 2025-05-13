@@ -189,7 +189,7 @@ class TD3_BC(Agent):
                 self.policy_optimizer.step()
 
                 pl += policy_loss.detach()
-                pi_grad += torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 10)
+                # pi_grad += torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 10) #commented out, likely not necessary here
 
                 # save compute: ref: openai:
                 for p in self.policy.value_net1.parameters():

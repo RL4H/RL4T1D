@@ -36,15 +36,8 @@ class OnPolicyWorker(Worker):
 
         for _ in range(0, self.rollout_steps):
 
+            print("Testing State:",self.state)
             rl_action = policy.get_action(self.state)
-
-            # features = [ self.info[feat] for feat in self.env_args.obs_features]
-
-            # cgm_window =  np.array([linear_scaling(cgm, self.args.glucose_min, self.args.glucose_max) for cgm in list(np.hstack(self.state))])
-            # ins_window =  np.array([linear_scaling(cgm, self.args.insulin_min, self.args.insulin_max) for cgm in self.ins_history[-self.args.obs_window:]])
-
-            # ins_cgm_state = np.array(np.stack((cgm_window, ins_window), axis=-1).astype(np.float32))
-            # rl_action = policy.get_action(ins_cgm_state, features)
 
 
             self.ins_history.append(rl_action['action'][0])
@@ -130,6 +123,7 @@ class OfflineSampler(Worker):
 
         for _ in range(0, self.rollout_steps):
             item = self.importer_queue.pop()
+            print("Offline State:",item[0])
             # print("Saving transition, ",item)
             buffer.store(*item)
 
