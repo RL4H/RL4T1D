@@ -111,64 +111,64 @@ class ExperimentVisualise:
         self.plot_version = plot_version
         with open(self.MAIN_PATH + 'args.json') as json_file:
             self.args = json.load(json_file)
-        self.training_workers = self.args['n_training_workers']
-        self.testing_workers = self.args['n_testing_workers']
-        self.experiment_dir = self.args['experiment_dir']
+        self.training_workers = self.args["agent"]['n_training_workers']
+        self.testing_workers = self.args["agent"]['n_testing_workers']
+        self.experiment_dir = self.args["agent"]['experiment_dir']
         self.training_seeds = [x for x in range(0, self.training_workers)]
 
         t_seeds = 500 if test_seeds is None else test_seeds
         self.testing_seeds = [t_seeds+x for x in range(0, self.testing_workers)]
-        self.ins_max = self.args['action_scale']
+        self.ins_max = self.args["env"]['insulin_max']
         
     def get_testing_rewards(self, type=None):
         if type == 'normal':
             data = get_normal(self.MAIN_PATH, self.testing_seeds,
-                                    '/testing/data/testing_episode_summary_', 'reward')
+                                    '/testing/worker_episode_summary_', 'reward')
         elif type == 'min_max':
             data = get_min_max_mean(self.MAIN_PATH, self.testing_seeds,
-                                    '/testing/data/testing_episode_summary_', 'reward')
+                                    '/testing/worker_episode_summary_', 'reward')
         data['steps'] = np.arange(len(data))
-        data['steps'] = (data['steps'] + 1 ) * self.training_workers * self.args['n_step']
+        data['steps'] = (data['steps'] + 1 ) * self.training_workers * self.args["agent"]['n_step']
         return data
 
     def get_testing_metric(self, metric, type=None):
         if type == 'normal':
             data = get_normal(self.MAIN_PATH, self.testing_seeds,
-                                    '/testing/data/testing_episode_summary_', metric)
+                                    '/testing/worker_episode_summary_', metric)
         elif type == 'min_max':
             data = get_min_max_mean(self.MAIN_PATH, self.testing_seeds,
-                                    '/testing/data/testing_episode_summary_', metric)
+                                    '/testing/worker_episode_summary_', metric)
         data['steps'] = np.arange(len(data))
-        data['steps'] = (data['steps'] + 1 ) * self.training_workers * self.args['n_step']
+        data['steps'] = (data['steps'] + 1 ) * self.training_workers * self.args["agent"]['n_step']
         return data
 
     def get_file_paths(self):
-        return self.MAIN_PATH, self.testing_seeds, '/testing/data/testing_episode_summary_'
+        return self.MAIN_PATH, self.testing_seeds, '/testing/worker_episode_summary_'
 
     def get_training_logs(self):
-        model_log = pd.read_csv(self.MAIN_PATH + '/model_log.csv')
+        model_log = pd.read_csv(self.MAIN_PATH + '/experiment_summary.csv')
         model_log['steps'] = np.arange(len(model_log))
-        model_log['steps'] = (model_log['steps'] + 1 ) * self.training_workers * self.args['n_step']
+        model_log['steps'] = (model_log['steps'] + 1 ) * self.training_workers * self.args["agent"]['n_step']
         # policy_grad,value_grad,val_loss,exp_var, pi_loss
         return model_log
 
     def get_aux_training_logs(self):
         model_log = pd.read_csv(self.MAIN_PATH + '/aux_model_log.csv')
         model_log['steps'] = np.arange(len(model_log))
-        model_log['steps'] = (model_log['steps'] + 1 )  # * self.training_workers * self.args['n_step']
+        model_log['steps'] = (model_log['steps'] + 1 )  # * self.training_workers * self.args["agent"]['n_step']
         # 'vf_aux_grad', 'vf_aux_loss', 'pi_aux_grad', 'pi_aux_loss'
         return model_log
 
     def get_planning_training_logs(self):
         model_log = pd.read_csv(self.MAIN_PATH + '/planning_model_log.csv')
         model_log['steps'] = np.arange(len(model_log))
-        model_log['steps'] = (model_log['steps'] + 1 ) # * self.training_workers * self.args['n_step']
+        model_log['steps'] = (model_log['steps'] + 1 ) # * self.training_workers * self.args["agent"]['n_step']
         # 'plan_grad', 'plan_loss'
         return model_log
     
     def get_value_function(self, horizon):
-        glucose = get_concat_recent(self.MAIN_PATH, self.training_seeds, 'training/data/logs_worker_', 'cgm', horizon)
-        state_val = get_concat_recent(self.MAIN_PATH, self.training_seeds, 'training/data/logs_worker_', 'state_val', horizon)
+        glucose = get_concat_recent(self.MAIN_PATH, self.training_seeds, 'training/worker_episode_', 'cgm', horizon)
+        state_val = get_concat_recent(self.MAIN_PATH, self.training_seeds, 'training/worker_episode_', 'state_val', horizon)
         return glucose, state_val
 
     def get_test_episode(self, tester, episode):
@@ -199,7 +199,7 @@ class ExperimentVisualise:
         print('\n Experiment summary...')
         latest_epi = math.inf
         for tester in self.testing_seeds:
-            df = pd.read_csv(self.MAIN_PATH + '/testing/data/testing_episode_summary_' + str(tester) +'.csv')
+            df = pd.read_csv(self.MAIN_PATH + '/testing/worker_episode_summary_' + str(tester) +'.csv')
             print(df.tail(1).to_dict())
             if df['epi'].iloc[-1] < latest_epi:
                 latest_epi = df['epi'].iloc[-1]
@@ -209,7 +209,7 @@ class ExperimentVisualise:
         arr = []
         target =  ['normo', 'hypo', 'hyper', 'sev_hypo', 'sev_hyper', 'lgbi', 'hgbi', 'ri', 'reward']
         for tester in self.testing_seeds:
-            df = pd.read_csv(self.MAIN_PATH + '/testing/data/testing_episode_summary_' + str(tester) +'.csv')
+            df = pd.read_csv(self.MAIN_PATH + '/testing/worker_episode_summary_' + str(tester) +'.csv')
             arr.append(df.iloc[-1:])
         res = pd.concat(arr)
         failures = res[res['t'] < 312].count()['t']
@@ -225,7 +225,7 @@ class ExperimentVisualise:
         arr = []
         target =  ['reward']
         for tester in self.testing_seeds:
-            df = pd.read_csv(self.MAIN_PATH + '/testing/data/testing_episode_summary_' + str(tester) +'.csv')
+            df = pd.read_csv(self.MAIN_PATH + '/testing/worker_episode_summary_' + str(tester) +'.csv')
             arr.append(df.iloc[-1:])
         res = pd.concat(arr)
         failures = res[res['t'] < 312].count()['t']
@@ -238,11 +238,11 @@ class ExperimentVisualise:
         return res
 
     def get_training_action_summary(self, horizon):
-        mu = get_concat(self.MAIN_PATH, self.training_seeds, 'training/data/logs_worker_', 'mu', horizon)
-        sigma = get_concat(self.MAIN_PATH, self.training_seeds, 'training/data/logs_worker_', 'sigma', horizon)
-        ins = get_concat(self.MAIN_PATH, self.training_seeds, 'training/data/logs_worker_', 'ins', horizon)
-        cgm = get_concat(self.MAIN_PATH, self.training_seeds, 'training/data/logs_worker_', 'cgm', horizon)
-        rl_ins = get_concat(self.MAIN_PATH, self.training_seeds, 'training/data/logs_worker_', 'rl_ins', horizon)
+        mu = get_concat(self.MAIN_PATH, self.training_seeds, 'training/worker_episode_', 'mu', horizon)
+        sigma = get_concat(self.MAIN_PATH, self.training_seeds, 'training/worker_episode_', 'sigma', horizon)
+        ins = get_concat(self.MAIN_PATH, self.training_seeds, 'training/worker_episode_', 'ins', horizon)
+        cgm = get_concat(self.MAIN_PATH, self.training_seeds, 'training/worker_episode_', 'cgm', horizon)
+        rl_ins = get_concat(self.MAIN_PATH, self.training_seeds, 'training/worker_episode_', 'rl_ins', horizon)
         return mu, sigma, ins, cgm, rl_ins
 
     def get_testing_action_summary(self, horizon):
@@ -254,7 +254,7 @@ class ExperimentVisualise:
         return mu, sigma, ins, cgm, rl_ins
 
     def get_training_action_summary_V1(self, horizon):
-        IS_ratio = get_concat(self.MAIN_PATH, self.training_seeds, 'training/data/logs_worker_', 'IS', horizon)
+        IS_ratio = get_concat(self.MAIN_PATH, self.training_seeds, 'training/worker_episode_', 'IS', horizon)
         return IS_ratio
 
 
@@ -781,7 +781,7 @@ def plot_testing_average_metric(dict, groups, type, dis_len, metric, goal, fill,
             data['min'] = data.min(axis=1)
 
         data['steps'] = np.arange(len(data))
-        data['steps'] = (data['steps'] + 1) * dict[i]['id'].training_workers * dict[i]['id'].args['n_step']
+        data['steps'] = (data['steps'] + 1) * dict[i]['id'].training_workers * dict[i]['id'].args['agent']['n_step']
 
         ax.plot(data['steps'], data['mean'], color=dict[i]['color'], label=dict[i]['label'])
         if fill:

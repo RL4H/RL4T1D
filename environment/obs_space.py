@@ -34,7 +34,7 @@ class ObservationSpace:
                 dict['day_hour'] = core.linear_scaling(x=dict['day_hour'], x_min=0, x_max=23)   # hour is given 0-23
             elif key == 'day_min':
                 dict['day_min'] = core.linear_scaling(x=dict['day_min'], x_min=0, x_max=59)  # assume max carbs 120
-            return dict
+        return dict
 
 
 # Note: In our previous research we used additional handcrafted features like insulin on board (IoB)
