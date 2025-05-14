@@ -367,7 +367,6 @@ def patient_id_to_label(patient_id):
 
 def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward(None, cgm))):
     #data_obj is a 2D numpy array , rows x columns. Columns are :  cgm, meal, ins, t, meta_data
-    #FIXME make features scale to args
     window_size = args.obs_window
 
     rows, _ = data_obj.shape
@@ -384,7 +383,7 @@ def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda
         action = np.array([actions[row_n]])
         reward = np.array([rewards[row_n]])
         next_state = np.array(states[row_n-window_size+1: row_n+1])
-        done = np.array([int(row_n == rows - 2)])
+        done = np.array([int(row_n == rows - 2)]) #FIXME change condition
         transitions.append(Transition(state, action, reward, next_state, done))
 
     return transitions

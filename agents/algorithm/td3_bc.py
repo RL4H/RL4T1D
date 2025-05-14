@@ -178,10 +178,10 @@ class TD3_BC(Agent):
                 q_mean = policy_loss.mean()
 
                 # assign lambda constant to scale correctly
-                lmbda = self.alpha / ( policy_loss.abs().mean() )
+                #lmbda = self.alpha / ( policy_loss.abs().mean() )
 
                 # calculate policy loss, ref: Fujimoto and Gu (2021)
-                policy_loss = -lmbda * q_mean + nn.functional.mse_loss(policy_action,actions_batch)
+                policy_loss = -self.alpha * q_mean + nn.functional.mse_loss(policy_action,actions_batch)
 
                 # perform optimisation
                 self.policy_optimizer.zero_grad()
