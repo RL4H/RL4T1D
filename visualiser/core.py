@@ -781,7 +781,7 @@ def plot_testing_average_metric(dict, groups, type, dis_len, metric, goal, fill,
             data['min'] = data.min(axis=1)
 
         data['steps'] = np.arange(len(data))
-        data['steps'] = (data['steps'] + 1) * dict[i]['id'].training_workers * dict[i]['id'].args['n_step']
+        data['steps'] = (data['steps'] + 1) * dict[i]['id'].training_workers * dict[i]['id'].args['agent']['n_step']
 
         ax.plot(data['steps'], data['mean'], color=dict[i]['color'], label=dict[i]['label'])
         if fill:
