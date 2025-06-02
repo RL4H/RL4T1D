@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
+import random
 from datetime import datetime
 import sys
 import pickle
@@ -73,6 +74,9 @@ BIG_CSV_COLUMN_TYPES ={
     "rl_ins" : CSV_COLUMN_TYPES["ins"],
     "t" : CSV_COLUMN_TYPES["t"],
 }
+
+SHUFFLE_QUEUE_IMPORTS = False
+IMPORT_SEED = 0
 
 #designate file naming conventions to read from
 PICKLE_FILE_NAME_END = "_data"
@@ -381,7 +385,7 @@ def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda
     for row_n in range(window_size, rows-1):
         state = np.array(states[row_n-window_size: row_n])
         action = np.array([actions[row_n]])
-        reward = np.array([rewards[row_n]])
+        reward = np.array([rewards[row_n+1]]) #sample from next states reward
         next_state = np.array(states[row_n-window_size+1: row_n+1])
         done = np.array([int(row_n == rows - 2)]) #FIXME change condition
         transitions.append(Transition(state, action, reward, next_state, done))
@@ -398,14 +402,28 @@ class DataImporter:
             data_folder=DATA_DEST,
             verbose = True,
             subjects = SUBJECTS, 
-            cohorts=COHORT_VALUES, 
             agents = AGENT_TYPES, 
             protocols=PROTOCOLS,
             args=None,
             env_args=None
         ):
-        self.subjects, self.cohorts, self.agents, self.protocols = subjects, cohorts, agents, protocols
         self.args = args
+
+        #ARGS overrides passed subjects and cohorts
+        if args != None:
+            print("Overwriting DataImporter Values from args.")
+            self.subjects = [patient_id_to_label(self.args.patient_id)]
+            self.agents = (AGENT_TYPES if args.data_algorithms == [] else args.data_algorithms)
+            print(self.agents)
+            self.protocols = (PROTOCOLS if args.data_protocols == [] else args.data_protocols)
+        else:
+            self.subjects, self.agents, self.protocols = subjects, agents, protocols
+
+        self.cohorts = list(set([subj[:-1] for subj in self.subjects]))
+
+
+
+
         self.env_args = env_args
         self.verbose = verbose
         self.source_folder = data_folder + "/object_save/"
@@ -630,6 +648,8 @@ class DataHandler:
         """
         return [get_patient_attrs(subject) for subject in self.subjects]
 
+
+
 class DataQueue: 
     def __init__(self, importer, minimum_length=1024, maximum_length = 8192, mapping = convert_trial_into_transitions):
         self.importer, self.minimum_length, self.maximum_length, self.mapping = importer, minimum_length, maximum_length, mapping
@@ -637,11 +657,55 @@ class DataQueue:
         self.queue_revolutions = 0
         self.subjects_n = len(self.importer.subjects)
         assert maximum_length >= minimum_length
-    def start(self):
+    def start(self,count_transitions=True):
         self.current_subject_ind = 0
         self.current_subject = self.importer.subjects[self.current_subject_ind]
         self.current_subject_trial_ind = 0
-        self.sync_queue()
+
+        if count_transitions and len(self.importer.subjects) == 1: #run an altered first sync to minimise needed imports and count maximum transitions
+            
+            # import data
+            remaining_length = self.maximum_length - len(self.queue)
+            handled_data = self.importer.import_subject(self.current_subject)
+            handled_data.flatten()
+
+            #count transitions
+            window_size = self.importer.env_args.obs_window
+            transitions = 0
+            n = 0
+            for trial in handled_data.flat_trials:
+                transitions += max(0, len(trial) - window_size - 1)
+                # actual_transitions = len(self.mapping(trial, self.importer.args, self.importer.env_args))
+                # assert transitions == actual_transitions
+                n += 1
+            
+            print(transitions, "transitions counted.")
+            self.total_transitions = transitions
+
+            #add to queue
+
+            handled_len = len(handled_data.flat_trials)
+            gc.collect()
+
+            while remaining_length > 0 and self.current_subject_trial_ind < handled_len:
+                trial_mapping = self.mapping(handled_data.flat_trials[self.current_subject_trial_ind], self.importer.args, self.importer.env_args)
+                mapping_len = len(trial_mapping)
+
+                self.queue += trial_mapping
+                remaining_length -= mapping_len
+                self.current_subject_trial_ind += 1
+            
+            if self.current_subject_trial_ind >= handled_len:
+                self.current_subject_trial_ind = 0
+
+            del handled_data.flat_trials
+            del handled_data
+            gc.collect()
+
+        elif count_transitions:
+            raise NotImplementedError
+        else:
+            self.sync_queue()
     def next_subject(self):
         self.current_subject_ind += 1
         if self.current_subject_ind >= self.subjects_n:
@@ -656,6 +720,11 @@ class DataQueue:
                 # print("Importing data for",self.current_subject,"at index",self.current_subject_ind)
                 handled_data = self.importer.import_subject(self.current_subject)
                 handled_data.flatten()
+                
+                if SHUFFLE_QUEUE_IMPORTS:
+                    random.seed(IMPORT_SEED)
+                    random.shuffle(handled_data.flat_trials)
+
 
                 handled_len = len(handled_data.flat_trials)
                 # print("Data Imported and flattened with", handled_len,"trials.")
@@ -664,6 +733,8 @@ class DataQueue:
                 while remaining_length > 0 and self.current_subject_trial_ind < handled_len:
                     # print("\tMapping step",self.current_subject_trial_ind, handled_len)
                     trial_mapping = self.mapping(handled_data.flat_trials[self.current_subject_trial_ind], self.importer.args, self.importer.env_args)
+                    if SHUFFLE_QUEUE_IMPORTS:
+                        random.shuffle(trial_mapping)
                     mapping_len = len(trial_mapping)
 
                     self.queue += trial_mapping
@@ -684,6 +755,8 @@ class DataQueue:
         return out
     def pop_batch(self,n):
         return [self.pop() for _ in range(n)]
+
+
 
 
 

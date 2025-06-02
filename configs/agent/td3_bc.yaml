@@ -30,12 +30,12 @@ total_interactions: 800000  # total number of interactions the agent will train 
 n_interactions_lr_decay: 600000
 
 # training parameters
-pi_lr: 3.e-4
-vf_lr: 3.e-4
-batch_size: 1024
-sample_size: 256
+pi_lr: 1.5e-4
+vf_lr: 1.5e-4
+
+batch_size : 8192
+mini_batch_size: 256
 n_pi_epochs: 5
-n_vf_epochs: 5
 
 # test
 n_testing_workers: 20
@@ -46,6 +46,9 @@ n_val_trials: 500
 
 #data source
 data_type: "simulated" #simulated | clinical
+data_protocols: ["evaluation","training"] #None defaults to all
+data_algorithms : ["G2P2C"] #None defaults to all
+use_all_interactions : false
 
 n_handcrafted_features: -10 #FIXME
 n_features: 32
@@ -53,14 +56,12 @@ use_handcraft: 0
 
 n_hidden: 16
 noise_model: "normal_dist"
-noise_std: 1e0
-noise_application: 2
-target_action_std: 0.2
-target_action_lim: 0.5
+noise_std: 0.1
+noise_application: 0
+target_action_std: 0.1
+target_action_lim: 0.3
 soft_tau: 0.005
 
-custom_arg: "hello there!"
-
-alpha : 2.5
+alpha : 0.025
 
 

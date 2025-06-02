@@ -103,7 +103,7 @@ def display_commands(arr):
     return disp_arr
 
 
-class ExperimentVisualise:
+class  ExperimentVisualise:
     def __init__(self, id, version=1.0, plot_version=0, test_seeds=None):
         self.MAIN_PATH = '../../results/' + id + '/'
         self.id = id
@@ -173,10 +173,11 @@ class ExperimentVisualise:
 
     def get_test_episode(self, tester, episode):
         if self.version == 1.0:
-            df = pd.read_csv(self.MAIN_PATH + '/testing/data/logs_test_worker_' + str(self.testing_seeds[tester]) +'.csv')
+            df = pd.read_csv(self.MAIN_PATH + '/testing/worker_episode_' + str(self.testing_seeds[tester]) +'.csv')
         elif self.version == 1.1:
-            df = pd.read_csv(self.MAIN_PATH + '/testing/data/logs_worker_' + str(self.testing_seeds[tester]) + '.csv')
-        df = df.loc[df['epi'] == episode]
+            df = pd.read_csv(self.MAIN_PATH + '/testing/worker_episode_' + str(self.testing_seeds[tester]) + '.csv')
+        print('/testing/worker_episode_' + str(self.testing_seeds[tester]) + '.csv')
+        df = df.loc[df['episode'] == episode]
         if self.plot_version == 1.0:
             df['day_hour'] = df['day_hour'].astype(int)
             df['day_min'] = df['day_min'].astype(int)

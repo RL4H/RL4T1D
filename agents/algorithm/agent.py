@@ -58,9 +58,18 @@ class Agent:
                 from utils.sim_data import DataImporter
                 
                 # setup imported data buffer
-                importer = DataImporter(subjects=[patient_id_to_label(self.args.patient_id)],args=args,env_args=env_args)
-                importer.create_queue(minimum_length=args.batch_size*2, maximum_length=args.batch_size*20)
+                importer = DataImporter(args=args,env_args=env_args)
+                importer.create_queue(minimum_length=args.batch_size*10, maximum_length=args.batch_size*101)
                 importer.queue.start()
+
+                if args.use_all_interactions: #override total_interactions, use 98% of total transitions to avoid spilling over
+                    print("overriding total interactions from",args.total_interactions,"to",importer.queue.total_transitions)
+                    self.args.total_interactions = int(importer.queue.total_transitions*0.98)
+                    args.total_interactions = int(importer.queue.total_transitions*0.98)
+                elif args.total_interactions > importer.queue.total_transitions:
+                    print("WARNING: total interactions set (",args.total_interactions,") is greater than available data (",importer.queue.total_transitions,"). ")
+                    
+
                 if DEBUG_SHOW: print("Queue Started!")
                 # self.buffer = importer.queue
 
