@@ -23,14 +23,14 @@ eps_clip: 0.1
 target_kl: 0.01
 
 # train
-n_step: 256
+n_step: 8192
 max_epi_length: 2880
 n_training_workers: 16
-total_interactions: 800000  # total number of interactions the agent will train for
-n_interactions_lr_decay: 600000
+total_interactions: 6400000  # total number of interactions the agent will train for #800000
+n_interactions_lr_decay: 4000000
 
 # training parameters
-pi_lr: 1.5e-4
+pi_lr: 1.5e-4 
 vf_lr: 1.5e-4
 
 batch_size : 8192
@@ -42,7 +42,7 @@ n_testing_workers: 20
 max_test_epi_len: 288  # testing conducted for 1 day: 12 steps/hr * 24 hours
 
 # validation
-n_val_trials: 500
+n_val_trials: 50 #500
 
 #data source
 data_type: "simulated" #simulated | clinical
@@ -56,12 +56,12 @@ use_handcraft: 0
 
 n_hidden: 16
 noise_model: "normal_dist"
-noise_std: 0.1
+noise_std: 0.10
 noise_application: 0
 target_action_std: 0.1
 target_action_lim: 0.3
 soft_tau: 0.005
 
-alpha : 0.025
+alpha : 0.0025
 
 

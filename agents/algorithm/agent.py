@@ -59,7 +59,7 @@ class Agent:
                 
                 # setup imported data buffer
                 importer = DataImporter(args=args,env_args=env_args)
-                importer.create_queue(minimum_length=args.batch_size*10, maximum_length=args.batch_size*101)
+                importer.create_queue(minimum_length=args.mini_batch_size*100, maximum_length=args.mini_batch_size*1001)
                 importer.queue.start()
 
                 if args.use_all_interactions: #override total_interactions, use 98% of total transitions to avoid spilling over
