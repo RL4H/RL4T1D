@@ -103,6 +103,7 @@ class TD3_BC(Agent):
 
         cl, pl = torch.zeros(1, device=self.device), torch.zeros(1, device=self.device)
         pi_grad, val_grad = torch.zeros(1, device=self.device), torch.zeros(1, device=self.device)
+        vf_loss = torch.zeros(1, device=self.device)
 
 
         for i in range(self.train_pi_iters):
@@ -139,7 +140,7 @@ class TD3_BC(Agent):
                 value_loss1 = self.value_criterion1(target_value.detach(), predicted_value1)
                 value_loss2 = self.value_criterion2(target_value.detach(), predicted_value2)
 
-                cl += value_loss1.detach() #FIXME rearrange for mini-batch set up
+                vf_loss += value_loss1.detach() + value_loss2.detach() #FIXME rearrange for mini-batch set up
                 
 
                 value_loss1.backward()
@@ -233,6 +234,6 @@ class TD3_BC(Agent):
             print("################updated target networks in batch")
 
         # logging
-        data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_gradient=val_grad)
+        data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_grad=val_grad, val_loss=vf_loss)
         return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}
 

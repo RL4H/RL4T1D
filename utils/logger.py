@@ -42,6 +42,7 @@ def copy_folder(src, dst):
 
 
 def save_log(directory, file, data):
+    if file == "experiment_summary": print("Saving Logs",directory,';', file,';', data)
     with open(directory + '/' + file + '.csv', 'a+') as f:
         csvWriter = csv.writer(f, delimiter=',')
         csvWriter.writerows(data)
@@ -59,6 +60,7 @@ class Logger:
         for log in self.experiment_logs:
             save_log(directory=self.experiment_dir, file=log, data=[cfg.logger[log]])
             self.experiment_logs_keys[log] = cfg.logger[log]
+        print("Log Keys:",self.experiment_logs_keys,self.experiment_logs)
 
         # setup worker logs
         self.worker_logs = cfg.logger.worker_logs

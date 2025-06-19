@@ -23,7 +23,7 @@ eps_clip: 0.1
 target_kl: 0.01
 
 # train
-n_step: 8192
+n_step: 32786
 max_epi_length: 2880
 n_training_workers: 16
 total_interactions: 6400000  # total number of interactions the agent will train for #800000
@@ -33,7 +33,7 @@ n_interactions_lr_decay: 4000000
 pi_lr: 1.5e-4 
 vf_lr: 1.5e-4
 
-batch_size : 8192
+batch_size : 32786
 mini_batch_size: 256
 n_pi_epochs: 5
 
@@ -47,7 +47,7 @@ n_val_trials: 50 #500
 #data source
 data_type: "simulated" #simulated | clinical
 data_protocols: ["evaluation","training"] #None defaults to all
-data_algorithms : ["G2P2C"] #None defaults to all
+data_algorithms : [] #None defaults to all #"G2P2C","AUXML","BBI","PPO","TD3"
 use_all_interactions : false
 
 n_handcrafted_features: -10 #FIXME
@@ -62,6 +62,6 @@ target_action_std: 0.1
 target_action_lim: 0.3
 soft_tau: 0.005
 
-alpha : 0.0025
+alpha : 0.25
 
 
