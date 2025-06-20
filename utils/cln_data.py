@@ -219,7 +219,7 @@ CSV_COLUMN_TYPES = {
 }
 
 def save_subj_file(subj_info, filepath, filename):
-    meta_content = "subject_id_" + str(subj_info["meta"]["subject_id"]) + "_" + str(subj_info["meta"]["treatment type"])
+    meta_content = "subject_id_" + str(subj_info["meta"]["subject id"]) + "_" + str(subj_info["meta"]["treatment type"])
     txt = '\n'.join([','.join(line[:-1] + [meta_content]) for line in (COLUMN_NAMES + subj_info['data'])])
     with open(filepath + '/' + filename, 'w') as f:
         f.write(txt)
