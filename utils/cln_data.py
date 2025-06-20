@@ -11,11 +11,14 @@ import gc
 import xport
 import xport.v56
 from datetime import datetime, timezone
-from visualiser.core import plot_episode
+
 
 from decouple import config
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
+
+from visualiser.core import plot_episode
+
 
 SIM_DATA_PATH = config('SIM_DATA_PATH')
 if SIM_DATA_PATH == '':
