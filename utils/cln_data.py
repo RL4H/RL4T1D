@@ -280,11 +280,15 @@ if __name__ == "__main__":
         
         subject_data = read_individual(subject_id)
 
-        file_name = "subj_ind_" + str(n) + ".csv"
+        if subject_data != BLANK_RESULT:
 
-        save_subj_file(subject_data, CLN_DATA_SAVE_DEST, file_name)
+            file_name = "subj_ind_" + str(n) + ".csv"
 
-        print(f"Subject {subject_id} ({n}/{subject_len-1}) info saved")
+            save_subj_file(subject_data, CLN_DATA_SAVE_DEST, file_name)
+
+            print(f"Subject {subject_id} ({n}/{subject_len-1}) info saved")
+        else:
+            print(f"Subject {subject_id} ({n}/{subject_len-1}) info skipped")
 
     
 

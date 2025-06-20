@@ -42,7 +42,6 @@ def copy_folder(src, dst):
 
 
 def save_log(directory, file, data):
-    if file == "experiment_summary": print("Saving Logs",directory,';', file,';', data)
     with open(directory + '/' + file + '.csv', 'a+') as f:
         csvWriter = csv.writer(f, delimiter=',')
         csvWriter.writerows(data)
