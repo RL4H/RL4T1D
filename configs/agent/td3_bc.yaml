@@ -23,7 +23,7 @@ eps_clip: 0.1
 target_kl: 0.01
 
 # train
-n_step: 32786
+n_step: 8192
 max_epi_length: 2880
 n_training_workers: 16
 total_interactions: 6400000  # total number of interactions the agent will train for #800000
@@ -33,7 +33,7 @@ n_interactions_lr_decay: 4000000
 pi_lr: 1.5e-4 
 vf_lr: 1.5e-4
 
-batch_size : 32786
+batch_size : 8192
 mini_batch_size: 256
 n_pi_epochs: 5
 

@@ -277,7 +277,7 @@ if __name__ == "__main__":
         
         subject_data = read_individual(subject_id)
 
-        file_name = "subj_ind_" + str(n) + ".pkl"
+        file_name = "subj_ind_" + str(n) + ".csv"
 
         save_subj_file(subject_data, CLN_DATA_SAVE_DEST, file_name)
 
