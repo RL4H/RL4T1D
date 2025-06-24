@@ -12,3 +12,4 @@ data/csv_saves/
 data/raw_csv/
 data/summaries/
 tool_scripts/data_cleaning/
+tool_scripts/misc

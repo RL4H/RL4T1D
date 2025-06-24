@@ -10,7 +10,7 @@ from omegaconf import OmegaConf
 import gc
 import xport
 import xport.v56
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 
 from decouple import config
@@ -41,7 +41,7 @@ def import_xpt_file(file_dest,file_name,show=False):
     return df
 
 def filter_for_subject(df, USUBJID):
-    new_df = df[df['USUBJID'] == USUBJID]
+    new_df = df[df['USUBJID'] == str(USUBJID)]
     return new_df.reset_index(drop=True)
 
 def import_for_subject(file_dest,file_name, USUBJID):
@@ -79,25 +79,38 @@ def read_individual(subj_id,debug_show=True):
     # read relevant data
     subj_LB = filter_for_subject(LB, subj_id) #cgm data
     subj_LB_len = len(subj_LB)
-    if subj_LB_len == 0: return BLANK_RESULT
+    if subj_LB_len == 0: 
+        if debug_show: print("No subject glucose data found, returning blank data")
+        return BLANK_RESULT
     subj_LB = subj_LB.drop(subj_LB_len-1)
     
     subj_FACM = filter_for_subject(FACM,subj_id) #insulin data
+    
     subj_ML = filter_for_subject(ML,subj_id) #meals data
-
+    subj_ML = subj_ML[subj_ML['MLCAT'] != "USUAL DAILY CONSUMPTION"].reset_index(drop=True) #remove usual daily consumption lines; not relevant here
+    
+    
     # check type of treatment
     treatment_types = list(set(subj_FACM["INSDVSRC"]))
     if '' in treatment_types: treatment_types.remove('')
     if ["Pump"] == treatment_types: treatment_type = "Pump"
     elif ["Injections"] == treatment_types: treatment_type = "Injections"
-    else: return BLANK_RESULT #treatment_type = "Blank"
+    else: 
+        if debug_show: print("\tNo treatment type found, returning blank result")
+        return BLANK_RESULT #treatment_type = "Blank"
 
     if debug_show: print("Treatment Type:",treatment_type)
+
 
     # read time information
     cgm_time = subj_LB["LBDTC"]
     ins_time = subj_FACM["FADTC"]
     mls_time = subj_ML["MLDTC"]
+
+    #check meal data is present
+    if len(mls_time) < 5:
+        if debug_show: print("\tInsufficient meal data Found, returning blank result")
+        return BLANK_RESULT
     
     subj_start_time = cgm_time.loc[0]
     subj_end_time = cgm_time.loc[ len(cgm_time) - 1]
@@ -111,7 +124,7 @@ def read_individual(subj_id,debug_show=True):
     cgm_ind = 0
     ins_ind = 0
     mls_ind = 0
-    while mls_time[mls_ind] < subj_start_time: mls_ind += 1 #skip meals set before cgm data is recorded.
+    while mls_time[mls_ind] < subj_start_time and mls_ind < len(mls_time): mls_ind += 1 #skip meals set before cgm data is recorded.
 
     if treatment_type == "Pump":
         current_insulin_rate = subj_FACM["FASTRESN"].loc[ins_ind]
@@ -129,7 +142,7 @@ def read_individual(subj_id,debug_show=True):
         cur_cgm_time = cgm_time[cgm_ind]
         
         if cur_cgm_time - cur_time > CGM_TOLERANCE: #check if timeskip in cgm monitor
-            if debug_show: print("After episode of",cur_episode_len*5,"m, skip of", (cur_cgm_time - cur_time)/60,"m detected")
+            if debug_show: print("\tAfter episode of",cur_episode_len*5,"m, skip of", (cur_cgm_time - cur_time)/60,"m detected")
             episodes.append(rows)
             rows = []
             cur_episode_len = 0
@@ -165,14 +178,12 @@ def read_individual(subj_id,debug_show=True):
             "meta_TODO"
         ])
 
-        print((cur_time - cur_episode_start_time)//60, convert_mins_to_string(int((cur_time - cur_episode_start_time)/60)))
-
         cur_time += 300 # increment by 5 minutes
         cgm_ind += 1 #index cgm index
 
         cur_episode_len += 1
 
-    if debug_show: print("Final episode of",cur_episode_len*5,"m\n")
+    if debug_show: print("\tFinal episode of",cur_episode_len*5,"m\n")
     episodes.append(rows)
 
     # filter out short episodes
@@ -181,13 +192,13 @@ def read_individual(subj_id,debug_show=True):
     for n_epi, epi_rows in enumerate(episodes):
         epi_len = len(epi_rows)*5
         if epi_len < MINIMUM_EPI_LEN:
-            if debug_show: print("Episode",n_epi,"removed for being too short (",epi_len,"m)")
+            if debug_show: print("\tEpisode",n_epi,"removed for being too short (",epi_len,"m)")
         else:
             for row in epi_rows: row[0] = current_epi #change episode to reconsider removed episodes
             total_rows += epi_rows
             current_epi += 1
     
-    if debug_show: print("Total rows after filtration are",len(total_rows)*5,"m, removed",(sum([len(epi_rows) for epi_rows in episodes]) - len(total_rows))*5, 'm' )
+    if debug_show: print("\tTotal rows after filtration are",len(total_rows)*5,"m, removed",(sum([len(epi_rows) for epi_rows in episodes]) - len(total_rows))*5, 'm' )
         
     # convert trial data to numpy
     trial_data = np.array(total_rows)
@@ -220,7 +231,9 @@ CSV_COLUMN_TYPES = {
 
 def save_subj_file(subj_info, filepath, filename):
     meta_content = "subject_id_" + str(subj_info["meta"]["subject id"]) + "_" + str(subj_info["meta"]["treatment type"])
-    txt = '\n'.join([','.join(line[:-1] + [meta_content]) for line in (COLUMN_NAMES + subj_info['data'])])
+    for line in subj_info["data"]: 
+        line[-1] = meta_content
+    txt = ','.join(COLUMN_NAMES) + '\n' + '\n'.join([','.join(line) for line in (subj_info['data'])])
     with open(filepath + '/' + filename, 'w') as f:
         f.write(txt)
     return 1
@@ -235,18 +248,27 @@ def read_subj_file(file_num):
     data_array = df.to_numpy()
     return data_array
 
-
+class DummyClass:
+    def __init__(self, df):
+        self.df = df
+        self.plot_version = 1
+    def get_test_episode(self,tester,epi):
+        print(self.df)
+        return self.df[self.df['episode'] == epi]
+    
 def display_subj_epi_graph(file_num,epi=0):
-    file_name = "subj_ind_" + str(n) + ".pkl"
+    file_name = "subj_ind_" + str(file_num) + ".csv"
     file_dest = CLN_DATA_SAVE_DEST + '/' +  file_name
 
     df = pd.read_csv(file_dest, header="infer", dtype=CSV_COLUMN_TYPES)
 
-    df.rename(columns={"epi" : "episode"})
+    df = df.rename(columns={"epi" : "episode", "carbs" : "meal"})
     # if not epi in df["episode"]: raise IndexError(f"Episode {epi} does not exist.")
     # df = df[df['episode'] == epi]
 
-    df["time"] = df["t"].apply(lambda t : "2000-01-01 " + t)
+    base_t = datetime(2020, 1, 1, 0, 0)
+
+    df["time"] = df["t"].apply(lambda t : base_t + timedelta(minutes=convert_string_to_mins(t)))
     df["day_hour"] = df["t"].apply(lambda t : int(t.split(':')[1]))
     df["day_min"] = df["t"].apply(lambda t : int(t.split(':')[2]))
     df["t"] = df["t"].apply(lambda t : convert_string_to_mins(t) // 5)
@@ -254,14 +276,15 @@ def display_subj_epi_graph(file_num,epi=0):
     for col_name in ["rew","rl_ins","mu","sigma","prob","state_val"]: df[col_name] = 0.0
 
     tester = 0
-
-    plot_episode(df, tester, episode=epi)
+    dummy = DummyClass(df)
+    plot_episode(dummy, tester, episode=epi)
 
 
 
 
 if __name__ == "__main__":
 
+    
     LB = import_xpt_file(CLN_DATA_DEST,'LB') # glucose levels
     ML = import_xpt_file(CLN_DATA_DEST,'ML') # meal data
     FACM = import_xpt_file(CLN_DATA_DEST,'FACM') # insulin data
@@ -278,9 +301,9 @@ if __name__ == "__main__":
     for n in range(subject_len):
         subject_id = subject_ids[n]
         
-        subject_data = read_individual(subject_id)
+        subject_data = read_individual(subject_id, False)
 
-        if subject_data != BLANK_RESULT:
+        if not subject_data["meta"]["blank"]:
 
             file_name = "subj_ind_" + str(n) + ".csv"
 

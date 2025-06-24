@@ -32,6 +32,8 @@ class TD3_BC(Agent):
         self.pi_lr = args.pi_lr
         self.vf_lr = args.vf_lr
         self.alpha = args.alpha
+        self.beta = args.beta
+        self.pi_lambda = args.pi_lambda
 
         ### TD3 Params
         self.n_step = args.n_step
@@ -59,7 +61,7 @@ class TD3_BC(Agent):
         self.grad_clip = args.grad_clip
 
 
-        self.weight_decay = 0
+        self.weight_decay = args.vf_lambda
 
 
         ### TD3 networks:
@@ -188,7 +190,9 @@ class TD3_BC(Agent):
                 #lmbda = self.alpha / ( policy_loss.abs().mean() )
 
                 # calculate policy loss, ref: Fujimoto and Gu (2021)
-                policy_loss = -self.alpha * q_mean + nn.functional.mse_loss(policy_action,actions_batch)
+                reg_term = sum(torch.norm(param, p=2)**2 for param in self.policy.policy_net.parameters() if param.requires_grad)
+
+                policy_loss = -self.alpha * q_mean +  self.beta * nn.functional.mse_loss(policy_action,actions_batch) + self.pi_lambda * reg_term
 
                 pl += policy_loss.detach() #FIXME rearrange for mini-batch set up
 

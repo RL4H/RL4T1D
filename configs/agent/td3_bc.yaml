@@ -63,5 +63,8 @@ target_action_lim: 0.3
 soft_tau: 0.005
 
 alpha : 0.25
+beta : 1
 
+vf_lambda : 1e-4
+pi_lambda : 1e-3
 

@@ -439,9 +439,6 @@ def get_concat(path, seeds, filename, column, horizon):
 
 def plot_episode(experiment, tester, episode):
     df = experiment.get_test_episode(tester, episode)
-    print(df)
-    print(tester)
-    print(episode)
     fig = plt.figure(figsize=(16, 6))
     #ax = fig.add_subplot(111)
     #ax2 = ax.twinx()
