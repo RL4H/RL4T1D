@@ -1,24 +1,18 @@
 import os
-import torch
 import numpy as np
 import pandas as pd
 from datetime import datetime
 import sys
-import pickle
-import json
-from omegaconf import OmegaConf
-import gc
 import xport
 import xport.v56
 from datetime import datetime, timezone, timedelta
-
-
+import math
 from decouple import config
+
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
 from visualiser.core import plot_episode
-
 
 SIM_DATA_PATH = config('SIM_DATA_PATH')
 if SIM_DATA_PATH == '':
@@ -26,27 +20,36 @@ if SIM_DATA_PATH == '':
 
 CLN_DATA_DEST = config('CLN_DATA_PATH')
 
-AGE_VALUES = ["adolescent", "adult"] 
- 
 CLN_DATA_SAVE_DEST = "/home/users/u7482502/data/cln_pickled_data" #FIXME make into env variable 
 
+AGE_VALUES = ["adolescent", "adult"] 
+CGM_TOLERANCE = 140
+MLS_TOLERANCE = 140
+INS_TOLERANCE = 140
+MINIMUM_EPI_LEN = 120
+BLANK_RESULT = {
+    "data" : np.array([]),
+    "meta" : {
+        "blank" : True
+    }
+}
+COLUMN_NAMES = ["epi", "cgm", "carbs", "ins", 't', "meta"]
+CSV_COLUMN_TYPES = {
+    "epi"       : "int32",
+    "cgm"       : "float32",
+    "carbs"     : "float32",
+    "ins"       : "float64",
+    "t"         : "string",
+    "meta"      : "string"
+}
+SUBJECTS_N = 502
+SUMMARY_HEADERS = ["name", "age", "bw", "tdi", "icr", "isf", "height", "sex", "system_name", "injections_type", "epi_n", "total_time", "ind", "subj_id"]
+SUMMARY_NAME = "patient_attrs.csv"
+SUMMARY_FILE_DEST = CLN_DATA_SAVE_DEST + '/' + SUMMARY_NAME
 
-def import_xpt_file(file_dest,file_name,show=False):
-    
-    with open(file_dest + '/' + file_name + '.xpt', 'rb') as f:
-        library = xport.v56.load(f)
-    df = library[file_name]
-    if show: print("Dataset parsed"); print(df)
+# General Helpers
 
-    return df
-
-def filter_for_subject(df, USUBJID):
-    new_df = df[df['USUBJID'] == str(USUBJID)]
-    return new_df.reset_index(drop=True)
-
-def import_for_subject(file_dest,file_name, USUBJID):
-    df = import_xpt_file(file_dest, file_name,False)
-    return filter_for_subject(df, USUBJID)
+def force_st_length(st, le):  return st + ' '*(max(0,le - len(st)))
 
 def read_time(epoch_num):
     return datetime.fromtimestamp(epoch_num, tz=timezone.utc)
@@ -62,31 +65,111 @@ def convert_string_to_mins(time_string):
     days,hours,mins = tuple([int(i) for i in time_string.split(':')])
     return days*60*24 + hours*60 + mins
 
-CGM_TOLERANCE = 140
-MLS_TOLERANCE = 140
-INS_TOLERANCE = 140
+def pretty_print_table(tab): #assumes rectangular
+    if len(tab) == 0: return
+    col_lengths = [max([len(str(tab[y][x])) for y in range(len(tab))]) for x in range(len(tab[0]))]
+    for tab_row in tab: print(''.join([force_st_length(str(i), col_lengths[x] + 3) for x,i in enumerate(tab_row)]))
 
-MINIMUM_EPI_LEN = 1000
+# XPT Importers
+def import_xpt_file(file_dest,file_name,show=False):
+    with open(file_dest + '/' + file_name + '.xpt', 'rb') as f:
+        library = xport.v56.load(f)
+    df = library[file_name]
+    if show: print("Dataset parsed"); print(df)
 
-BLANK_RESULT = {
-    "data" : np.array([]),
-    "meta" : {
-        "blank" : True
-    }
-}
+    return df
+
+def import_large_xpt_file(folder_dest, file_name, filter_func, chunk_size=10000, debug_show=False, declare=True):
+    if declare: print("Beginning import for",file_name)
+    file_dest = folder_dest + '/' + file_name + '.xpt'
+    xpt_chunks = pd.read_sas(file_dest, format='xport', chunksize=chunk_size)
+
+    total_df = pd.DataFrame()
+    
+    # Process each chunk
+    for i, chunk_df in enumerate(xpt_chunks):
+        filtered_chunk = chunk_df[chunk_df.apply(filter_func,axis=1)]
+        if debug_show and i%100 == 0: print(f"Processing chunk {i+1} with {len(chunk_df)} rows, retained {len(filtered_chunk)} rows after filter.")
+
+        total_df = pd.concat( (total_df, filtered_chunk) )
+        
+
+    if declare: print("Completed import for",file_name)
+    return total_df.reset_index(drop=True)
+
+def import_for_subject(file_dest,file_name, USUBJID):
+    with open(file_dest + '/' + file_name + '.xpt', 'rb') as f:
+        df = xport.v56.load(f)[file_name]
+        df = df[df['USUBJID'] == str(USUBJID)]
+    return df
+
+# Subject Data Handling
+def filter_for_subject(df, USUBJID):
+    new_df = df[df['USUBJID'] == str(USUBJID)]
+    return new_df.reset_index(drop=True)
+
+def seperate_df_epis(p_df):
+    return [ df[df["epi"] == epi].reset_index(drop=True) for epi in range(max(df["epi"])+1)]
+ 
+def find_windows(df_epi,window_size= ((24*60)//5) ):
+    le = len(df_epi)
+    current_index = 0 #FIXME decide if buffer from start is appropiate
+    days = []
+    while current_index < le-window_size:
+        next_index = current_index + window_size
+        days.append((current_index, next_index))
+        current_index = next_index
+    return days
+    
+def calculate_average_tdi(p_df):
+    #find 24 hour daily windows
+    day_len = (24 * 60) // 5 #5 minutes per index
+    
+    epi_dfs = seperate_df_epis(p_df)
+    tdi_estimates = []
+    for epi_df in epi_dfs:
+        windows = find_windows(epi_df, day_len)
+        for start_ind,end_ind in windows:
+            ins_values = list(epi_df["ins"].loc[start_ind:end_ind])
+            tdi_estimates.append(sum(ins_values))
+
+    if len(tdi_estimates) == 0:
+        return float('nan')
+    else:
+        mean, std = np.mean(tdi_estimates), np.std(tdi_estimates)
+        # print(f"TDI: {mean}±{std}")
+        return mean
+
+# Subject Data Imports and Exports   
+
+with open(SUMMARY_FILE_DEST,'r') as f:
+    lines = [line.split(',') for line in f.read().splitlines()]
+
+patient_attr_names = lines[0]
+patient_attr_dict = dict()
+for line in lines[1:]:
+    subj_name = line[0]
+    patient_attr_dict[subj_name] = dict()
+    for c,var in enumerate(patient_attr_names):
+        patient_attr_dict[subj_name][var] = line[c]
+
+def get_patient_attrs(subject): return patient_attr_dict[subject.lower()]
 
 def read_individual(subj_id,debug_show=True):
     # read relevant data
     subj_LB = filter_for_subject(LB, subj_id) #cgm data
     subj_LB_len = len(subj_LB)
     if subj_LB_len == 0: 
-        if debug_show: print("No subject glucose data found, returning blank data")
+        print("No subject glucose data found, returning blank data")
         return BLANK_RESULT
     subj_LB = subj_LB.drop(subj_LB_len-1)
     
     subj_FACM = filter_for_subject(FACM,subj_id) #insulin data
+    #subj_FACM = subj_FACM[subj_FACM['FASTRESN'].notna()].reset_index(drop=True)
+    subj_FACM = subj_FACM.sort_values(by="FADTC").reset_index()
     
     subj_ML = filter_for_subject(ML,subj_id) #meals data
+    subj_ML = subj_ML.sort_values(by="MLDTC").reset_index()
     subj_ML = subj_ML[subj_ML['MLCAT'] != "USUAL DAILY CONSUMPTION"].reset_index(drop=True) #remove usual daily consumption lines; not relevant here
     
     
@@ -96,10 +179,10 @@ def read_individual(subj_id,debug_show=True):
     if ["Pump"] == treatment_types: treatment_type = "Pump"
     elif ["Injections"] == treatment_types: treatment_type = "Injections"
     else: 
-        if debug_show: print("\tNo treatment type found, returning blank result")
+        print("\tNo treatment type found, returning blank result")
         return BLANK_RESULT #treatment_type = "Blank"
 
-    if debug_show: print("Treatment Type:",treatment_type)
+    if debug_show: print("\tTreatment Type:",treatment_type)
 
 
     # read time information
@@ -109,7 +192,7 @@ def read_individual(subj_id,debug_show=True):
 
     #check meal data is present
     if len(mls_time) < 5:
-        if debug_show: print("\tInsufficient meal data Found, returning blank result")
+        print("\tInsufficient meal data Found.")
         return BLANK_RESULT
     
     subj_start_time = cgm_time.loc[0]
@@ -125,24 +208,30 @@ def read_individual(subj_id,debug_show=True):
     ins_ind = 0
     mls_ind = 0
     while mls_time[mls_ind] < subj_start_time and mls_ind < len(mls_time): mls_ind += 1 #skip meals set before cgm data is recorded.
+    mls_skip = mls_ind
 
     if treatment_type == "Pump":
         current_insulin_rate = subj_FACM["FASTRESN"].loc[ins_ind]
         while ins_time[ins_ind] < subj_start_time: 
-            current_insulin_rate = subj_FACM["FASTRESN"].loc[ins_ind]
+            if subj_FACM["FATEST"].loc[ins_ind] == "BASAL FLOW RATE":
+                next_insulin_datapoint = subj_FACM["FASTRESN"].loc[ins_ind] 
+                current_insulin_rate = (next_insulin_datapoint if not (math.isnan(next_insulin_datapoint)) else 0.0)
             ins_ind += 1 #skip insulin readings set before cgm data is recorded.
     else: #Injections
         while ins_time[ins_ind] < subj_start_time: ins_ind += 1 #skip insulin readings set before cgm data is recorded.
         
     episodes = [] # [ [ (epi, cgm, meal, ins, t, meta), ... ] ]
     cur_episode_start_time = subj_start_time
+    cur_episode_time_obj = datetime.fromtimestamp(cur_episode_start_time, tz=timezone.utc)
+    if debug_show: print("\tFirst episode starting at",cur_episode_time_obj)
+    cur_episode_time_offset = cur_episode_time_obj.hour * (60*60) + cur_episode_time_obj.minute * 60 + cur_episode_time_obj.second
     rows = [] 
 
     while cur_time < subj_end_time:
         cur_cgm_time = cgm_time[cgm_ind]
         
         if cur_cgm_time - cur_time > CGM_TOLERANCE: #check if timeskip in cgm monitor
-            if debug_show: print("\tAfter episode of",cur_episode_len*5,"m, skip of", (cur_cgm_time - cur_time)/60,"m detected")
+            if debug_show: print("\tAfter episode of",cur_episode_len*5,"m, skip of", (cur_cgm_time - cur_time)/60,"m detected, new episode starting at",datetime.fromtimestamp(cur_cgm_time, tz=timezone.utc))
             episodes.append(rows)
             rows = []
             cur_episode_len = 0
@@ -150,14 +239,23 @@ def read_individual(subj_id,debug_show=True):
 
             cur_time = cur_cgm_time
             cur_episode_start_time = cur_time
+            cur_episode_time_obj = datetime.fromtimestamp(cur_time, tz=timezone.utc)
+            cur_episode_time_offset = cur_episode_time_obj.hour * (60*60) + cur_episode_time_obj.minute * 60 + cur_episode_time_obj.second
+            
             while mls_ind < len(mls_time) and mls_time[mls_ind] < cur_time - MLS_TOLERANCE: mls_ind += 1 #skip meals between episodes
             while ins_ind < len(ins_time) and ins_time[ins_ind] < cur_time - INS_TOLERANCE: ins_ind += 1 #skip insulin between episodes
 
         if treatment_type == "Pump":
+            ins_reading = 0
             while ins_ind < len(ins_time) and ins_time[ins_ind] < cur_time + INS_TOLERANCE: #find latest pump rate reading
-                current_insulin_rate += subj_FACM["FASTRESN"].loc[ins_ind]
+                next_insulin_datapoint = subj_FACM["FASTRESN"].loc[ins_ind]
+                next_insulin_datapoint = (next_insulin_datapoint if not (math.isnan(next_insulin_datapoint)) else 0.0) 
+                if subj_FACM["FATEST"].loc[ins_ind] == "BASAL FLOW RATE":
+                    current_insulin_rate = next_insulin_datapoint#FIXME account for proportions of active time instead
+                elif subj_FACM["FATEST"].loc[ins_ind] in ["BASAL INSULIN", "BOLUS INSULIN"]:
+                    ins_reading += next_insulin_datapoint
                 ins_ind += 1
-            ins_reading = current_insulin_rate
+            ins_reading += current_insulin_rate
         else:
             ins_reading = 0
             while ins_ind < len(ins_time) and ins_time[ins_ind] < cur_time + INS_TOLERANCE:
@@ -174,7 +272,7 @@ def read_individual(subj_id,debug_show=True):
             subj_LB["LBORRES"][cgm_ind],
             mls_total,
             ins_reading,
-            convert_mins_to_string(int(cur_time - cur_episode_start_time)),
+            convert_mins_to_string(int(cur_time - cur_episode_start_time + cur_episode_time_offset)// 60),
             "meta_TODO"
         ])
 
@@ -198,14 +296,20 @@ def read_individual(subj_id,debug_show=True):
             total_rows += epi_rows
             current_epi += 1
     
-    if debug_show: print("\tTotal rows after filtration are",len(total_rows)*5,"m, removed",(sum([len(epi_rows) for epi_rows in episodes]) - len(total_rows))*5, 'm' )
-        
     # convert trial data to numpy
     trial_data = np.array(total_rows)
 
-    # generate meta data
     
+    if debug_show: 
+        print("\tTotal rows after filtration are",len(total_rows)*5,"m, removed",(sum([len(epi_rows) for epi_rows in episodes]) - len(total_rows))*5, 'm' )
+        print(f"Meal index {mls_ind}/{len(mls_time)} reached. Started at index {mls_skip}.")
+        ml_col = trial_data[:,2]
+        ml_count = len(list(filter(lambda x : float(x) != 0.0, ml_col)))
+        print(f"{ml_count} meals found.")
+        
+        
 
+    # generate meta data
 
         
     meta_data = {
@@ -218,16 +322,6 @@ def read_individual(subj_id,debug_show=True):
         "data": trial_data,
         "meta": meta_data
     }
-    
-COLUMN_NAMES = ["epi", "cgm", "carbs", "ins", 't', "meta"]
-CSV_COLUMN_TYPES = {
-    "epi"       : "int32",
-    "cgm"       : "float32",
-    "carbs"     : "float32",
-    "ins"       : "float64",
-    "t"         : "int32",
-    "meta"      : "string"
-}
 
 def save_subj_file(subj_info, filepath, filename):
     meta_content = "subject_id_" + str(subj_info["meta"]["subject id"]) + "_" + str(subj_info["meta"]["treatment type"])
@@ -238,24 +332,38 @@ def save_subj_file(subj_info, filepath, filename):
         f.write(txt)
     return 1
 
-
-def read_subj_file(file_num):
-    file_name = "subj_ind_" + str(n) + ".pkl"
+def read_subj_file(file_num,show_warnings=True):
+    file_name = "subj_ind_" + str(file_num) + ".csv"
     file_dest = CLN_DATA_SAVE_DEST + '/' +  file_name
 
     df = pd.read_csv(file_dest, header="infer", dtype=CSV_COLUMN_TYPES)
-
-    data_array = df.to_numpy()
-    return data_array
-
-class DummyClass:
-    def __init__(self, df):
-        self.df = df
-        self.plot_version = 1
-    def get_test_episode(self,tester,epi):
-        print(self.df)
-        return self.df[self.df['episode'] == epi]
+    df = df.rename(columns={"t" : "full_time", "carbs" : "meal"})
     
+    if len(list(df["epi"])) == 0: 
+        if show_warnings: print(f"Importing empty data (subject ind {file_num})")
+        return pd.DataFrame()
+
+    t_col = []
+    current_t = 0
+    current_episode = df["epi"].loc[0]
+    for epi in list(df["epi"]):
+        if epi != current_episode:
+            current_t = 0
+            current_episode = epi
+            
+        t_col.append(current_t)
+        current_t += 1
+        
+    df["t"] = t_col
+    
+    df["day_hour"] = df["full_time"].apply(lambda t : int(t.split(':')[1]))
+    df["day_min"] = df["full_time"].apply(lambda t : int(t.split(':')[2]))
+
+    return df
+
+
+
+# Graphing
 def display_subj_epi_graph(file_num,epi=0):
     file_name = "subj_ind_" + str(file_num) + ".csv"
     file_dest = CLN_DATA_SAVE_DEST + '/' +  file_name
@@ -263,15 +371,29 @@ def display_subj_epi_graph(file_num,epi=0):
     df = pd.read_csv(file_dest, header="infer", dtype=CSV_COLUMN_TYPES)
 
     df = df.rename(columns={"epi" : "episode", "carbs" : "meal"})
-    # if not epi in df["episode"]: raise IndexError(f"Episode {epi} does not exist.")
-    # df = df[df['episode'] == epi]
+    if not epi in df["episode"]: raise IndexError(f"Episode {epi} does not exist.")
+    # df = df[df['episode'] == epi].reset_index()
 
     base_t = datetime(2020, 1, 1, 0, 0)
 
     df["time"] = df["t"].apply(lambda t : base_t + timedelta(minutes=convert_string_to_mins(t)))
     df["day_hour"] = df["t"].apply(lambda t : int(t.split(':')[1]))
     df["day_min"] = df["t"].apply(lambda t : int(t.split(':')[2]))
-    df["t"] = df["t"].apply(lambda t : convert_string_to_mins(t) // 5)
+    
+    # df["t"] = df["t"].apply(lambda t : convert_string_to_mins(t) // 5)
+    
+    new_t_col = []
+    current_t = 0
+    current_episode = df["episode"].loc[0]
+    for epi in list(df["episode"]):
+        if epi != current_episode:
+            current_t = 0
+            current_episode = epi
+            
+        new_t_col.append(current_t)
+        current_t += 1
+        
+    df["t"] = new_t_col
 
     for col_name in ["rew","rl_ins","mu","sigma","prob","state_val"]: df[col_name] = 0.0
 
@@ -279,40 +401,156 @@ def display_subj_epi_graph(file_num,epi=0):
     dummy = DummyClass(df)
     plot_episode(dummy, tester, episode=epi)
 
+def display_all_subj_epi_graph(file_num,cap=3):
+    file_name = "subj_ind_" + str(file_num) + ".csv"
+    file_dest = CLN_DATA_SAVE_DEST + '/' +  file_name
 
+    df = pd.read_csv(file_dest, header="infer", dtype=CSV_COLUMN_TYPES)
 
+    max_epi = max(df["epi"])
+    del df
+    for t_epi in range(min(max_epi,cap-1)+1):
+        display_subj_epi_graph(file_num, t_epi)
 
-if __name__ == "__main__":
-
+# Classes
+class DummyClass:
+    def __init__(self, df):
+        self.df = df
+        self.plot_version = 1
+    def get_test_episode(self,tester,epi):
+        return self.df[self.df['episode'] == epi]
     
-    LB = import_xpt_file(CLN_DATA_DEST,'LB') # glucose levels
-    ML = import_xpt_file(CLN_DATA_DEST,'ML') # meal data
-    FACM = import_xpt_file(CLN_DATA_DEST,'FACM') # insulin data
 
+# Main 
+if __name__ == "__main__":
+    option = input("Select:\n| convert | summarise | display |\n: ").lower()
+    if option == "convert":
 
-    subject_ids = list(set(LB['USUBJID']))
-    subject_ids = sorted([int(i) for i in subject_ids])
-    subject_len = len(subject_ids)
-    print(subject_len," subjects found.")
-
-    print("Reading from",CLN_DATA_DEST)
-    print("Writing to",CLN_DATA_SAVE_DEST)
-
-    for n in range(subject_len):
-        subject_id = subject_ids[n]
+        print("Converting Subject Data to .csv format.")
         
-        subject_data = read_individual(subject_id, False)
+        LB = import_xpt_file(CLN_DATA_DEST,'LB') # glucose levels
+        ML = import_xpt_file(CLN_DATA_DEST,'ML') # meal data
+        FACM = import_xpt_file(CLN_DATA_DEST,'FACM') # insulin data
 
-        if not subject_data["meta"]["blank"]:
+        subject_ids = list(set(LB['USUBJID']))
+        subject_ids = sorted([int(i) for i in subject_ids])
+        subject_len = len(subject_ids)
+        print(subject_len," subjects found.")
 
+        print("Reading from",CLN_DATA_DEST)
+        print("Writing to",CLN_DATA_SAVE_DEST)
+        
+        for n in range(subject_len):
+            #break
+            subject_id = subject_ids[n]
+            
+            subject_data = read_individual(subject_id, False)
             file_name = "subj_ind_" + str(n) + ".csv"
 
-            save_subj_file(subject_data, CLN_DATA_SAVE_DEST, file_name)
+            if not subject_data["meta"]["blank"]:
 
-            print(f"Subject {subject_id} ({n}/{subject_len-1}) info saved")
-        else:
-            print(f"Subject {subject_id} ({n}/{subject_len-1}) info skipped")
+                save_subj_file(subject_data, CLN_DATA_SAVE_DEST, file_name)
 
+                print(f"Subject {subject_id} ({n}/{subject_len-1}) info saved to {file_name}")
+            else:
+                print(f"Subject {subject_id} ({n}/{subject_len-1}) info skipped, saving blank file")
+
+                with open(CLN_DATA_SAVE_DEST + '/' + file_name, 'w') as f:
+                    f.write(','.join(COLUMN_NAMES))
     
+    elif option == "display":
+        from random import randrange
 
+        print("Generating graphic for random patient.")
+
+        ind_n = randrange(0, SUBJECTS_N)
+        display_all_subj_epi_graph(ind_n,cap=3)
+
+    elif option == "summarise":
+
+        print("Creating data summary table.")
+        DM = import_xpt_file(CLN_DATA_DEST,'DM') #demographics
+        FACM = import_xpt_file(CLN_DATA_DEST,'FACM') #insulin
+        CM = import_xpt_file(CLN_DATA_DEST,'CM') #insulin device type
+        DI = import_xpt_file(CLN_DATA_DEST,'DI') #device type mapping
+        DX = import_xpt_file(CLN_DATA_DEST,'DX') #non standard device names
+
+        VS_filt = import_large_xpt_file(CLN_DATA_DEST, 'VS', lambda row : row["VSTESTCD"] in [b"HEIGHT",b"WEIGHT"], debug_show=False, declare=True) #vital signs. takes ~400 seconds to run, or ~7 minutes. 11336 iterations. ~ 113356252 total rows
+        VS_filt["USUBJID"] = VS_filt["USUBJID"].astype(str)
+
+        rows = [ SUMMARY_HEADERS ]
+
+        subj_ids = sorted(list(set(CM["USUBJID"].astype(int))))
+
+        # print('\t'.join([force_st_length(str(i), 20) for i in rows[-1]]))
+        # for ind_n in range(0,12):
+        for ind_n in range(SUBJECTS_N):
+            df = read_subj_file(ind_n)
+
+            subj_id = subj_ids[ind_n]
+            if len(df) != 0:
+                subj_meta = df["meta"].loc[0]
+                subj_id_alt = int(subj_meta.split('_')[2])
+                assert subj_id_alt == int(subj_id) #FIXME remove later
+
+                
+                tdi = calculate_average_tdi(ind_n)
+                isf = round(100 / tdi,2) #FIXME dont use 100 rule
+                """
+                www.diabetesqualified.com.au/insulin-sensitivity-factor-explained
+                maybe use a combination of IOB, and meal gaps to measure the isf.
+                """
+                icr = round(500 / tdi,2) #FIXME don't use 500 rule
+                """
+                Consider taking a suitable time in simulation where a single large meal is taken, and observe rise in insulin. Have to account for isf first to use it as a correction factor.
+                """
+                tdi = round(tdi,2)
+                
+                injections_type_list = list(set(subj_FACM["INSDVSRC"]))
+                if '' in injections_type_list: injections_type_list.remove('')
+                injections_type = ';'.join(injections_type_list)  if len(injections_type_list) > 0 else "NA"
+
+                df_epis = seperate_df_epis(df)
+                epi_n = len(df_epis)
+            
+                total_time = len(df)*5 #5 minutes per index
+            else:
+                tdi = isf = icr = float('nan')
+                injections_type = 'NA'
+                epi_n = total_time = 0
+                
+                
+            
+            subj_DM = filter_for_subject(DM,subj_id).loc[0]
+            subj_VS = filter_for_subject(VS_filt,subj_id)
+            subj_FACM = filter_for_subject(FACM,subj_id)
+            subj_CM = filter_for_subject(CM,subj_id)
+            subj_DX = filter_for_subject(DX,subj_id)
+            
+            name = f"CLINICAL_SUBJ_IND_{ind_n}_{subj_id}"
+            age = float(subj_DM['AGE'])
+
+            if any(subj_VS["VSTESTCD"] == b"WEIGHT"): bw = round(np.mean(list(subj_VS[subj_VS["VSTESTCD"] == b"WEIGHT"]["VSSTRESN"])) * 0.45359237,2) # converting bw from LB to kg
+            else: weight = float('nan')
+            
+            if any(subj_VS["VSTESTCD"] == b"HEIGHT"): height = round(np.mean(list(subj_VS[subj_VS["VSTESTCD"] == b"HEIGHT"]["VSSTRESN"])) * 2.54,2) # converting height from in to cm
+            else: height = float('nan')
+                                                                                            
+            sex = subj_DM["SEX"]
+
+            system_names_list = list(subj_DX["DXTRT"])
+            for excl_name in ["INSULIN PUMP", "MULTIPLE DAILY INJECTIONS", "CLOSED LOOP INSULIN PUMP"]:
+                if excl_name in system_names_list: system_names_list.remove(excl_name)
+            system_name = ';'.join(system_names_list) if len(system_names_list) > 0 else "NA"
+
+            rows.append( (name, age, bw, tdi, icr, isf, height, sex, system_name, injections_type, epi_n, total_time, ind_n, subj_id) )
+            # print('\t'.join([force_st_length(str(i), 20) for i in rows[-1]]))
+
+        pretty_print_table(rows)
+
+        txt = '\n'.join([','.join([str(i) for i in row]) for row in rows])
+        with open(SUMMARY_FILE_DEST, 'w') as f:
+            f.write(txt)
+        print(f"Summary file saved to {SUMMARY_FILE_DEST}.")
     
+    else: raise ValueError("Invalid input.")
