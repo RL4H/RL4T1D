@@ -15,6 +15,7 @@ lambda_: 0.95
 normalize_reward: True  # reward received is normalised
 shuffle_rollout: True  # rollout trajectory data is shuffled
 replay_buffer_size: 1024
+preserve_trajectories : False
 
 # ppo parameters
 entropy_coef: 0.001
@@ -26,7 +27,7 @@ target_kl: 0.01
 n_step: 8192
 max_epi_length: 2880
 n_training_workers: 16
-total_interactions: 6400000  # total number of interactions the agent will train for #800000
+total_interactions: 6400000 # total number of interactions the agent will train for #800000
 n_interactions_lr_decay: 4000000
 
 # training parameters
@@ -47,8 +48,12 @@ n_val_trials: 50 #500
 #data source
 data_type: "simulated" #simulated | clinical
 data_protocols: ["evaluation","training"] #None defaults to all
-data_algorithms : [] #None defaults to all #"G2P2C","AUXML","BBI","PPO","TD3"
+data_algorithms : ["G2P2C","AUXML", "PPO","TD3"] #None defaults to all
 use_all_interactions : false
+
+cirriculum_horizon : 3840000
+post_horizon_data_protocols: ["evaluation"]
+post_horizon_data_algorithms: ["G2P2C"]
 
 n_handcrafted_features: -10 #FIXME
 n_features: 32
@@ -65,6 +70,6 @@ soft_tau: 0.005
 alpha : 0.25
 beta : 1
 
-vf_lambda : 1e-4
-pi_lambda : 1e-3
+vf_lambda : 0
+pi_lambda : 0
 

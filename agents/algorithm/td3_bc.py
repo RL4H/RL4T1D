@@ -56,6 +56,7 @@ class TD3_BC(Agent):
 
         self.soft_tau = args.soft_tau
         self.shuffle_rollout = args.shuffle_rollout
+        self.preserve_trajectories = args.preserve_trajectories
         self.value_lr = args.vf_lr
         self.policy_lr = args.pi_lr
         self.grad_clip = args.grad_clip

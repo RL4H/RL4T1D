@@ -733,7 +733,7 @@ class DataQueue:
                 while remaining_length > 0 and self.current_subject_trial_ind < handled_len:
                     # print("\tMapping step",self.current_subject_trial_ind, handled_len)
                     trial_mapping = self.mapping(handled_data.flat_trials[self.current_subject_trial_ind], self.importer.args, self.importer.env_args)
-                    if SHUFFLE_QUEUE_IMPORTS:
+                    if SHUFFLE_QUEUE_IMPORTS and not self.importer.args.preserve_trajectories:
                         random.shuffle(trial_mapping)
                     mapping_len = len(trial_mapping)
 

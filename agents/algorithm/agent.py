@@ -12,6 +12,7 @@ import pandas as pd
 from omegaconf import OmegaConf, open_dict
 from utils.sim_data import patient_id_to_label
 
+from copy import deepcopy
 
 DEBUG_SHOW = True #FIXME remove
 class Agent:
@@ -62,6 +63,15 @@ class Agent:
                 importer.create_queue(minimum_length=args.mini_batch_size*100, maximum_length=args.mini_batch_size*1001)
                 importer.queue.start()
 
+                self.importer = importer
+                self.alt_importer_active = False
+                if self.args.data_protocols != self.args.post_horizon_data_protocols or self.args.data_algorithms != self.args.post_horizon_data_algorithms:
+                    alt_args = deepcopy(args)
+                    alt_args.data_protocols = self.args.post_horizon_data_protocols
+                    alt_args.data_algorithms = self.args.post_horizon_data_algorithms
+                    assert self.args.data_protocols != self.args.post_horizon_data_protocols or self.args.data_algorithms != self.args.post_horizon_data_algorithms
+                    self.alt_importer = DataImporter(args=alt_args,env_args=env_args)
+
                 if args.use_all_interactions: #override total_interactions, use 98% of total transitions to avoid spilling over
                     print("overriding total interactions from",args.total_interactions,"to",importer.queue.total_transitions)
                     self.args.total_interactions = int(importer.queue.total_transitions*0.98)
@@ -102,6 +112,15 @@ class Agent:
         # learning
         rollout, completed_interactions, logs = 0, 0, {}
         while completed_interactions < self.args.total_interactions:  # steps * n_workers * epochs.
+            if self.args.data_type == "Offline" and completed_interactions >= self.args.cirriculum_horizon and (not self.alt_importer_active): #switch importer settings if needed
+                print("Importer switch to alternate settings.")
+                importer = self.importer = self.alt_importer
+                importer.create_queue(minimum_length=self.args.mini_batch_size*100, maximum_length=self.args.mini_batch_size*1001)
+                importer.queue.start()
+
+                for agent in self.training_agents: agent.importer_queue = importer.queue
+
+
             tstart = time.perf_counter()
             for i in range(self.args.n_training_workers):  # run training workers to collect data
 

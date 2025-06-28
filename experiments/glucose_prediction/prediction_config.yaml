@@ -1,0 +1,21 @@
+# data source params
+data_type: "simulated" #simulated | clinical
+data_protocols: ["evaluation","training"] #None defaults to all
+data_algorithms : ["G2P2C","AUXML", "PPO","TD3"] #None defaults to all
+
+patient_id: 0
+
+obs_window: 288
+t_future: 48
+
+# available features=> 'cgm', 'insulin', 'time_to_meal', 'future_carb', 'meal_type', 'day_hour', 'day_min'
+obs_features:
+  - 'cgm'
+  - 'insulin'
+  - 'day_hour'
+
+
+# algorithm params
+nhead: 4
+num_decoder_layers: 1
+dropout: 0.1
