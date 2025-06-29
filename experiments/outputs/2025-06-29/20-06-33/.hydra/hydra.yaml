@@ -134,13 +134,13 @@ hydra:
     - path: hydra.conf
       schema: pkg
       provider: hydra
-    - path: C:\Users\Crago\Desktop\Uni\Y4S1\hons\Coding\RL4T1D/experiments/glucose_prediction
+    - path: C:\Users\Crago\Desktop\Uni\Y4S1\hons\Coding\RL4T1D/experiments/glucose_prediction/config/
       schema: file
       provider: main
     - path: ''
       schema: structured
       provider: schema
-    output_dir: C:\Users\Crago\Desktop\Uni\Y4S1\hons\Coding\RL4T1D\experiments\outputs\2025-06-28\11-13-56
+    output_dir: C:\Users\Crago\Desktop\Uni\Y4S1\hons\Coding\RL4T1D\experiments\outputs\2025-06-29\20-06-33
     choices:
       hydra/env: default
       hydra/callbacks: null

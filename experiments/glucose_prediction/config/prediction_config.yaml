@@ -56,5 +56,5 @@ eval_log_features:
   - 'loss'
 eval_log_name: "eval_logs" #goes from general save path
 
-hydra/job_logging: none
-hydra/hydra_logging: none
+# hydra/hydra_logging: none
+# hydra/job_logging: none

@@ -80,7 +80,7 @@ def pop_subset_batch(subset,n):
 
 
 
-@hydra.main(version_base=None, config_path=MAIN_PATH + "/experiments/glucose_prediction", config_name="prediction_config.yaml")
+@hydra.main(version_base=None, config_path=MAIN_PATH + "/experiments/glucose_prediction/config/", config_name="prediction_config.yaml")
 def main(args: DictConfig):
     device = args.device
     assert args.input_window + args.t_future == args.obs_window
