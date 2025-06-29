@@ -11,11 +11,17 @@ import gc
 from random import randrange
 from decouple import config
 from collections import namedtuple, deque
-from environment.reward_func import composite_reward
-from utils.core import linear_scaling, calculate_features, pump_to_rl_action
+
+import torch
+from torch.utils.data import Dataset
+from torchvision import datasets
+from torchvision.transforms import ToTensor
+
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
+from environment.reward_func import composite_reward
+from utils.core import linear_scaling, calculate_features, pump_to_rl_action
 Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'done'))
 
 
@@ -367,7 +373,20 @@ def patient_id_to_label(patient_id):
     if patient_id < 0 or patient_id >= 30: raise ValueError("Invalid patient id")
     return ["adolescent","adult","child"][patient_id//10] + str(patient_id % 10)
 
+def convert_trial_into_windows(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward(None, cgm))):
+    window_size = args.obs_window
 
+    rows, _ = data_obj.shape
+
+    states = np.array([calculate_features(data_row, args, env_args) for data_row in data_obj])
+
+    # actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
+
+    window_states = []
+    for row_n in range(window_size, rows-1):
+        window_states.append(np.array(states[row_n-window_size: row_n]))
+
+    return window_states #FIXME check if this should be transposed
 
 def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward(None, cgm))):
     #data_obj is a 2D numpy array , rows x columns. Columns are :  cgm, meal, ins, t, meta_data
@@ -420,24 +439,20 @@ class DataImporter:
             self.subjects, self.agents, self.protocols = subjects, agents, protocols
 
         self.cohorts = list(set([subj[:-1] for subj in self.subjects]))
-
-
-
+        if len(self.subjects) == 1: self.subject = self.subjects[0]
+        else: self.subject = None
 
         self.env_args = env_args
         self.verbose = verbose
         self.source_folder = data_folder + "/object_save/"
         self.current_data = None
         self.current_index = 0
-        self.current_subject = self.subjects[0]
-        
+        self.current_subject = self.subjects[0]       
     def start(self):
         self.current_index = -1
-
     def __iter__(self):
         self.start()
         return self
-
     def __next__(self):
         self.current_index += 1
         if self.current_index < len(self.subjects):
@@ -447,14 +462,12 @@ class DataImporter:
         else:
             self.current_subject = None
             self.delete_current()
-            raise StopIteration
-    
+            raise StopIteration  
     def delete_current(self):
         if self.current_data != None:
             self.current_data.delete()
             self.current_data = None
             gc.collect()
-
     def import_subject(self, subject):
         #import file
         file_dest = self.source_folder + PICKLE_FILE_NAME_START + subject + PICKLE_FILE_NAME_END + ".pkl"
@@ -485,8 +498,7 @@ class DataImporter:
 
         handled_data = DataHandler(raw_data)
         raw_data = None
-        return handled_data
-    
+        return handled_data  
     def import_current(self):
         if self.verbose: print("\tDeleting previous data.")
         self.delete_current()
@@ -494,10 +506,8 @@ class DataImporter:
 
         handled_data = self.import_current(self.current_subject)
         self.current_data = handled_data
-
     def check_finished(self):
         return self.current_subject == None
-
     def get_trials(self, subjects_override = None, cohorts_override=None, agents_override= None, protocols_override=None):
         subjects = self.subjects if subjects_override == None else subjects_override
         cohorts = self.cohorts if cohorts_override == None else cohorts_override
@@ -505,20 +515,19 @@ class DataImporter:
         protocols = self.protocols if protocols_override == None else protocols_override
 
         #TODO: add a layer to filter out subjects if cohorts, agents, or protocols limit them, since reading the files is the main bottleneck.
-
         trial_data = dict()
-        for subject in subjects:
+        for subject in list(subjects):
             file_dest = self.source_folder + PICKLE_FILE_NAME_START + self.subject + PICKLE_FILE_NAME_END + ".pkl"
             
             current_data = import_from_obj(file_dest) #import data from pickle object
 
             if self.verbose: print("\tStripping Irrelevant Sections")
 
-            for protocol in current_data[subject]:
+            for protocol in list(current_data[subject]):
                 if not (protocol in protocols):
                     del current_data[subject][protocol]
                 else:
-                    for agent in current_data[subject][protocol]:
+                    for agent in list(current_data[subject][protocol]):
                         if not (agent in agents):
                             del current_data[subject][protocol][agent]
             if self.verbose: print("\tFinished stripping sections.")
@@ -527,13 +536,14 @@ class DataImporter:
             del current_data
 
         return DataHandler(trial_data)
-
     def get_current_subject_attrs(self):
         return get_patient_attrs(self.current_subject)
-    
     def create_queue(self, minimum_length=100, maximum_length=2000, mapping=convert_trial_into_transitions):
         self.queue = DataQueue(self, minimum_length, maximum_length, mapping)
         return self.queue
+    def create_torch_dataset(self, mapping=convert_trial_into_transitions): #holds full object in memory
+        self.torch_dataset = SimTorchDataset(self, False, False, mapping)
+        return self.torch_dataset
 
 class DataHandler:
     """
@@ -757,9 +767,54 @@ class DataQueue:
         return [self.pop() for _ in range(n)]
 
 
+MAPPING_FUNCS = [
+    convert_trial_into_transitions,
+    convert_trial_into_windows
+]
 
+class SimTorchDataset(Dataset):
+    def __init__(self, p_importer, lazy_load=False, index_by_trial=False, mapping = convert_trial_into_transitions):
+        self.importer, self.lazy_load, self.index_by_trial, self.mapping = p_importer, lazy_load, index_by_trial, mapping
+        
+        if self.lazy_load: raise NotImplementedError
+        else: self.load_full()
 
+        self.unique_dataset_name = '_'.join([str(i) for i in [
+            lazy_load, 
+            index_by_trial, 
+            MAPPING_FUNCS.index(mapping), 
+            self.importer.env_args.patient_id, 
+            ';'.join(list(self.importer.env_args.obs_features)),
+            self.importer.env_args.obs_window,
+            self.importer.args.data_type,
+            ';'.join(list(self.importer.args.data_protocols)),
+            ';'.join(list(self.importer.args.data_algorithms))
+        ]]) 
+    def load_full(self):
+        all_trials = self.importer.get_trials()
+        all_trials.flatten()
 
+        self.data = []
+        print(f"Converting dataset from {len(all_trials.flat_trials)}.")
+        for trial in all_trials.flat_trials:
+            trial_mapping = self.mapping(trial, self.importer.args, self.importer.env_args)
+            if self.index_by_trial: self.data.append(trial_mapping)
+            else: 
+                for window in trial_mapping:
+                    self.data.append(window)
+        self.length = len(self.data)
+        print(f"Dataset converted into length {self.length}.")
+
+    def __len__(self):
+        return self.length
+    def __getitem__(self, ind):
+        if self.lazy_load: raise NotImplementedError
+        else: return self.data[ind]
+    def pop(self):
+        item = next(iter(self))
+        return item
+    def pop_batch(self,n):
+        return [self.pop() for _ in range(n)]
 
 if __name__ == "__main__":
     main_function = input("| pickle | convert | import |\nChoose: \n").lower()

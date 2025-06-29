@@ -1,12 +1,22 @@
+run_name: "test_1"
+save_path: "/experiments/glucose_prediction/saves/"
+split_seed: 0
+device: 'cuda:0'
 # data source params
+policy_type: "offline" #offline | online
+
 data_type: "simulated" #simulated | clinical
-data_protocols: ["evaluation","training"] #None defaults to all
-data_algorithms : ["G2P2C","AUXML", "PPO","TD3"] #None defaults to all
+data_protocols: ["evaluation"] #None defaults to all
+data_algorithms: ["G2P2C"] #None defaults to all
 
 patient_id: 0
 
-obs_window: 288
+
+input_window : 120 #288 #FIXME check on this
 t_future: 48
+obs_window: 168 
+
+#NOTE: ensure input_window + t_future = obs_window
 
 # available features=> 'cgm', 'insulin', 'time_to_meal', 'future_carb', 'meal_type', 'day_hour', 'day_min'
 obs_features:
@@ -14,8 +24,37 @@ obs_features:
   - 'insulin'
   - 'day_hour'
 
+sensor: 'GuardianRT'
+glucose_max: 600  # Note the selected sensors range would affect this
+glucose_min: 39
+
+pump: 'Insulet'
+insulin_max: 5 # 5 Units, max dose given / step
+insulin_min: 0
+
+
+control_space_type: 'exponential'
 
 # algorithm params
-nhead: 4
+nhead: 3
 num_decoder_layers: 1
 dropout: 0.1
+
+batch_size: 4096
+total_interactions: 1000000
+
+lr: 1e-3
+weight_decay: 0
+
+#logs
+train_log_features:
+  - 'loss'
+  - 'policy_grad'
+train_log_name: "training_logs" #goes from general save path
+
+eval_log_features:
+  - 'loss'
+eval_log_name: "eval_logs" #goes from general save path
+
+hydra/job_logging: none
+hydra/hydra_logging: none
