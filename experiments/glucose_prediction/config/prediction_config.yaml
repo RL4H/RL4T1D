@@ -1,4 +1,4 @@
-run_name: "test_5_patient_4_with_training_data"
+run_name: "test_5_patient_5_independant"
 save_path: "/experiments/glucose_prediction/saves/"
 split_seed: 0
 device: 'cuda:0'

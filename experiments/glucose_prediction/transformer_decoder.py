@@ -123,7 +123,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         batched_y_pred = self.forward(ctx.unsqueeze(0),  tgt_future.unsqueeze(0), lambda i : generate_features_func(i.unsqueeze(0)))
         return batched_y_pred[0, :, :]
 
-    def update(self, ctx, tgt_future):
+    def update(self, ctx, tgt_future, y_map=None, loss_map=None):
         """Performs a single training cycle of the model, returning log info
         Args:
             ctx: (B, Tc, D) feature stream
@@ -133,17 +133,23 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
 
         y_pred = self.forward(ctx, tgt_future, None).squeeze(-1) #(B, Tf)
         y_actual = tgt_future[:, :, 0] #(B, Tf)
-        loss = 100 * torch.sqrt(torch.mean((y_pred-y_actual)**2))
+        if y_map != None:
+            y_pred.apply_(y_map)
+            y_actual.apply_(y_map)
+        loss = torch.sqrt(torch.mean((y_pred-y_actual)**2))
+
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
+
         logs["loss"] = loss.detach().cpu().numpy()
+        if loss_map != None: logs["loss"] = loss_map(logs["loss"])
         
         return logs
     
-    def eval_update(self, ctx, tgt_future):
+    def eval_update(self, ctx, tgt_future, y_map=None, loss_map=None):
         """Performs a single training cycle of the model, returning log info
         Args:
             ctx: (B, Tc, D) feature stream
@@ -154,9 +160,15 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         with torch.no_grad():
             y_pred = self.forward(ctx, tgt_future, None).squeeze(-1) #(B, Tf)
             y_actual = tgt_future[:, :, 0] #(B, Tf)
-            loss = 100 * torch.sqrt(torch.mean((y_pred-y_actual)**2))
+
+            if y_map != None:
+                y_pred = y_map(y_pred)
+                y_actual = y_map(y_actual)
+            loss = torch.sqrt(torch.mean((y_pred-y_actual)**2))
+
 
         logs["loss"] = loss.detach().cpu().numpy()
+        if loss_map != None: logs["loss"] = loss_map(logs["loss"])
         
         return logs
 

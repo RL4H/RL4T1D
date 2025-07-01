@@ -541,8 +541,8 @@ class DataImporter:
     def create_queue(self, minimum_length=100, maximum_length=2000, mapping=convert_trial_into_transitions):
         self.queue = DataQueue(self, minimum_length, maximum_length, mapping)
         return self.queue
-    def create_torch_dataset(self, mapping=convert_trial_into_transitions): #holds full object in memory
-        self.torch_dataset = SimTorchDataset(self, False, False, mapping)
+    def create_torch_dataset(self, mapping=convert_trial_into_transitions, index_by_trial=False): #holds full object in memory
+        self.torch_dataset = SimTorchDataset(self, False, index_by_trial, mapping)
         return self.torch_dataset
 
 class DataHandler:
@@ -798,7 +798,8 @@ class SimTorchDataset(Dataset):
         print(f"Converting dataset from {len(all_trials.flat_trials)}.")
         for trial in all_trials.flat_trials:
             trial_mapping = self.mapping(trial, self.importer.args, self.importer.env_args)
-            if self.index_by_trial: self.data.append(trial_mapping)
+            if self.index_by_trial and len(trial_mapping) != 0: 
+                self.data.append(trial_mapping)
             else: 
                 for window in trial_mapping:
                     self.data.append(window)
