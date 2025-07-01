@@ -3,13 +3,14 @@ import pandas as pd
 import os
 import sys
 from decouple import config
-import torch
 from torch.utils.data import random_split
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from datetime import datetime, timedelta
 import json
 import matplotlib.pyplot as plt
+import torch
+from torch.utils.data import Dataset, DataLoader
 
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
@@ -83,6 +84,7 @@ def pop_subset_batch(subset,n):
 @hydra.main(version_base=None, config_path=MAIN_PATH + "/experiments/glucose_prediction/config/", config_name="prediction_config.yaml")
 def main(args: DictConfig):
     device = args.device
+    batch_size = args.batch_size
     assert args.input_window + args.t_future == args.obs_window
 
     if args.policy_type == "offline":
@@ -97,7 +99,13 @@ def main(args: DictConfig):
             raise NotImplementedError
         
         dataset_len = len(dataset)
-        train_set, eval_set = tuple(random_split(dataset, [int(dataset_len*0.9), int(dataset_len*0.1)], generator=torch.Generator().manual_seed(args.split_seed)))
+
+        vld_len = batch_size * 4
+        eval_len = batch_size * 12
+        train_len = dataset_len - vld_len - eval_len
+
+        train_set, vld_set, eval_set = tuple(random_split(dataset, [train_len, vld_len, eval_len], generator=torch.Generator().manual_seed(args.split_seed)))
+        vld_loader = DataLoader(vld_set, batch_size=batch_size, shuffle=False)
     elif args.policy_type == "online":
         raise NotImplementedError("Online data collection not yet implemented.")
     else:
@@ -116,9 +124,8 @@ def main(args: DictConfig):
         json.dump(OmegaConf.to_container(args, resolve=True), fp, indent=4)
         fp.close()
 
-
     trn_logs = SimpleLogger(args, args.train_log_name, args.train_log_features)
-    batch_size = args.batch_size
+    vld_logs = SimpleLogger(args, args.vld_log_name, args.vld_log_features)
 
     logging_interval = 0.5 #show every 0.5 %
     next_interval = logging_interval
@@ -130,6 +137,7 @@ def main(args: DictConfig):
     # Training
     print("Beginning Training.")
     interactions = 0
+    iteration = 0
     while interactions < args.total_interactions:
         data = torch.as_tensor(np.array(pop_subset_batch(train_set, batch_size)), dtype=torch.float32, device=device) #(B, T, D)
         
@@ -152,8 +160,30 @@ def main(args: DictConfig):
             print(f"================= Training {percent_complete:.2f}% complete, interval took {pretty_seconds(dur)}. Expected time remaining for training is {pretty_seconds(time_remaining)}. Loss={new_log["loss"]:.2f}")
             next_interval += logging_interval
 
+        if iteration % args.vld_freq == 0:
+            print("\t\t==== Performing Validation")
+            loss_list = []
+            vld_iter = iter(vld_loader) #reset iterations
+
+            for _, batch in enumerate(vld_iter):
+    
+                data = torch.as_tensor(np.array(batch), dtype=torch.float32, device=device) #(B, T, D)
+
+                data_ctx = data[:, :decoder.Tc, :]
+                data_fut = data[:, decoder.Tc:, :]
+        
+                new_log = decoder.eval_update(data_ctx, data_fut)
+                loss_list.append(new_log['loss'])
+            
+            mean_loss = np.mean(loss_list)
+            vld_logs.add( {'loss' : mean_loss})
+
+            print(f"\t\t==== Validation Complete: Loss of {mean_loss:.2f}")
+        iteration += 1
+
     print("Training complete.")
     trn_logs.save_logs()
+    vld_logs.save_logs()
 
     torch.save(decoder, MAIN_PATH + args.save_path + args.run_name + '/policy.pth')
 
@@ -164,6 +194,7 @@ def main(args: DictConfig):
     overall_start_time = datetime.now()
     interval_start_time = overall_start_time
     durations = [] #durations in seconds
+    interactions = 0
 
     print("Beginning evaluation.")
     while interactions < len(eval_set):
@@ -173,7 +204,7 @@ def main(args: DictConfig):
         data_ctx = data[:, :decoder.Tc, :]
         data_fut = data[:, decoder.Tc:, :]
         
-        new_log = decoder.update(data_ctx, data_fut)
+        new_log = decoder.eval_update(data_ctx, data_fut)
         evl_logs.add(new_log)
 
         interactions += batch_size
@@ -193,6 +224,7 @@ def main(args: DictConfig):
     print("Logs saved to",evl_logs.save_dest)
 
     trn_logs.graph(key="loss",ignore_empty=True)
+    vld_logs.graph(key="loss",ignore_empty=True)
     evl_logs.graph(key="loss",ignore_empty=True)
 
 if __name__ == '__main__':

@@ -156,7 +156,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
             y_actual = tgt_future[:, :, 0] #(B, Tf)
             loss = 100 * torch.sqrt(torch.mean((y_pred-y_actual)**2))
 
-        logs["training_loss"] = loss
+        logs["loss"] = loss.detach().cpu().numpy()
         
         return logs
 
