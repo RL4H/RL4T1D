@@ -112,7 +112,7 @@ class Agent:
         # learning
         rollout, completed_interactions, logs = 0, 0, {}
         while completed_interactions < self.args.total_interactions:  # steps * n_workers * epochs.
-            if self.agent_type == "Offline" and completed_interactions >= self.args.cirriculum_horizon and (not self.alt_importer_active): #switch importer settings if needed
+            if self.agent_type == "Offline" and self.args.use_cirriculum and completed_interactions >= self.args.cirriculum_horizon and (not self.alt_importer_active): #switch importer settings if needed
                 print("Importer switch to alternate settings.")
                 importer = self.importer = self.alt_importer
                 importer.create_queue(minimum_length=self.args.mini_batch_size*100, maximum_length=self.args.mini_batch_size*1001)

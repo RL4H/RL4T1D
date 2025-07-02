@@ -51,9 +51,10 @@ data_protocols: ["evaluation","training"] #None defaults to all
 data_algorithms : ["G2P2C","AUXML", "PPO","TD3"] #None defaults to all
 use_all_interactions : false
 
-cirriculum_horizon : 3840000
+use_cirriculum : false
+cirriculum_horizon : 3200000 #DISABLED
 post_horizon_data_protocols: ["evaluation"]
-post_horizon_data_algorithms: ["G2P2C"]
+post_horizon_data_algorithms: ["G2P2C","AUXML", "PPO","TD3"]
 
 n_handcrafted_features: -10 #FIXME
 n_features: 32
