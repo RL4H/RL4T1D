@@ -39,8 +39,6 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         # final projection to scalar
         self.output_proj = nn.Linear(d_model, 1, device=self.device) #consider if this should be removed
 
-        self.training = True
-
         self.optimizer = torch.optim.Adam(self.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
     def _causal_mask(self, L, device):
@@ -48,7 +46,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         m = torch.triu(torch.full((L, L), float('-inf'), device=self.device), diagonal=1)
         return m.to(device)
 
-    def forward(self, ctx, tgt_future=None, generate_features_func=None):
+    def forward(self, ctx, tgt_future=None, generate_features_func=None, training=True):
         """
         ctx: (B, Tc, D) feature stream
         tgt_future: (B, Tf, D) ground truth future if training, else None
@@ -67,7 +65,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         dec_input[:, :Tc, :] = ctx
 
         # if training & tgt_future provided => teacher forcing
-        use_teacher = (tgt_future is not None) and self.training
+        use_teacher = (tgt_future is not None) and training
 
         # 2) autoregressive loop
         for t in range(self.Tf):
@@ -88,21 +86,28 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
 
             if use_teacher:
                 # overwrite with ground-truth, including features
+                
                 dec_input[:, Tc + t, :] = tgt_future[:, t, :].squeeze(-1)
+
                 # note: you may want another linear to map scalar→D if dims mismatch
             else:
-                # use model prediction: project scalar back into D with a small proj
-                # here we reuse output_proj's weight transpose as a quick hack:
-                # D_out = output_proj(out) maps D→1, so use its `.weight.T` for 1→D
-                next_d = next_token @ self.output_proj.weight      # (B, D)
-                dec_input[:, Tc + t, :] = next_d
 
-                if self.feature_n > 1: #override secondary features with generator function
-                    assert generate_features_func != None #generator features func needs to be defined for this
-
+                if self.feature_n > 1 and generate_features_func != None: #override secondary features with generator function
                     feat = generate_features_func(dec_input[:, :Tc + t, :]) # (B, Tc+t, D) -> (B, D)
                     assert feat[:, 0] == dec_input[:, Tc+t, 0] #assert that feature doesn't reassign primary feature
                     dec_input[:, Tc + t, :] = feat.squeeze(-1).unsqueeze(-1)
+                else:
+                    dec_input[:, Tc + t, :] = tgt_future[:, t, :].squeeze(-1) #overwrite features
+
+                    # use model prediction: project scalar back into D with a small proj
+                    # here we reuse output_proj's weight transpose as a quick hack:
+                    # D_out = output_proj(out) maps D→1, so use its `.weight.T` for 1→D
+
+                    # next_d = next_token @ self.output_proj.weight      # (B, D)
+                    # dec_input[:, Tc + t, :] = next_d
+
+                    dec_input[:, Tc + t, 0] = next_token.squeeze(1) #assign next glucose value
+
 
 
         # 3) collect the final Tf predictions
@@ -112,7 +117,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         y_pred = self.output_proj(y_all)                     # (B, Tf, 1)
         return y_pred
 
-    def forward_single(self, ctx, tgt_future, generate_features_func=None):
+    def forward_single(self, ctx, tgt_future, generate_features_func=None, training=True):
         """
         Converts from single stream into batching func.
         ctx: (Tc, D) feature stream
@@ -120,7 +125,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         generate_features_func: function to generate secondary features, if any and not given by future
         returns: y_pred (Tf, 1)
         """
-        batched_y_pred = self.forward(ctx.unsqueeze(0),  tgt_future.unsqueeze(0), lambda i : generate_features_func(i.unsqueeze(0)))
+        batched_y_pred = self.forward(ctx.unsqueeze(0),  tgt_future.unsqueeze(0), lambda i : generate_features_func(i.unsqueeze(0)), training)
         return batched_y_pred[0, :, :]
 
     def update(self, ctx, tgt_future, y_map=None, loss_map=None):
@@ -131,7 +136,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         """
         logs = dict()
 
-        y_pred = self.forward(ctx, tgt_future, None).squeeze(-1) #(B, Tf)
+        y_pred = self.forward(ctx, tgt_future, None, True).squeeze(-1) #(B, Tf)
         y_actual = tgt_future[:, :, 0] #(B, Tf)
         if y_map != None:
             y_pred.apply_(y_map)
@@ -158,7 +163,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         logs = dict()
 
         with torch.no_grad():
-            y_pred = self.forward(ctx, tgt_future, None).squeeze(-1) #(B, Tf)
+            y_pred = self.forward(ctx, tgt_future, None, False).squeeze(-1) #(B, Tf)
             y_actual = tgt_future[:, :, 0] #(B, Tf)
 
             if y_map != None:

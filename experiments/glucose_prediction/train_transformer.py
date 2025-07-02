@@ -134,8 +134,8 @@ def main(args: DictConfig):
         
         dataset_len = len(dataset)
 
-        vld_len = int(dataset_len * 0.025)
-        eval_len = int(dataset_len * 0.05)
+        vld_len = int(dataset_len * 0.01) #FIXME scale to amount of interactions
+        eval_len = int(dataset_len * 0.02)
         train_len = dataset_len - vld_len - eval_len
 
         train_set, vld_set, eval_set = tuple(random_split(dataset, [train_len, vld_len, eval_len], generator=torch.Generator().manual_seed(args.split_seed)))
