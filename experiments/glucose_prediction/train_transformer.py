@@ -131,7 +131,7 @@ def main(args: DictConfig):
             from utils.sim_data import DataImporter
 
             importer = DataImporter(args=args,env_args=args) #FIXME probably don't handle the args this way
-            dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*1001, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions)
+            dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*101, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions)
             dataset_queue.start()
 
         elif args.dat_type == "clinical":
@@ -169,13 +169,11 @@ def main(args: DictConfig):
     iteration = 0
     while interactions < args.total_interactions:
         data = torch.as_tensor(np.array(dataset_queue.pop_batch(batch_size)), dtype=torch.float32, device=device) #(B, T, D)
+        print("Iteration",iteration)
         
         data_ctx = data[:, :decoder.Tc, :]
         data_fut = data[:, decoder.Tc:, :]
 
-        del data
-        gc.collect()
-        torch.cuda.empty_cache()
         new_log = decoder.update(data_ctx, data_fut, loss_map=inverse_rmse_func) #doesn't apply inverse cgm func on training data, to not mess with gradients.
         trn_logs.add(new_log)
         
@@ -204,9 +202,6 @@ def main(args: DictConfig):
                 data_ctx = data[:, :decoder.Tc, :]
                 data_fut = data[:, decoder.Tc:, :]
         
-                del data
-                torch.cuda.empty_cache()
-                gc.collect()
                 new_log = decoder.eval_update(data_ctx, data_fut, loss_map=inverse_rmse_func)
                 loss_list.append(new_log['loss'])
 

@@ -8,11 +8,13 @@ import xport.v56
 from datetime import datetime, timezone, timedelta
 import math
 from decouple import config
+import random
 
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
 from visualiser.core import plot_episode
+from utils.sim_data import convert_trial_into_transitions, convert_trial_into_windows
 
 SIM_DATA_PATH = config('SIM_DATA_PATH')
 if SIM_DATA_PATH == '':
@@ -21,6 +23,9 @@ if SIM_DATA_PATH == '':
 CLN_DATA_DEST = config('CLN_DATA_PATH')
 
 CLN_DATA_SAVE_DEST = "/home/users/u7482502/data/cln_pickled_data" #FIXME make into env variable 
+
+SHUFFLE_QUEUE_IMPORTS = False
+IMPORT_SEED = 0
 
 AGE_VALUES = ["adolescent", "adult"] 
 CGM_TOLERANCE = 140
@@ -332,7 +337,7 @@ def save_subj_file(subj_info, filepath, filename):
         f.write(txt)
     return 1
 
-def read_subj_file(file_num,show_warnings=True):
+def read_subj_file(file_num,generate_as_epi_list=True,show_warnings=True):
     file_name = "subj_ind_" + str(file_num) + ".csv"
     file_dest = CLN_DATA_SAVE_DEST + '/' +  file_name
 
@@ -359,7 +364,13 @@ def read_subj_file(file_num,show_warnings=True):
     df["day_hour"] = df["full_time"].apply(lambda t : int(t.split(':')[1]))
     df["day_min"] = df["full_time"].apply(lambda t : int(t.split(':')[2]))
 
-    return df
+    if generate_as_epi_list:
+        grouped = df.groupby('epi')
+        return [group.reset_index(drop=True) for _, group in grouped]
+    else:
+        return df
+
+
 
 
 
@@ -419,7 +430,186 @@ class DummyClass:
         self.plot_version = 1
     def get_test_episode(self,tester,epi):
         return self.df[self.df['episode'] == epi]
+
+class ClnDataImporter:
+    def __init__(self, args, env_args):
+        self.args, self.env_args = args, env_args
+        self.subj_ind = args.patient_ind
+        self.subj_name = "clinical" + str(self.subj_ind)
+        self.attrs = get_patient_attrs(self.subj_name)
+    def calculate_vld_split(self, mapping):
+        vld_split = None
+
+        self.load()
+        for c,df in enumerate(self.df_list):
+            trial_transitions = max(0, len(df) - self.env_args.window_size - 1)
+            if trial_transitions < self.args.vld_interactions:
+                vld_split = (c, self.args.vld_interactions)
+                break
+        self.clear()
+
+        if vld_split != None:
+            raise ValueError("Not enough data to split validation trial.")
+        return vld_split
+    def load(self, vld_split_indicies=None, is_vld=False):
+        self.df_list = read_subj_file(self.ind)
+        if SHUFFLE_QUEUE_IMPORTS:
+            random.seed(IMPORT_SEED)
+            random.shuffle(self.df_list)
+            self.df_seeds = [randrange(0,10000) for _ in range(len(self.df_list))]
+        
+        if vld_split_indicies != None:
+            target_epi = self.df_list.pop(vld_split_indicies[0])
+            split_epi_vld = target_epi.loc[:vld_split_indicies[1]]
+            split_epi_vld['epi'] = '0' #FIXME check if this should be a string
+
+            split_epi_trn = target_epi.loc[vld_split_indicies[1]:].reset_index(drop=True)
+            self.df_list.insert(vld_split_indicies[0], split_epi_trn)
+
+            if is_vld: 
+                self.df_list = [split_epi_vld]
+                return split_epi_vld
+            else: 
+                return self.df_list
+        else:
+            return self.df_list
+    def clear(self):
+        del self.df
+    def create_queue(self, minimum_length=1024, maximum_length=8192, mapping=convert_trial_into_transitions, reserve_validation=0):
+        self.queue = ClnDataQueue(self, minimum_length, maximum_length, mapping, reserve_validation)
+        return self.queue 
+        
+class ClnDataQueue: 
+    def __init__(self, importer, minimum_length=1024, maximum_length = 8192, mapping = convert_trial_into_transitions, reserve_validation=0):
+        self.importer, self.minimum_length, self.maximum_length, self.mapping = importer, minimum_length, maximum_length, mapping
+        self.queue = []
+        self.queue_revolutions = 0
+        self.subjects_n = len(self.importer.subjects)
+        assert maximum_length >= minimum_length
+
+        self.reserve_validation = reserve_validation
+        self.reserve_validation_trials = 0 #gets reassigned in start()
+        self.reset_validation()
+        self.vld_split = self.importer.calculate_vld_split(mapping)
+    def start(self,count_transitions=True):
+        self.trial_ind = self.reserve_validation_trials #start index after validation trials
+
+
+        if count_transitions: #run an altered first sync to minimise needed imports and count maximum transitions
+            
+            # import data
+            remaining_length = self.maximum_length - len(self.queue)
+            df_list = self.importer.load(self.vld_split, False)
+
+            #count transitions
+            window_size = self.importer.env_args.obs_window
+            transitions = 0
+            n = 0
+            self.reserve_validation_trials = 0
+            reserve_validation_trial_count = 0
+            for trial in df_list:
+                trial_transitions = max(0, len(trial) - window_size - 1)
+                transitions += trial_transitions
+                if reserve_validation_trial_count < self.reserve_validation:
+                    reserve_validation_trial_count += trial_transitions
+                    self.reserve_validation_trials += 1
+                n += 1
+            
+            print(transitions, "transitions counted,", self.reserve_validation_trials, "trials reserved for validation.")
+            self.total_transitions = transitions
+            self.trial_ind = self.reserve_validation_trials #start index after validation trials
+
+            #add to queue
+
+            handled_len = len(df_list)
+
+            while remaining_length > 0 and self.trial_ind < handled_len:
+                trial_mapping = self.mapping(df_list.flat_trials[self.trial_ind], self.importer.args, self.importer.env_args)
+                mapping_len = len(trial_mapping)
+
+                self.queue += trial_mapping
+                remaining_length -= mapping_len
+                self.trial_ind += 1
+            
+            if self.trial_ind >= handled_len:
+                self.trial_ind = self.reserve_validation_trials
+
+            self.importer.clear()
+
+        elif count_transitions:
+            raise NotImplementedError
+        else:
+            self.sync_queue()
+    def sync_queue(self):
+        if len(self.queue) < self.minimum_length:
+            df_list = self.importer.load(self.vld_split, False)
+            remaining_length = self.maximum_length - len(self.queue)
+            while remaining_length > 0:
+
+                while remaining_length > 0 and self.trial_ind < df_list:
+                    # print("\tMapping step",self.trial_ind, handled_len)
+                    trial_mapping = self.mapping(df_list[self.trial_ind], self.importer.args, self.importer.env_args)
+
+                    if SHUFFLE_QUEUE_IMPORTS:
+                        random.seed(self.importer.df_seeds[self.trial_ind])
+                        random.shuffle(trial_mapping)
+                    mapping_len = len(trial_mapping)
+
+                    self.queue += trial_mapping
+                    remaining_length -= mapping_len
+                    self.trial_ind += 1
+                
+                if self.trial_ind >= len(df_list):
+                    self.trial_ind = self.reserve_validation_trials
+
+            self.importer.clear()
+            # print("Sync completed")
+    def pop(self):
+        out = self.queue.pop(0)
+        self.sync_queue()
+        return out
+    def pop_batch(self,n):
+        return [self.pop() for _ in range(n)]
     
+    def reset_validation(self):
+        self.validation_trial_ind = 0
+        self.validation_in_trial_ind = 0
+        self.vld_queue = []
+    def start_validation(self):
+        self.reset_validation()
+        self.sync_validation()
+    def sync_validation(self):
+        if len(self.vld_queue) <= 0:
+            # assumes only one individual being used
+            df_list = self.importer.load(self.vld_split, True)
+            
+            if SHUFFLE_QUEUE_IMPORTS:
+                random.seed(IMPORT_SEED)
+                random.shuffle(df_list)
+            
+            trial_mapping = self.mapping(df_list[self.validation_trial_ind], self.importer.args, self.importer.env_args)
+
+            while len(self.vld_queue) < self.reserve_validation + 20: #and len(self.vld_queue) < self.maximum_length
+                if self.validation_in_trial_ind > len(trial_mapping):
+                    self.validation_trial_ind = (self.validation_trial_ind + 1) % self.reserve_validation_trials
+                    trial_mapping = self.mapping(df_list[self.validation_trial_ind], self.importer.args, self.importer.env_args)
+                    self.validation_in_trial_ind = 0
+
+                    if SHUFFLE_QUEUE_IMPORTS:
+                        random.seed(self.importer.df_seeds[self.trial_ind])
+                        random.shuffle(trial_mapping)
+                
+                self.vld_queue.append(trial_mapping[self.validation_in_trial_ind])     
+
+            self.importer.clear()
+    def pop_validation(self):
+        out = self.vld_queue.pop(0)
+        self.sync_validation()
+        return out
+    def pop_validation_queue(self, n):
+        return [self.pop_validation() for _ in range(n)]
+
+        
 
 # Main 
 if __name__ == "__main__":

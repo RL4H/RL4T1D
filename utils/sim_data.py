@@ -81,7 +81,7 @@ BIG_CSV_COLUMN_TYPES ={
     "t" : CSV_COLUMN_TYPES["t"],
 }
 
-SHUFFLE_QUEUE_IMPORTS = False
+SHUFFLE_QUEUE_IMPORTS = True
 IMPORT_SEED = 0
 
 #designate file naming conventions to read from
@@ -479,7 +479,7 @@ class DataImporter:
         if self.verbose:
             end_time = datetime.now() #end the read timer
             duration = end_time - start_time
-            print(f"Read object in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s\n")
+            print(f"\tRead object in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s\n")
             file_size = os.path.getsize(file_dest) #obtain file size of read file
             print(f"\t{file_dest} has size {file_size / (1024 * 1024):.2f}MB")
 
@@ -700,7 +700,7 @@ class DataQueue:
                 # assert transitions == actual_transitions
                 n += 1
             
-            print(transitions, "transitions counted,", reserve_validation_trial_count, " trials reserved for validation.")
+            print(transitions, "transitions counted,", self.reserve_validation_trials, "trials reserved for validation.")
             self.total_transitions = transitions
             self.current_subject_trial_ind = self.reserve_validation_trials #start index after validation trials
 
@@ -742,13 +742,13 @@ class DataQueue:
                 # print("Importing data for",self.current_subject,"at index",self.current_subject_ind)
                 handled_data = self.importer.import_subject(self.current_subject)
                 handled_data.flatten()
-                
+                handled_len = len(handled_data.flat_trials)
+
                 if SHUFFLE_QUEUE_IMPORTS:
                     random.seed(IMPORT_SEED)
                     random.shuffle(handled_data.flat_trials)
 
 
-                handled_len = len(handled_data.flat_trials)
                 # print("Data Imported and flattened with", handled_len,"trials.")
                 gc.collect()
 
@@ -786,7 +786,7 @@ class DataQueue:
         self.reset_validation()
         self.sync_validation()
     def sync_validation(self):
-        if len(self.vld_queue) < self.minimum_length:
+        if len(self.vld_queue) <= 0:
             # assumes only one individual being used
             handled_data = self.importer.import_subject(self.current_subject)
             handled_data.flatten()
@@ -797,7 +797,7 @@ class DataQueue:
             
             trial_mapping = self.mapping(handled_data.flat_trials[self.validation_trial_ind], self.importer.args, self.importer.env_args)
 
-            while len(self.vld_queue) < self.reserve_validation: #and len(self.vld_queue) < self.maximum_length
+            while len(self.vld_queue) < self.reserve_validation + 20: #and len(self.vld_queue) < self.maximum_length
                 if self.validation_in_trial_ind > len(trial_mapping):
                     self.validation_trial_ind = (self.validation_trial_ind + 1) % self.reserve_validation_trials
                     trial_mapping = self.mapping(handled_data.flat_trials[self.validation_trial_ind], self.importer.args, self.importer.env_args)

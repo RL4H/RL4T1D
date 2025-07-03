@@ -40,11 +40,10 @@ nhead: 3
 num_decoder_layers: 1
 dropout: 0.1
 
-batch_size: 512
-mini_batch_size: 16
+batch_size: 4192
 total_interactions: 1000000
 
-vld_interactions: 8192
+vld_interactions: 4192
 
 lr: 1e-2 #5e-3
 weight_decay: 0
@@ -63,7 +62,7 @@ eval_log_name: "eval_logs" #goes from general save path
 vld_log_features:
   - 'loss'
 vld_log_name: "vld_logs" #goes from general save path
-vld_freq: 20
+vld_freq: 100
 
 # hydra/hydra_logging: none
 # hydra/job_logging: none

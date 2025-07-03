@@ -54,7 +54,6 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         returns: y_pred (B, Tf, 1)
         """
         B, Tc, D = ctx.shape
-        assert Tc == self.Tc and D == self.d_model
 
         # 1) prepare buffer for decoder inputs
         # reserve space for context + either ground truth or predictions
@@ -86,10 +85,10 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
 
             if self.feature_n > 1 and generate_features_func != None: #override secondary features with generator function
                 feat = generate_features_func(dec_input[:, :Tc + t, :]) # (B, Tc+t, D) -> (B, D)
-                assert feat[:, 0] == dec_input[:, Tc+t, 0] #assert that feature doesn't reassign primary feature
+                # assert feat[:, 0] == dec_input[:, Tc+t, 0] #assert that feature doesn't reassign primary feature
                 dec_input[:, Tc + t, :] = feat.squeeze(-1).unsqueeze(-1)
             else:
-                dec_input[:, Tc + t, :] = tgt_future[:, t, :].squeeze(-1) #overwrite features
+                # dec_input[:, Tc + t, :] = tgt_future[:, t, :].squeeze(-1) #overwrite features
 
                 # use model prediction: project scalar back into D with a small proj
                 # here we reuse output_proj's weight transpose as a quick hack:
@@ -98,7 +97,8 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
                 # next_d = next_token @ self.output_proj.weight      # (B, D)
                 # dec_input[:, Tc + t, :] = next_d
 
-                dec_input[:, Tc + t, 0] = next_token.squeeze(1) #assign next glucose value
+                dec_input[:, Tc + t, 1:] = tgt_future[:, t, 1:].squeeze(-1) #overwrite features
+                dec_input[:, Tc + t, 0] = next_token.detach().squeeze(1) #assign next glucose value, break link to computation graph
 
 
 
