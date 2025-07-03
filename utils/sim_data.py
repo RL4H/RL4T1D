@@ -538,8 +538,8 @@ class DataImporter:
         return DataHandler(trial_data)
     def get_current_subject_attrs(self):
         return get_patient_attrs(self.current_subject)
-    def create_queue(self, minimum_length=100, maximum_length=2000, mapping=convert_trial_into_transitions):
-        self.queue = DataQueue(self, minimum_length, maximum_length, mapping)
+    def create_queue(self, minimum_length=100, maximum_length=2000, mapping=convert_trial_into_transitions, reserve_validation=0):
+        self.queue = DataQueue(self, minimum_length, maximum_length, mapping, reserve_validation)
         return self.queue
     def create_torch_dataset(self, mapping=convert_trial_into_transitions, index_by_trial=False): #holds full object in memory
         self.torch_dataset = SimTorchDataset(self, False, index_by_trial, mapping)
@@ -661,16 +661,21 @@ class DataHandler:
 
 
 class DataQueue: 
-    def __init__(self, importer, minimum_length=1024, maximum_length = 8192, mapping = convert_trial_into_transitions):
+    def __init__(self, importer, minimum_length=1024, maximum_length = 8192, mapping = convert_trial_into_transitions, reserve_validation=0):
         self.importer, self.minimum_length, self.maximum_length, self.mapping = importer, minimum_length, maximum_length, mapping
         self.queue = []
         self.queue_revolutions = 0
         self.subjects_n = len(self.importer.subjects)
         assert maximum_length >= minimum_length
+
+        self.reserve_validation = reserve_validation
+        self.reserve_validation_trials = 0 #gets reassigned in start()
+        self.reset_validation()
     def start(self,count_transitions=True):
         self.current_subject_ind = 0
         self.current_subject = self.importer.subjects[self.current_subject_ind]
-        self.current_subject_trial_ind = 0
+        self.current_subject_trial_ind = self.reserve_validation_trials #start index after validation trials
+
 
         if count_transitions and len(self.importer.subjects) == 1: #run an altered first sync to minimise needed imports and count maximum transitions
             
@@ -683,14 +688,21 @@ class DataQueue:
             window_size = self.importer.env_args.obs_window
             transitions = 0
             n = 0
+            self.reserve_validation_trials = 0
+            reserve_validation_trial_count = 0
             for trial in handled_data.flat_trials:
-                transitions += max(0, len(trial) - window_size - 1)
+                trial_transitions = max(0, len(trial) - window_size - 1)
+                transitions += trial_transitions
+                if reserve_validation_trial_count < self.reserve_validation:
+                    reserve_validation_trial_count += trial_transitions
+                    self.reserve_validation_trials += 1
                 # actual_transitions = len(self.mapping(trial, self.importer.args, self.importer.env_args))
                 # assert transitions == actual_transitions
                 n += 1
             
-            print(transitions, "transitions counted.")
+            print(transitions, "transitions counted,", reserve_validation_trial_count, " trials reserved for validation.")
             self.total_transitions = transitions
+            self.current_subject_trial_ind = self.reserve_validation_trials #start index after validation trials
 
             #add to queue
 
@@ -706,7 +718,7 @@ class DataQueue:
                 self.current_subject_trial_ind += 1
             
             if self.current_subject_trial_ind >= handled_len:
-                self.current_subject_trial_ind = 0
+                self.current_subject_trial_ind = self.reserve_validation_trials
 
             del handled_data.flat_trials
             del handled_data
@@ -752,7 +764,7 @@ class DataQueue:
                     self.current_subject_trial_ind += 1
                 
                 if self.current_subject_trial_ind >= handled_len:
-                    self.current_subject_trial_ind = 0
+                    self.current_subject_trial_ind = self.reserve_validation_trials
 
 
                 del handled_data.flat_trials
@@ -765,6 +777,45 @@ class DataQueue:
         return out
     def pop_batch(self,n):
         return [self.pop() for _ in range(n)]
+    
+    def reset_validation(self):
+        self.validation_trial_ind = 0
+        self.validation_in_trial_ind = 0
+        self.vld_queue = []
+    def start_validation(self):
+        self.reset_validation()
+        self.sync_validation()
+    def sync_validation(self):
+        if len(self.vld_queue) < self.minimum_length:
+            # assumes only one individual being used
+            handled_data = self.importer.import_subject(self.current_subject)
+            handled_data.flatten()
+            
+            if SHUFFLE_QUEUE_IMPORTS:
+                random.seed(IMPORT_SEED)
+                random.shuffle(handled_data.flat_trials)
+            
+            trial_mapping = self.mapping(handled_data.flat_trials[self.validation_trial_ind], self.importer.args, self.importer.env_args)
+
+            while len(self.vld_queue) < self.reserve_validation: #and len(self.vld_queue) < self.maximum_length
+                if self.validation_in_trial_ind > len(trial_mapping):
+                    self.validation_trial_ind = (self.validation_trial_ind + 1) % self.reserve_validation_trials
+                    trial_mapping = self.mapping(handled_data.flat_trials[self.validation_trial_ind], self.importer.args, self.importer.env_args)
+                    self.validation_in_trial_ind = 0
+                
+                self.vld_queue.append(trial_mapping[self.validation_in_trial_ind])     
+    def pop_validation(self):
+        out = self.vld_queue.pop(0)
+        self.sync_validation()
+        return out
+    def pop_validation_queue(self, n):
+        return [self.pop_validation() for _ in range(n)]
+
+        
+        
+
+        
+
 
 
 MAPPING_FUNCS = [
@@ -805,7 +856,6 @@ class SimTorchDataset(Dataset):
                     self.data.append(window)
         self.length = len(self.data)
         print(f"Dataset converted into length {self.length}.")
-
     def __len__(self):
         return self.length
     def __getitem__(self, ind):

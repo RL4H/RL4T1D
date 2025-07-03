@@ -7,10 +7,12 @@ from torch.utils.data import random_split
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from datetime import datetime, timedelta
+import gc
 import json
 import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import Dataset, DataLoader
+torch.cuda.empty_cache()
 
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
@@ -115,10 +117,12 @@ class DataSampler:
 
 @hydra.main(version_base=None, config_path=MAIN_PATH + "/experiments/glucose_prediction/config/", config_name="prediction_config.yaml")
 def main(args: DictConfig):
+    
     device = args.device
     batch_size = args.batch_size
     assert args.input_window + args.t_future == args.obs_window
-    inverse_cgm_func = lambda cgm : inverse_cgm(cgm, args)
+
+    # inverse_cgm_func = lambda cgm : inverse_cgm(cgm, args)
     inverse_rmse_func = lambda loss : inverse_cgm_RMSE(loss, args)
 
     if args.policy_type == "offline":
@@ -127,31 +131,17 @@ def main(args: DictConfig):
             from utils.sim_data import DataImporter
 
             importer = DataImporter(args=args,env_args=args) #FIXME probably don't handle the args this way
-            dataset = importer.create_torch_dataset(mapping = convert_trial_into_windows, index_by_trial=True)
+            dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*1001, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions)
+            dataset_queue.start()
 
         elif args.dat_type == "clinical":
             raise NotImplementedError
-        
-        dataset_len = len(dataset)
-
-        vld_len = int(dataset_len * 0.01) #FIXME scale to amount of interactions
-        eval_len = int(dataset_len * 0.02)
-        train_len = dataset_len - vld_len - eval_len
-
-        train_set, vld_set, eval_set = tuple(random_split(dataset, [train_len, vld_len, eval_len], generator=torch.Generator().manual_seed(args.split_seed)))
-        train_loader = DataSampler(train_set, batch_size)
-        vld_loader = DataSampler(vld_set, batch_size)
-        eval_loader = DataSampler(eval_set, batch_size)
-        
     elif args.policy_type == "online":
         raise NotImplementedError("Online data collection not yet implemented.")
     else:
     
         raise ValueError("Invalid value ({args.policy_type}) of argument `policy type`.")
 
-    print("Dataset initialised with length",len(dataset),"split into lengths of",len(train_set),",",len(vld_set), "and", len(eval_set))
-
-    # train_set = dataset #FIXME remove and fix error dealing with subsets
     decoder = MultiBranchAutoregressiveDecoder(args)
     try:
         os.mkdir(MAIN_PATH + args.save_path + args.run_name)
@@ -172,16 +162,20 @@ def main(args: DictConfig):
 
     durations = [] #durations in seconds
 
+    
     # Training
     print("Beginning Training.")
     interactions = 0
     iteration = 0
     while interactions < args.total_interactions:
-        data = torch.as_tensor(np.array(train_loader.pop_batch()), dtype=torch.float32, device=device) #(B, T, D)
+        data = torch.as_tensor(np.array(dataset_queue.pop_batch(batch_size)), dtype=torch.float32, device=device) #(B, T, D)
         
         data_ctx = data[:, :decoder.Tc, :]
         data_fut = data[:, decoder.Tc:, :]
 
+        del data
+        gc.collect()
+        torch.cuda.empty_cache()
         new_log = decoder.update(data_ctx, data_fut, loss_map=inverse_rmse_func) #doesn't apply inverse cgm func on training data, to not mess with gradients.
         trn_logs.add(new_log)
         
@@ -198,18 +192,21 @@ def main(args: DictConfig):
             print(f"================= Training {percent_complete:.2f}% complete, interval took {pretty_seconds(dur)}. Expected time remaining for training is {pretty_seconds(time_remaining)}. Loss={new_log["loss"]:.2f}")
             next_interval += logging_interval
 
-        if iteration % args.vld_freq == 0:
+        if iteration % args.vld_freq == 0 or interactions >= args.total_interactions:
             print("\t\t==== Performing Validation")
             loss_list = []
-            vld_loader.reset()
+            dataset_queue.start_validation()
             vld_interactions = 0
-            while vld_interactions <  vld_loader.len - batch_size:
-    
-                data = torch.as_tensor(vld_loader.pop_batch(), dtype=torch.float32, device=device) #(B, T, D)
+            while vld_interactions <  args.vld_interactions:
+                
+                data = torch.as_tensor(np.array(dataset_queue.pop_validation_queue(batch_size)), dtype=torch.float32, device=device) #(B, T, D)
 
                 data_ctx = data[:, :decoder.Tc, :]
                 data_fut = data[:, decoder.Tc:, :]
         
+                del data
+                torch.cuda.empty_cache()
+                gc.collect()
                 new_log = decoder.eval_update(data_ctx, data_fut, loss_map=inverse_rmse_func)
                 loss_list.append(new_log['loss'])
 
@@ -219,6 +216,7 @@ def main(args: DictConfig):
             vld_logs.add( {'loss' : mean_loss})
 
             print(f"\t\t==== Validation Complete: Loss of {mean_loss:.2f}")
+            dataset_queue.reset_validation()
         iteration += 1
 
     print("Training complete.")
@@ -226,46 +224,10 @@ def main(args: DictConfig):
     vld_logs.save_logs()
 
     torch.save(decoder, MAIN_PATH + args.save_path + args.run_name + '/policy.pth')
-
-    # Evaluation
-    evl_logs = SimpleLogger(args, args.eval_log_name, args.eval_log_features)
-
-    next_interval = logging_interval
-    overall_start_time = datetime.now()
-    interval_start_time = overall_start_time
-    durations = [] #durations in seconds
-    interactions = 0
-
-    print("Beginning evaluation.")
-    while interactions < eval_loader.len:
-
-        data = torch.as_tensor(np.array(eval_loader.pop_batch()), dtype=torch.float32, device=device) #(B, T, D)
-
-        data_ctx = data[:, :decoder.Tc, :]
-        data_fut = data[:, decoder.Tc:, :]
-        
-        new_log = decoder.eval_update(data_ctx, data_fut, loss_map=inverse_rmse_func)
-        evl_logs.add(new_log)
-
-        interactions += batch_size
-
-        percent_complete = (interactions / len(eval_loader.len)) * 100
-        if percent_complete > next_interval:
-            next_time = datetime.now()
-            dur = (next_time - interval_start_time).total_seconds()
-            interval_start_time = next_time
-            durations.append(dur)
-            time_remaining = max(0, ((100 - percent_complete) / logging_interval) * np.mean(durations))
-            print(f"================= Evaluation {percent_complete:.2f}% complete, interval took {pretty_seconds(dur)}. Expected time remaining for evaluation is {pretty_seconds(time_remaining)}.")
-            next_interval += logging_interval
-
-    print("Evaluation complete.")
-    evl_logs.save_logs()
-    print("Logs saved to",evl_logs.save_dest)
+    torch.cuda.empty_cache()
 
     trn_logs.graph(key="loss",ignore_empty=True)
     vld_logs.graph(key="loss",ignore_empty=True)
-    evl_logs.graph(key="loss",ignore_empty=True)
 
 if __name__ == '__main__':
     main()

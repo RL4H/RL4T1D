@@ -1,20 +1,20 @@
-run_name: "debug"
+run_name: "test_8_traj_training"
 save_path: "/experiments/glucose_prediction/saves/"
 split_seed: 0
-device: 'cuda:0'
+device: 'cuda'
 # data source params
 policy_type: "offline" #offline | online
 
 data_type: "simulated" #simulated | clinical
-data_protocols: ["evaluation","training"] #None defaults to all
-data_algorithms: ["G2P2C"] #None defaults to all
+data_protocols: [] #None defaults to all
+data_algorithms: [] #None defaults to all
 
 patient_id: 0
 
 
 input_window : 120 #288 #FIXME check on this
 t_future: 48
-obs_window: 168 
+obs_window: 168
 
 #NOTE: ensure input_window + t_future = obs_window
 
@@ -40,11 +40,11 @@ nhead: 3
 num_decoder_layers: 1
 dropout: 0.1
 
-batch_size: 4096
+batch_size: 512
+mini_batch_size: 16
 total_interactions: 1000000
 
 vld_interactions: 8192
-eval_interactions: 8192
 
 lr: 1e-2 #5e-3
 weight_decay: 0

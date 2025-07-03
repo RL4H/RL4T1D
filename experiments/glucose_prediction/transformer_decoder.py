@@ -31,7 +31,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
 
         # GPT‐style decoder layers
         layer = nn.TransformerDecoderLayer(
-            d_model, nhead, dim_feedforward=4*d_model, dropout=dropout,
+            d_model, nhead, dim_feedforward=3*d_model, dropout=dropout,
             batch_first=True, device=self.device
         )
         self.decoder = nn.TransformerDecoder(layer, num_decoder_layers)
@@ -84,29 +84,21 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
             # project last time-step
             next_token = self.output_proj(out[:, -1, :])   # (B, 1)
 
-            if use_teacher:
-                # overwrite with ground-truth, including features
-                
-                dec_input[:, Tc + t, :] = tgt_future[:, t, :].squeeze(-1)
-
-                # note: you may want another linear to map scalar→D if dims mismatch
+            if self.feature_n > 1 and generate_features_func != None: #override secondary features with generator function
+                feat = generate_features_func(dec_input[:, :Tc + t, :]) # (B, Tc+t, D) -> (B, D)
+                assert feat[:, 0] == dec_input[:, Tc+t, 0] #assert that feature doesn't reassign primary feature
+                dec_input[:, Tc + t, :] = feat.squeeze(-1).unsqueeze(-1)
             else:
+                dec_input[:, Tc + t, :] = tgt_future[:, t, :].squeeze(-1) #overwrite features
 
-                if self.feature_n > 1 and generate_features_func != None: #override secondary features with generator function
-                    feat = generate_features_func(dec_input[:, :Tc + t, :]) # (B, Tc+t, D) -> (B, D)
-                    assert feat[:, 0] == dec_input[:, Tc+t, 0] #assert that feature doesn't reassign primary feature
-                    dec_input[:, Tc + t, :] = feat.squeeze(-1).unsqueeze(-1)
-                else:
-                    dec_input[:, Tc + t, :] = tgt_future[:, t, :].squeeze(-1) #overwrite features
+                # use model prediction: project scalar back into D with a small proj
+                # here we reuse output_proj's weight transpose as a quick hack:
+                # D_out = output_proj(out) maps D→1, so use its `.weight.T` for 1→D
 
-                    # use model prediction: project scalar back into D with a small proj
-                    # here we reuse output_proj's weight transpose as a quick hack:
-                    # D_out = output_proj(out) maps D→1, so use its `.weight.T` for 1→D
+                # next_d = next_token @ self.output_proj.weight      # (B, D)
+                # dec_input[:, Tc + t, :] = next_d
 
-                    # next_d = next_token @ self.output_proj.weight      # (B, D)
-                    # dec_input[:, Tc + t, :] = next_d
-
-                    dec_input[:, Tc + t, 0] = next_token.squeeze(1) #assign next glucose value
+                dec_input[:, Tc + t, 0] = next_token.squeeze(1) #assign next glucose value
 
 
 
@@ -149,7 +141,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         self.optimizer.step()
 
 
-        logs["loss"] = loss.detach().cpu().numpy()
+        logs["loss"] = loss.item()
         if loss_map != None: logs["loss"] = loss_map(logs["loss"])
         
         return logs
@@ -172,7 +164,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
             loss = torch.sqrt(torch.mean((y_pred-y_actual)**2))
 
 
-        logs["loss"] = loss.detach().cpu().numpy()
+        logs["loss"] = loss.item()
         if loss_map != None: logs["loss"] = loss_map(logs["loss"])
         
         return logs
