@@ -1,4 +1,4 @@
-run_name: "test_9_full_traj_training"
+run_name: "test_10_full_traj_training"
 save_path: "/experiments/glucose_prediction/saves/"
 split_seed: 0
 device: 'cuda'
@@ -47,7 +47,7 @@ total_interactions: 1000000
 
 vld_interactions: 4192
 
-lr: 5e-3
+lr: 1e-2
 
 lr_decay: true 
 lr_minimum: 1e-5

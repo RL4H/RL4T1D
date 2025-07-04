@@ -182,7 +182,7 @@ def import_raw_files(file_dest_folder=DATA_DEST+"/object_save/", file_name_start
         file_dest = file_dest_folder + file_name_start + subject + file_name_end + ".pkl"
         
         data = import_all_data(DATA_DEST, show_progress=True, subject_range=[subject]) #import data from files
-        print("\nSuccesfully imported.")
+        print("Succesfully imported.")
 
         end_time = datetime.now() #end the read timer
         duration = end_time - start_time
@@ -479,9 +479,8 @@ class DataImporter:
         if self.verbose:
             end_time = datetime.now() #end the read timer
             duration = end_time - start_time
-            print(f"\tRead object in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s\n")
             file_size = os.path.getsize(file_dest) #obtain file size of read file
-            print(f"\t{file_dest} has size {file_size / (1024 * 1024):.2f}MB")
+            print(f"\tRead object in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s, with size {file_size / (1024 * 1024):.2f}MB")
 
         #strip irrelevant parts of imported object based on defined parameter ranges 
         if self.verbose: print("\tStripping Irrelevant Sections")
@@ -494,6 +493,7 @@ class DataImporter:
                     if not (agent in self.agents):
                         print("\t\tDeleted agent",agent)
                         del raw_data[self.current_subject][protocol][agent]
+            gc.collect()
         if self.verbose: print("\tFinished stripping sections.")
 
         handled_data = DataHandler(raw_data)
@@ -612,7 +612,7 @@ class DataHandler:
                     del self.data_dict[subject][protocol][agent]
         del self.data_dict
         self.flat_trials = output_list
-        print("made flat", len(self.flat_trials))
+        print("\tmade flat", len(self.flat_trials))
         self.flat = True
         if self.verbose: print("Flattening Complete")
     def save_as_csv(self, name, dest_folder=DATA_DEST + "/csv_saves/",seperate_flat_files = False):
@@ -777,7 +777,10 @@ class DataQueue:
         return out
     def pop_batch(self,n):
         return [self.pop() for _ in range(n)]
-    
+    def shuffle_queue(self, seed=None):
+        if seed != None: random.seed(seed)
+        random.shuffle(self.queue)
+
     def reset_validation(self):
         self.validation_trial_ind = 0
         self.validation_in_trial_ind = 0

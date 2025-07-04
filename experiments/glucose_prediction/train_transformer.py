@@ -112,7 +112,6 @@ def compose_episode_data(y_pred, data_fut, args, env_args):
         epi_list.append(epi_df)
     
     return epi_list
-        
 
 def pretty_seconds(seconds):
     s = int(seconds % 60)
@@ -131,6 +130,7 @@ def inverse_cgm(cgm_scaled, args):
     return inverse_linear_scaling(cgm_scaled, args.glucose_min, args.glucose_max)
 def inverse_cgm_RMSE(loss, args): #converts RMSE as if unscaled glucose values were passed
     return 0.5 * (args.glucose_max - args.glucose_min) * loss
+
 
 class DataSampler:
     def __init__(self, base_set, batch_size):
@@ -265,8 +265,8 @@ def main(args: DictConfig):
             mean_loss = np.mean(loss_list)
             vld_logs.add( {'loss' : mean_loss})
 
-            if episode_list != []: save_episode_list(episode_list, vld_saves_folder + "/validation_trials_" + str(vld_iteration) + ".txt")
-            torch.save(decoder, vld_saves_folder + "validation_trials/policy" + str(vld_iteration) + ".pth")
+            if episode_list != []: save_episode_list(episode_list, vld_saves_folder + "/vld_trials_" + str(vld_iteration) + ".txt")
+            torch.save(decoder, vld_saves_folder + "/policy_" + str(vld_iteration) + ".pth")
 
             print(f"\t\t==== Validation Complete: Loss of {mean_loss:.2f}")
             dataset_queue.reset_validation()

@@ -65,7 +65,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         dec_input[:, :Tc, :] = ctx
 
         # if training & tgt_future provided => teacher forcing
-        use_teacher = (tgt_future is not None) and training
+        # use_teacher = (tgt_future is not None) and training
 
         # 2) autoregressive loop
         for t in range(self.Tf):
@@ -129,7 +129,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         """
         logs = dict()
 
-        y_pred = self.forward(ctx, tgt_future, None, True).squeeze(-1) #(B, Tf)
+        y_pred = self.forward(ctx, tgt_future, training=True).squeeze(-1) #(B, Tf)
         y_actual = tgt_future[:, :, 0] #(B, Tf)
         if y_map != None:
             y_pred.apply_(y_map)
@@ -156,13 +156,14 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         logs = dict()
 
         with torch.no_grad():
-            y_pred = self.forward(ctx, tgt_future, None, False).squeeze(-1) #(B, Tf)
+            y_pred = self.forward(ctx, tgt_future, training=False).squeeze(-1) #(B, Tf)
             y_actual = tgt_future[:, :, 0] #(B, Tf)
-
             if y_map != None:
-                y_pred = y_map(y_pred)
-                y_actual = y_map(y_actual)
+                y_pred.apply_(y_map)
+                y_actual.apply_(y_map)
             loss = torch.sqrt(torch.mean((y_pred-y_actual)**2))
+
+
 
 
         logs["loss"] = loss.detach().cpu().numpy()
