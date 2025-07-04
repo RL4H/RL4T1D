@@ -243,7 +243,7 @@ def main(args: DictConfig):
             durations.append(dur)
             time_remaining = max(0, ((100 - percent_complete) / logging_interval) * np.mean(durations)) #calculate expected time remaining
 
-            print(f"================= Training {percent_complete:.2f}% complete, interval took {pretty_seconds(dur)}. Expected time remaining for training is {pretty_seconds(time_remaining)}. Loss={new_log["loss"]:.2f}")
+            print(f"================= Training {percent_complete:.2f}% complete, interval took {pretty_seconds(dur)}. Expected time remaining for training is {pretty_seconds(time_remaining)}. Loss={new_log['loss']:.2f}")
             next_interval += logging_interval
 
         if iteration % args.vld_freq == 0 or interactions >= args.total_interactions:
