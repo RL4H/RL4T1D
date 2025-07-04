@@ -78,27 +78,31 @@ class Agent:
                     args.total_interactions = int(importer.queue.total_transitions*0.98)
                 elif args.total_interactions > importer.queue.total_transitions:
                     print("WARNING: total interactions set (",args.total_interactions,") is greater than available data (",importer.queue.total_transitions,"). ")
-                    
-
-                if DEBUG_SHOW: print("Queue Started!")
-                # self.buffer = importer.queue
-
-                self.training_agents = [OfflineSampler(args=self.args, env_args=self.env_args, mode='training', worker_id=i+args.training_agent_id_offset,importer_queue=importer.queue) for i in range(self.args.n_training_workers)]
-                if DEBUG_SHOW: print("Training Agents Initialised")
-                self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
-                if DEBUG_SHOW: print("Testing Agents Initialised")
-                self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
-                if DEBUG_SHOW: print("Validation Agents Initialised")
-
-                self.buffer = offpolicy_buffers.ReplayMemory(self.args)
-                if DEBUG_SHOW: print("Agent setup completed")
                 
             elif args.data_type == "clinical":
                 import utils.cln_data as cln_data
-                raise NotImplementedError("Clinical data importing not implemented.")
-            
+
+                importer = cln_data.ClnDataImporter(args=args, env_args=env_args)
+                importer.create_queue(minimum_length=args.mini_batch_size*100, maximum_length=args.mini_batch_size*1001)
+                importer.queue.start()
+
+                self.importer = importer
             else:
                 raise KeyError("Invlid data_type parameter.")
+            
+            
+            if DEBUG_SHOW: print("Queue Started!")
+            # self.buffer = importer.queue
+
+            self.training_agents = [OfflineSampler(args=self.args, env_args=self.env_args, mode='training', worker_id=i+args.training_agent_id_offset,importer_queue=importer.queue) for i in range(self.args.n_training_workers)]
+            if DEBUG_SHOW: print("Training Agents Initialised")
+            self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
+            if DEBUG_SHOW: print("Testing Agents Initialised")
+            self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
+            if DEBUG_SHOW: print("Validation Agents Initialised")
+
+            self.buffer = offpolicy_buffers.ReplayMemory(self.args)
+            if DEBUG_SHOW: print("Agent setup completed")
 
         self.logger = logger
 
