@@ -181,7 +181,12 @@ def main(args: DictConfig):
             dataset_queue.start()
 
         elif args.dat_type == "clinical":
-            raise NotImplementedError
+            from utils.cln_data import ClnDataImporter
+
+            importer = ClnDataImporter(args=args,env_args=args) #FIXME probably don't handle the args this way
+            dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*101, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions)
+            dataset_queue.start()
+
     elif args.policy_type == "online":
         raise NotImplementedError("Online data collection not yet implemented.")
     else:
