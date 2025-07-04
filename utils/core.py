@@ -110,6 +110,7 @@ def calculate_features(data_row, args, env_args):
     info['day_hour'] = linear_scaling(x=hours, x_min=0, x_max=23)
     info['day_min'] = linear_scaling(x=mins, x_min=0, x_max=59)
     info['meal_type'] = 0 #FIXME implement
+    info['meal'] = meal
 
     return [ info[feat] for feat in env_args.obs_features]
 

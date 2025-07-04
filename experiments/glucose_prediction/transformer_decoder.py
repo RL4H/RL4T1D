@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn as nn
 
+lni10 = math.log(0.1)
 
 class MultiBranchAutoregressiveDecoder(nn.Module):
     def __init__(self, args):
@@ -164,9 +165,16 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
             loss = torch.sqrt(torch.mean((y_pred-y_actual)**2))
 
 
-        logs["loss"] = loss.item()
+        logs["loss"] = loss.detach().cpu().numpy()
+        logs["y_pred"] = y_pred.detach().cpu().numpy()
+
         if loss_map != None: logs["loss"] = loss_map(logs["loss"])
         
         return logs
 
-
+    def update_lr(self, iters):
+        if self.args.lr_decay:
+            self.lr = (self.args.lr - self.args.lr_minimum) * math.exp( 1 / self.args.lr_90_iters * lni10 * iters) + self.args.lr_minimum
+            with torch.no_grad():
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = self.lr

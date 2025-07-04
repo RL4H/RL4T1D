@@ -1,4 +1,4 @@
-run_name: "test_8_traj_training"
+run_name: "test_9_full_traj_training"
 save_path: "/experiments/glucose_prediction/saves/"
 split_seed: 0
 device: 'cuda'
@@ -16,6 +16,7 @@ input_window : 120 #288 #FIXME check on this
 t_future: 48
 obs_window: 168
 
+preserve_trajectories : false
 #NOTE: ensure input_window + t_future = obs_window
 
 # available features=> 'cgm', 'insulin', 'time_to_meal', 'future_carb', 'meal_type', 'day_hour', 'day_min'
@@ -23,9 +24,10 @@ obs_features:
   - 'cgm'
   - 'insulin'
   - 'day_hour'
+  - 'meal'
 
 sensor: 'GuardianRT'
-glucose_max: 600  # Note the selected sensors range would affect this
+glucose_max: 600  
 glucose_min: 39
 
 pump: 'Insulet'
@@ -36,7 +38,7 @@ insulin_min: 0
 control_space_type: 'exponential'
 
 # algorithm params
-nhead: 3
+nhead: 4
 num_decoder_layers: 1
 dropout: 0.1
 
@@ -45,13 +47,19 @@ total_interactions: 1000000
 
 vld_interactions: 4192
 
-lr: 1e-2 #5e-3
+lr: 5e-3
+
+lr_decay: true 
+lr_minimum: 1e-5
+lr_90_iters: 600000
+
 weight_decay: 0
 
 #logs
 train_log_features:
   - 'loss'
   - 'policy_grad'
+  - 'lr'
 train_log_name: "training_logs" #goes from general save path
 
 eval_log_features:
@@ -62,7 +70,7 @@ eval_log_name: "eval_logs" #goes from general save path
 vld_log_features:
   - 'loss'
 vld_log_name: "vld_logs" #goes from general save path
-vld_freq: 100
+vld_freq: 20
 
 # hydra/hydra_logging: none
 # hydra/job_logging: none

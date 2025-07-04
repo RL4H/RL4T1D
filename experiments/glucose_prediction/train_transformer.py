@@ -68,6 +68,52 @@ class SimpleLogger:
         plt.tight_layout()
         plt.show()
 
+EPISODE_HEADERS = ["epi", "cgm", "cgm_pred", "ins", "meal", "day_hour", "day_min", 't']
+def save_episode_list(epi_list, file_dest):
+    txt_lines = [','.join(EPISODE_HEADERS)]
+    for epi_n, epi in enumerate(epi_list):
+        for row in range(len(epi)):
+            txt_lines.append( ','.join([str(epi_n)] + [str(epi[col][row]) for col in EPISODE_HEADERS[1:]]) )
+    
+    with open(file_dest, 'w') as f:
+        f.write('\n'.join(txt_lines))
+def compose_episode_data(y_pred, data_fut, args, env_args):
+    """ 
+    y_pred : (B, Tf)
+    data_fut : (B, Tf, D)
+    args
+    env_args
+    """
+    B, Tf, D = data_fut.shape
+
+    feature_list = env_args.obs_features
+
+    t_list = list(range(Tf))
+
+    epi_list = []
+    for batch in range(B):
+        glucose_predicted = [inverse_linear_scaling(y, args.glucose_min, args.glucose_max) for y in y_pred[batch, :]]
+        glucose_actual = [inverse_linear_scaling(y, args.glucose_min, args.glucose_max) for y in data_fut[batch, :, feature_list.index("cgm")]]
+        insulin = [inverse_linear_scaling(ins, args.insulin_min, args.insulin_max) for ins in data_fut[batch, :, feature_list.index("insulin")]]
+        hours = [int(round(inverse_linear_scaling(hour, 0, 23))) for hour in data_fut[batch, :, feature_list.index("day_hour")]]
+        # mins = [inverse_linear_scaling(hour, 0, 23) for hour in data_fut[batch, :, feature_list.index("day_min")]]
+        meals = data_fut[batch, :, feature_list.index("meal")]
+        
+        epi_df = pd.DataFrame({
+            'epi' : [0] * Tf,
+            'cgm' : glucose_actual,
+            'cgm_pred' : glucose_predicted,
+            'ins' : insulin,
+            'day_hour' : hours,
+            'day_min' : [0] * Tf, #FIXME
+            't' : t_list,
+            'meal' : meals
+        })
+        epi_list.append(epi_df)
+    
+    return epi_list
+        
+
 def pretty_seconds(seconds):
     s = int(seconds % 60)
     m = int((seconds // 60) % 60)
@@ -142,9 +188,11 @@ def main(args: DictConfig):
     
         raise ValueError("Invalid value ({args.policy_type}) of argument `policy type`.")
 
+    vld_saves_folder = MAIN_PATH + args.save_path + args.run_name + "/vld_saves"
     decoder = MultiBranchAutoregressiveDecoder(args)
     try:
         os.mkdir(MAIN_PATH + args.save_path + args.run_name)
+        os.mkdir(vld_saves_folder)
     except FileExistsError:
         print("Experiment has previously been run, data will be overwritten.")
     
@@ -167,14 +215,17 @@ def main(args: DictConfig):
     print("Beginning Training.")
     interactions = 0
     iteration = 0
+    vld_iteration = 0
     while interactions < args.total_interactions:
+        decoder.update_lr(interactions)
+
         data = torch.as_tensor(np.array(dataset_queue.pop_batch(batch_size)), dtype=torch.float32, device=device) #(B, T, D)
-        print("Iteration",iteration)
         
         data_ctx = data[:, :decoder.Tc, :]
         data_fut = data[:, decoder.Tc:, :]
 
         new_log = decoder.update(data_ctx, data_fut, loss_map=inverse_rmse_func) #doesn't apply inverse cgm func on training data, to not mess with gradients.
+        new_log['lr'] = decoder.lr
         trn_logs.add(new_log)
         
         interactions += batch_size
@@ -193,6 +244,7 @@ def main(args: DictConfig):
         if iteration % args.vld_freq == 0 or interactions >= args.total_interactions:
             print("\t\t==== Performing Validation")
             loss_list = []
+            episode_list = []
             dataset_queue.start_validation()
             vld_interactions = 0
             while vld_interactions <  args.vld_interactions:
@@ -205,20 +257,29 @@ def main(args: DictConfig):
                 new_log = decoder.eval_update(data_ctx, data_fut, loss_map=inverse_rmse_func)
                 loss_list.append(new_log['loss'])
 
+                episodes = compose_episode_data(new_log["y_pred"], data_fut.detach().cpu().numpy(), args, args)
+                episode_list += episodes
+
                 vld_interactions += batch_size
             
             mean_loss = np.mean(loss_list)
             vld_logs.add( {'loss' : mean_loss})
 
+            if episode_list != []: save_episode_list(episode_list, vld_saves_folder + "/validation_trials_" + str(vld_iteration) + ".txt")
+            torch.save(decoder, vld_saves_folder + "validation_trials/policy" + str(vld_iteration) + ".pth")
+
             print(f"\t\t==== Validation Complete: Loss of {mean_loss:.2f}")
             dataset_queue.reset_validation()
+
+            vld_iteration += 1
+
         iteration += 1
 
     print("Training complete.")
     trn_logs.save_logs()
     vld_logs.save_logs()
 
-    torch.save(decoder, MAIN_PATH + args.save_path + args.run_name + '/policy.pth')
+    torch.save(decoder, MAIN_PATH + args.save_path + args.run_name + '/policy_final.pth')
     torch.cuda.empty_cache()
 
     trn_logs.graph(key="loss",ignore_empty=True)

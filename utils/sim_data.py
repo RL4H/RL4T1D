@@ -795,11 +795,16 @@ class DataQueue:
                 random.seed(IMPORT_SEED)
                 random.shuffle(handled_data.flat_trials)
             
+
             trial_mapping = self.mapping(handled_data.flat_trials[self.validation_trial_ind], self.importer.args, self.importer.env_args)
+            while len(trial_mapping) == 0: 
+                self.validation_trial_ind += 1
+                trial_mapping = self.mapping(handled_data.flat_trials[self.validation_trial_ind], self.importer.args, self.importer.env_args)
 
             while len(self.vld_queue) < self.reserve_validation + 20: #and len(self.vld_queue) < self.maximum_length
                 if self.validation_in_trial_ind > len(trial_mapping):
                     self.validation_trial_ind = (self.validation_trial_ind + 1) % self.reserve_validation_trials
+                    print("Ind:", self.validation_in_trial_ind, len(handled_data.flat_trials))
                     trial_mapping = self.mapping(handled_data.flat_trials[self.validation_trial_ind], self.importer.args, self.importer.env_args)
                     self.validation_in_trial_ind = 0
                 
