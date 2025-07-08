@@ -467,7 +467,6 @@ def plot_episode(experiment, tester, episode):
 
     ax.axhline(y=54, color='r', linestyle='--')
     ax.axhspan(70, 180, alpha=0.2, color='limegreen', lw=0)
-
     x = True
     for t in range(0, len(df)):
         if df.iloc[t]['meal']:

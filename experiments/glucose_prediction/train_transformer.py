@@ -18,8 +18,8 @@ MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
 from utils.sim_data import convert_trial_into_windows
-from utils.core import inverse_linear_scaling
-from experiments.glucose_prediction.transformer_decoder import MultiBranchAutoregressiveDecoder
+from utils.core import inverse_linear_scaling, MEAL_MAX
+from experiments.glucose_prediction.transformer_decoder import AutoregressiveDecoder
 
 
 """
@@ -97,7 +97,7 @@ def compose_episode_data(y_pred, data_fut, args, env_args):
         insulin = [inverse_linear_scaling(ins, args.insulin_min, args.insulin_max) for ins in data_fut[batch, :, feature_list.index("insulin")]]
         hours = [int(round(inverse_linear_scaling(hour, 0, 23))) for hour in data_fut[batch, :, feature_list.index("day_hour")]]
         # mins = [inverse_linear_scaling(hour, 0, 23) for hour in data_fut[batch, :, feature_list.index("day_min")]]
-        meals = data_fut[batch, :, feature_list.index("meal")]
+        meals = [round(inverse_linear_scaling(meal, 0, MEAL_MAX),3) for meal in data_fut[batch, :, feature_list.index("meal")]]
         
         epi_df = pd.DataFrame({
             'epi' : [0] * Tf,
@@ -166,6 +166,7 @@ def main(args: DictConfig):
     
     device = args.device
     batch_size = args.batch_size
+    mini_batch_n = args.mini_batch_n
     assert args.input_window + args.t_future == args.obs_window
 
     # inverse_cgm_func = lambda cgm : inverse_cgm(cgm, args)
@@ -179,6 +180,8 @@ def main(args: DictConfig):
             importer = DataImporter(args=args,env_args=args) #FIXME probably don't handle the args this way
             dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*101, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions)
             dataset_queue.start()
+
+            
 
         elif args.data_type == "clinical":
             from utils.cln_data import ClnDataImporter
@@ -194,7 +197,7 @@ def main(args: DictConfig):
         raise ValueError("Invalid value ({args.policy_type}) of argument `policy type`.")
 
     vld_saves_folder = MAIN_PATH + args.save_path + args.run_name + "/vld_saves"
-    decoder = MultiBranchAutoregressiveDecoder(args)
+    decoder = AutoregressiveDecoder(args)
     try:
         os.mkdir(MAIN_PATH + args.save_path + args.run_name)
         os.mkdir(vld_saves_folder)
@@ -224,30 +227,38 @@ def main(args: DictConfig):
     while interactions < args.total_interactions:
         decoder.update_lr(interactions)
 
-        data = torch.as_tensor(np.array(dataset_queue.pop_batch(batch_size)), dtype=torch.float32, device=device) #(B, T, D)
+        
+        data = [torch.as_tensor(np.array(dataset_queue.pop_batch(batch_size)), dtype=torch.float32, device=device) for _ in range(mini_batch_n)] #(B, T, D)
+
+        new_log = decoder.mini_batch_update(data, loss_map=inverse_rmse_func)
         
         data_ctx = data[:, :decoder.Tc, :]
         data_fut = data[:, decoder.Tc:, :]
-
         new_log = decoder.update(data_ctx, data_fut, loss_map=inverse_rmse_func) #doesn't apply inverse cgm func on training data, to not mess with gradients.
+
+
         new_log['lr'] = decoder.lr
         trn_logs.add(new_log)
         
-        interactions += batch_size
+        interactions += batch_size * mini_batch_n
 
         percent_complete = (interactions / args.total_interactions) * 100
         if percent_complete > next_interval:
             next_time = datetime.now()
             dur = (next_time - interval_start_time).total_seconds()
             interval_start_time = next_time
-            durations.append(dur)
-            time_remaining = max(0, ((100 - percent_complete) / logging_interval) * np.mean(durations)) #calculate expected time remaining
 
-            print(f"================= Training {percent_complete:.2f}% complete, interval took {pretty_seconds(dur)}. Expected time remaining for training is {pretty_seconds(time_remaining)}. Loss={new_log['loss']:.2f}")
-            next_interval += logging_interval
+            previous_dur_per = (durations[-1][1]) if durations != [] else 0
+            durations.append( (dur, percent_complete - previous_dur_per) )
+            time_remaining = max(0, ((100 - percent_complete) * np.mean([ i_dur / i_per for i_dur,i_per in durations]))) #calculate expected time remaining #FIXME account for batches bigger than the logging interval
+
+            # print(f"================= Training {percent_complete:.2f}% complete, interval took {pretty_seconds(dur)}. Expected time remaining for training is {pretty_seconds(time_remaining)}. Loss={new_log['loss']:.2f}")
+            while next_interval < percent_complete: next_interval += logging_interval
 
         if iteration % args.vld_freq == 0 or interactions >= args.total_interactions:
             print("\t\t==== Performing Validation")
+            
+            decoder.eval()
             loss_list = []
             episode_list = []
             dataset_queue.start_validation()
@@ -273,10 +284,11 @@ def main(args: DictConfig):
             if episode_list != []: save_episode_list(episode_list, vld_saves_folder + "/vld_trials_" + str(vld_iteration) + ".txt")
             torch.save(decoder, vld_saves_folder + "/policy_" + str(vld_iteration) + ".pth")
 
-            print(f"\t\t==== Validation Complete: Loss of {mean_loss:.2f}")
+            print(f"\t\t==== Validation {vld_iteration} Complete: Loss of {mean_loss:.2f}")
             dataset_queue.reset_validation()
 
             vld_iteration += 1
+            decoder.train()
 
         iteration += 1
 

@@ -379,8 +379,11 @@ def convert_trial_into_windows(data_obj, args, env_args, reward_func=(lambda cgm
     rows, _ = data_obj.shape
 
     states = np.array([calculate_features(data_row, args, env_args) for data_row in data_obj])
+    print()
+    print(data_obj)
+    print("converted States:",states)
 
-    # actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
+    actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
 
     window_states = []
     for row_n in range(window_size, rows-1):
@@ -797,21 +800,30 @@ class DataQueue:
             if SHUFFLE_QUEUE_IMPORTS:
                 random.seed(IMPORT_SEED)
                 random.shuffle(handled_data.flat_trials)
-            
-
+        
+            print(handled_data.flat_trials[self.validation_trial_ind])
             trial_mapping = self.mapping(handled_data.flat_trials[self.validation_trial_ind], self.importer.args, self.importer.env_args)
-            while len(trial_mapping) == 0: 
-                self.validation_trial_ind += 1
-                trial_mapping = self.mapping(handled_data.flat_trials[self.validation_trial_ind], self.importer.args, self.importer.env_args)
 
             while len(self.vld_queue) < self.reserve_validation + 20: #and len(self.vld_queue) < self.maximum_length
-                if self.validation_in_trial_ind > len(trial_mapping):
+                if self.validation_in_trial_ind >= len(trial_mapping):
+                    #increment, safetly avoiding empty data
+                    timeout_count = 0
                     self.validation_trial_ind = (self.validation_trial_ind + 1) % self.reserve_validation_trials
-                    print("Ind:", self.validation_in_trial_ind, len(handled_data.flat_trials))
                     trial_mapping = self.mapping(handled_data.flat_trials[self.validation_trial_ind], self.importer.args, self.importer.env_args)
+                    while len(trial_mapping) == 0 and timeout_count < 300: 
+                        self.validation_trial_ind = (self.validation_trial_ind + 1) % self.reserve_validation_trials
+                        trial_mapping = self.mapping(handled_data.flat_trials[self.validation_trial_ind], self.importer.args, self.importer.env_args)
+
                     self.validation_in_trial_ind = 0
+
+                    if timeout_count >= 300: raise ValueError("Trial Mappings are Empty. Check context length.")
                 
-                self.vld_queue.append(trial_mapping[self.validation_in_trial_ind])     
+                self.vld_queue.append(trial_mapping[self.validation_in_trial_ind])
+
+                self.validation_in_trial_ind += 1
+        
+            del handled_data.flat_trials
+            del handled_data
     def pop_validation(self):
         out = self.vld_queue.pop(0)
         self.sync_validation()

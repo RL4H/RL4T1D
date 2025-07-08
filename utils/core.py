@@ -96,12 +96,16 @@ def r_kl(log_p, log_q):
     return approx_kl
     
 
+MEAL_MAX = 100 #FIXME paramaterise
 def calculate_features(data_row, args, env_args):
     cgm, meal, ins, t, meal_data = tuple(data_row)
     days,hours,mins = tuple([int(i) for i in t.split(':')])
 
     info = dict()
 
+    if ins > args.insulin_max: #FIXME remove
+        print(data_row, ins)
+        raise ValueError
     info["insulin"] = linear_scaling(x=ins, x_min=args.insulin_min, x_max=args.insulin_max)
     info["cgm"] = linear_scaling(x=cgm, x_min=args.glucose_min, x_max=args.glucose_max)
     
@@ -110,7 +114,7 @@ def calculate_features(data_row, args, env_args):
     info['day_hour'] = linear_scaling(x=hours, x_min=0, x_max=23)
     info['day_min'] = linear_scaling(x=mins, x_min=0, x_max=59)
     info['meal_type'] = 0 #FIXME implement
-    info['meal'] = meal
+    info['meal'] = linear_scaling(meal, 0, MEAL_MAX)
 
     return [ info[feat] for feat in env_args.obs_features]
 

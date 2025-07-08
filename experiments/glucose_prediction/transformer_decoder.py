@@ -1,10 +1,11 @@
 import math
 import torch
 import torch.nn as nn
+import numpy as np
 
 lni10 = math.log(0.1)
 
-class MultiBranchAutoregressiveDecoder(nn.Module):
+class AutoregressiveDecoder(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
@@ -22,6 +23,8 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         self.Tf = T_future
         self.TT = self.Tc + self.Tf
         self.d_model = d_model = self.feature_n #CHECK THIS
+
+        self.lr = args.lr
         
 
         assert args.obs_features[0] == 'cgm' #assumes first feature is the one to predict, which should be cgm
@@ -38,9 +41,11 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         self.decoder = nn.TransformerDecoder(layer, num_decoder_layers)
 
         # final projection to scalar
-        self.output_proj = nn.Linear(d_model, 1, device=self.device) #consider if this should be removed
+        # self.output_proj = nn.Linear(d_model, 1, device=self.device) #consider if this should be removed
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+
+        self.train()
 
     def _causal_mask(self, L, device):
         # upper triangular -inf mask, so the transformer can't learn off future values
@@ -68,6 +73,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         # use_teacher = (tgt_future is not None) and training
 
         # 2) autoregressive loop
+        next_token_rec = torch.zeros(B, self.Tf, device=self.device, dtype=dec_input.dtype) #(B, Tf)
         for t in range(self.Tf):
             # positional add
             inp = dec_input[:, :Tc + t, :] + self.pos_emb[:, :Tc + t, :]
@@ -82,12 +88,19 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
             # out: (B, Tc+t, D)
 
             # project last time-step
-            next_token = self.output_proj(out[:, -1, :])   # (B, 1)
+
+            # next_token = self.output_proj(out[:, -1, :])   # (B, 1)
+            # next_token_rec[:, t] = next_token.squeeze(1)
+
+            next_token = out[:, -1, 0].unsqueeze(-1)
+            next_token_rec[:, t] = next_token.squeeze(1)
 
             if self.feature_n > 1 and generate_features_func != None: #override secondary features with generator function
                 feat = generate_features_func(dec_input[:, :Tc + t, :]) # (B, Tc+t, D) -> (B, D)
                 # assert feat[:, 0] == dec_input[:, Tc+t, 0] #assert that feature doesn't reassign primary feature
                 dec_input[:, Tc + t, :] = feat.squeeze(-1).unsqueeze(-1)
+            elif training:
+                dec_input[:, Tc + t, :] = tgt_future[:, t, :].squeeze(-1) #overwrite features
             else:
                 # dec_input[:, Tc + t, :] = tgt_future[:, t, :].squeeze(-1) #overwrite features
 
@@ -104,10 +117,11 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
 
 
         # 3) collect the final Tf predictions
-        y_all = dec_input[:, Tc:, :]                         # (B, Tf, D)
+        # y_all = dec_input[:, Tc:, :]                         # (B, Tf, D)
         # if you kept them as scalars, instead track them in a buffer
         # here we assume last dimension is D but only the first dim matters:
-        y_pred = self.output_proj(y_all)                     # (B, Tf, 1)
+        # y_pred = self.output_proj(y_all)                     # (B, Tf, 1)
+        y_pred = next_token_rec.unsqueeze(-1) #(B, Tf, 1)
         return y_pred
 
     def forward_single(self, ctx, tgt_future, generate_features_func=None, training=True):
@@ -129,7 +143,7 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         """
         logs = dict()
 
-        y_pred = self.forward(ctx, tgt_future, training=True).squeeze(-1) #(B, Tf)
+        y_pred = self.forward(ctx, tgt_future, training=False).squeeze(-1) #(B, Tf) #FIXME training=True
         y_actual = tgt_future[:, :, 0] #(B, Tf)
         if y_map != None:
             y_pred.apply_(y_map)
@@ -146,7 +160,37 @@ class MultiBranchAutoregressiveDecoder(nn.Module):
         if loss_map != None: logs["loss"] = loss_map(logs["loss"])
         
         return logs
-    
+
+    def mini_batch_update(self, window_list, y_map=None, loss_map=None):
+
+        logs = dict()
+        loss_li = []
+        self.optimizer.zero_grad()
+        
+        for data in window_list:
+            ctx = data[:, :self.Tc, :]
+            tgt_future = data[:, self.Tc:, :]
+
+            y_pred = self.forward(ctx, tgt_future, training=True).squeeze(-1) #(B, Tf) #FIXME training=True
+            y_actual = tgt_future[:, :, 0] #(B, Tf)
+
+            if y_map != None:
+                y_pred.apply_(y_map)
+                y_actual.apply_(y_map)
+            loss = torch.sqrt(torch.mean((y_pred-y_actual)**2))
+            loss.backward() #accumulate loss
+
+            loss_li.append(loss.item())
+
+
+        self.optimizer.step()
+        self.optimizer.zero_grad() # clear gradients to save memory
+        
+        logs["loss"] = np.mean(loss_li)
+        if loss_map != None: logs["loss"] = loss_map(logs["loss"])
+
+        return logs
+
     def eval_update(self, ctx, tgt_future, y_map=None, loss_map=None):
         """Performs a single training cycle of the model, returning log info
         Args:
