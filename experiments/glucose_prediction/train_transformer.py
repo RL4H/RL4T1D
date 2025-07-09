@@ -18,8 +18,9 @@ MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
 from utils.sim_data import convert_trial_into_windows
-from utils.core import inverse_linear_scaling, MEAL_MAX
+from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
 from experiments.glucose_prediction.transformer_decoder import AutoregressiveDecoder
+from experiments.glucose_prediction.portable_loader import CompactLoader
 
 
 """
@@ -178,8 +179,27 @@ def main(args: DictConfig):
             from utils.sim_data import DataImporter
 
             importer = DataImporter(args=args,env_args=args) #FIXME probably don't handle the args this way
-            dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*101, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions)
+            # dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*101, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions)
+            # dataset_queue.start()
+
+            handler = importer.get_trials()
+            handler.flatten()
+            flat_trials = handler.flat_trials
+            del handler
+            del importer
+            dataset_queue = CompactLoader(
+                args, batch_size*10, batch_size*101, 
+                flat_trials,
+                lambda trial : [calculate_features(row, args, args) for row in trial],
+                lambda conv_trial, trial_ind : conv_trial[trial_ind: trial_ind+args.obs_window],
+                lambda trial : max(0, len(trial) - args.obs_window - 1),
+                1,
+                batch_size
+            )
+            gc.collect()
             dataset_queue.start()
+            gc.collect()
+
 
             
 
@@ -187,7 +207,7 @@ def main(args: DictConfig):
             from utils.cln_data import ClnDataImporter
 
             importer = ClnDataImporter(args=args,env_args=args) #FIXME probably don't handle the args this way
-            dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*101, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions)
+            dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*51, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions*2)
             dataset_queue.start()
 
     elif args.policy_type == "online":
@@ -226,15 +246,15 @@ def main(args: DictConfig):
     vld_iteration = 0
     while interactions < args.total_interactions:
         decoder.update_lr(interactions)
-
         
         data = [torch.as_tensor(np.array(dataset_queue.pop_batch(batch_size)), dtype=torch.float32, device=device) for _ in range(mini_batch_n)] #(B, T, D)
+        
 
         new_log = decoder.mini_batch_update(data, loss_map=inverse_rmse_func)
         
-        data_ctx = data[:, :decoder.Tc, :]
-        data_fut = data[:, decoder.Tc:, :]
-        new_log = decoder.update(data_ctx, data_fut, loss_map=inverse_rmse_func) #doesn't apply inverse cgm func on training data, to not mess with gradients.
+        # data_ctx = data[:, :decoder.Tc, :]
+        # data_fut = data[:, decoder.Tc:, :]
+        # new_log = decoder.update(data_ctx, data_fut, loss_map=inverse_rmse_func) #doesn't apply inverse cgm func on training data, to not mess with gradients.
 
 
         new_log['lr'] = decoder.lr
@@ -252,7 +272,7 @@ def main(args: DictConfig):
             durations.append( (dur, percent_complete - previous_dur_per) )
             time_remaining = max(0, ((100 - percent_complete) * np.mean([ i_dur / i_per for i_dur,i_per in durations]))) #calculate expected time remaining #FIXME account for batches bigger than the logging interval
 
-            # print(f"================= Training {percent_complete:.2f}% complete, interval took {pretty_seconds(dur)}. Expected time remaining for training is {pretty_seconds(time_remaining)}. Loss={new_log['loss']:.2f}")
+            print(f"================= Training {percent_complete:.2f}% complete, interval took {pretty_seconds(dur)}. Expected time remaining for training is {pretty_seconds(time_remaining)}. Loss={new_log['loss']:.2f}")
             while next_interval < percent_complete: next_interval += logging_interval
 
         if iteration % args.vld_freq == 0 or interactions >= args.total_interactions:
