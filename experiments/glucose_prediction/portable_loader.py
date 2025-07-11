@@ -21,7 +21,10 @@ from bisect import bisect_right
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-SAVE_PATH = MAIN_PATH + "/experiments/glucose_prediction/temp_data.pkl"
+SIM_DATA_PATH = config("SIM_DATA_PATH")
+
+SAVE_PATH = SIM_DATA_PATH + "/temp_data.pkl"
+SAVE_PATH_ARGS = SIM_DATA_PATH + "/temp_args.pkl"
 
 def load_obj(file_dest):
     with open(file_dest, 'rb') as f:
@@ -33,67 +36,123 @@ def save_obj(data, file_dest):
         data = pickle.dump(data, f)
     return data
 
+def load_compact_loader_object(file_dest):
+    args, min_length, max_length, _1, _2, retrieval_func_ind, _3, shuffle_seed, validation_length, training_indicies, validation_indicies, length, save_dest = load_obj(file_dest)
+    cl = CompactLoader(args, min_length, max_length, [], None, retrieval_func_ind, None, shuffle_seed, validation_length, prebuilt=True)
+    cl.prebuilt_init(args, min_length, max_length, _1, _2, retrieval_func_ind, _3, shuffle_seed, validation_length, training_indicies, validation_indicies, length, save_dest)
+    return cl
+
+retrieval_funcs = [
+    lambda conv_trial, trial_ind, args : conv_trial[trial_ind: trial_ind+args.obs_window]
+]
+
 class CompactLoader:
-    def __init__(self, args, min_length, max_length, trials_list, compact_conversion, retrieval_func, calculate_trial_n, shuffle_seed=1, validation_items=1024):
-        self.retrieval_func = retrieval_func
+    def __init__(self, args, min_length, max_length, trials_list, compact_conversion, retrieval_func_ind, calculate_trial_n, shuffle_seed=1, validation_items=1024, prebuilt=False, folder=MAIN_PATH + f"/experiments/glucose_prediction/saves/"):
+        self.retrieval_func = retrieval_funcs[retrieval_func_ind]
+        self.retrieval_func_ind = retrieval_func_ind
         self.args = args
         self.minimum_length, self.maximum_length = min_length, max_length
 
-        print("Converting")
-        n_list = []
-        to_remove = []
-        for c,trial in enumerate(trials_list):
-            trial_n = calculate_trial_n(trial)
-            if trial_n > 0:
-                trials_list[c] = compact_conversion(trial)
-                n_list.append(trial_n)
-            else:
-                to_remove.append(c)
-        
-        for c in to_remove[::-1]:
-            del trials_list[c]
-                
-        
-        self.loaded = False
+        self.save_path = folder + f"temp_data_patient_{args.patient_id}.pkl"
+        self.save_path_args = folder + f"temp_args_{args.patient_id}.pkl"
 
-        save_obj(trials_list, SAVE_PATH)
-        del trials_list
+        self.shuffle_seed = shuffle_seed
         
-        self.cum_n = [sum(n_list[:c+1]) for c in range(len(n_list))] #stores cumulative length of transitions, for each searching
-        self.length = self.cum_n[-1]
-        print("temp object saved with length",self.length)
+        if not prebuilt:
 
-        indicies = list(range(self.length))
-        seed(shuffle_seed)
-        shuffle(indicies)
+            print("Converting")
+            n_list = []
+            to_remove = []
+            for c,trial in enumerate(trials_list):
+                trial_n = calculate_trial_n(trial)
+                if trial_n > 0:
+                    trials_list[c] = compact_conversion(trial)
+                    n_list.append(trial_n)
+                else:
+                    to_remove.append(c)
+            
+            for c in to_remove[::-1]:
+                del trials_list[c]
+            
+            print("Calculating cumulative length.")
+            #cum_n = [sum(n_list[:c+1]) for c in range(len(n_list))] #stores cumulative length of transitions, for each searching
+            
+            cum_n = []
+            running_total = 0
+            for n in n_list:
+                running_total += n
+                cum_n.append(running_total)
+            self.length = running_total
+            
+            self.training_length = self.length - validation_items
+            self.validation_length = validation_items
 
-        self.validation_indicies = indicies[:validation_items]
-        self.training_indicies = indicies[validation_items:]
+            print("Length!",self.length)
+
+            print("Saving object.")
+            save_obj((trials_list, cum_n), self.save_path)
+            print("temp object saved with length",self.length)
+
+            print("clearing excess memory")
+            del trials_list, cum_n
+            gc.collect()
+            print("memory cleared")
+            
+
+            indicies = list(range(self.length))
+            self.shuffle_seed = shuffle_seed
+            seed(shuffle_seed)
+            shuffle(indicies)
+
+            self.validation_indicies = indicies[:validation_items]
+            self.training_indicies = indicies[validation_items:]
+
+            self.queue = []
+            self.vld_queue = []
+            
+            self.save_compact_loader_object()
+        
 
         self.validation_ind = 0
         self.training_ind = 0
 
-        self.training_length = self.length - validation_items
-        self.validation_length = validation_items
-
+        self.loaded = False
+    def prebuilt_init(self, args, min_length, max_length, _1, _2, retrieval_func_ind, _3, shuffle_seed, validation_length, training_indicies, validation_indicies, length, save_dest):
+        self.args, self.minimum_length, self.maximum_length, self.retrieval_func_ind, self.shuffle_seed, self.validation_length, self.training_indicies, self.validation_indicies, self.length = args, min_length, max_length, retrieval_func_ind, shuffle_seed, validation_length, training_indicies, validation_indicies, length
+        self.retrieval_func = retrieval_funcs[self.retrieval_func_ind]
         self.queue = []
         self.vld_queue = []
+        
+        indicies = list(range(self.length))
+        self.shuffle_seed = shuffle_seed
+        seed(shuffle_seed)
+        shuffle(indicies)
+
+        self.validation_indicies = indicies[:validation_length]
+        self.training_indicies = indicies[validation_length:]
+
+        self.training_length = self.length - validation_length
+        self.validation_length = validation_length
+
+        print(args, min_length, max_length, _1, _2, retrieval_func_ind, _3, shuffle_seed, validation_length, len(training_indicies), len(validation_indicies), length, save_dest)
+        
     def start(self):
         self.sync_queue()
     def load(self):
         print("\tLoading object.")
-        self.trials_list = load_obj(SAVE_PATH)
+        self.trials_list, self.cum_n = load_obj(self.save_path)
         print("\tObject loaded.")
         self.loaded = True
     def clear_load(self):
         del self.trials_list
         self.loaded = False
+        gc.collect()
     def __getitem__(self, ind):
         assert self.loaded
         trial_ind = bisect_right(self.cum_n, ind)
         before_ind = int(trial_ind != 0) * self.cum_n[trial_ind-1] #default to starting at index 0 if this is first trial, avoiding if statment for faster retrieval
         in_trial_ind = ind - before_ind
-        retrieved = self.retrieval_func(self.trials_list[trial_ind], in_trial_ind)
+        retrieved = self.retrieval_func(self.trials_list[trial_ind], in_trial_ind, self.args)
         return retrieved
     def __len__(self):
         return self.length
@@ -135,7 +194,10 @@ class CompactLoader:
         return out
     def pop_validation_queue(self, n):
         return [self.pop_validation() for _ in range(n)]
-
+    def save_compact_loader_object(self):
+        args = (self.args, self.minimum_length, self.maximum_length, [], None, self.retrieval_func_ind, None, self.shuffle_seed, self.validation_length, self.training_indicies, self.validation_indicies, self.length, self.save_path)
+        print(self.args, self.minimum_length, self.maximum_length, [], None, self.retrieval_func_ind, None, self.shuffle_seed, self.validation_length, len(self.training_indicies), len(self.validation_indicies), self.length, self.save_path)
+        save_obj(args, self.save_path_args)
 
 
 

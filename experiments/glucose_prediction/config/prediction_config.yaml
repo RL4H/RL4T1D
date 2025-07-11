@@ -1,4 +1,4 @@
-run_name: "test_19_proper_shuffle"
+run_name: "test_21"
 save_path: "/experiments/glucose_prediction/saves/"
 split_seed: 0
 device: 'cuda'
@@ -7,7 +7,7 @@ policy_type: "offline" #offline | online
 
 data_type: "simulated" #simulated | clinical
 data_protocols: [] #None defaults to all
-data_algorithms: ['A2C', 'AUXML', 'G2P2C', 'PPO', 'SAC', 'TD3', 'DDPG', 'DPG'] #None defaults to all
+data_algorithms: [] #None defaults to all
 
 patient_id: 0
 
@@ -50,7 +50,7 @@ total_interactions: 500000
 
 vld_interactions: 512
 
-lr: 1e-3
+lr: 5e-3
 
 lr_decay: false 
 lr_minimum: 1e-7

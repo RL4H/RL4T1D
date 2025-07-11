@@ -20,7 +20,7 @@ sys.path.insert(1, MAIN_PATH)
 from utils.sim_data import convert_trial_into_windows
 from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
 from experiments.glucose_prediction.transformer_decoder import AutoregressiveDecoder
-from experiments.glucose_prediction.portable_loader import CompactLoader
+from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
 
 
 """
@@ -33,6 +33,8 @@ evaluated by RMSE to target values, validated with dataset
 
 
 """
+
+PRELOAD = True
 
 class SimpleLogger:
     def __init__(self, args, title, keys):
@@ -170,35 +172,47 @@ def main(args: DictConfig):
     mini_batch_n = args.mini_batch_n
     assert args.input_window + args.t_future == args.obs_window
 
+
+
     # inverse_cgm_func = lambda cgm : inverse_cgm(cgm, args)
     inverse_rmse_func = lambda loss : inverse_cgm_RMSE(loss, args)
 
     if args.policy_type == "offline":
         print(f"Using Offline RL with a {args.data_type} data soure on patient id {args.patient_id}.")
         if args.data_type == "simulated":
-            from utils.sim_data import DataImporter
 
-            importer = DataImporter(args=args,env_args=args) #FIXME probably don't handle the args this way
-            # dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*101, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions)
-            # dataset_queue.start()
+            if PRELOAD:
+                print("Preloading data")
+                folder = MAIN_PATH + f"/experiments/glucose_prediction/"
+                data_save_path = folder + f"temp_data_patient_{args.patient_id}.pkl"
+                data_save_path_args = folder + f"temp_args_{args.patient_id}.pkl"
+                
+                dataset_queue = load_compact_loader_object(data_save_path_args)
+                dataset_queue.start()
+            else:
+                from utils.sim_data import DataImporter
 
-            handler = importer.get_trials()
-            handler.flatten()
-            flat_trials = handler.flat_trials
-            del handler
-            del importer
-            dataset_queue = CompactLoader(
-                args, batch_size*10, batch_size*101, 
-                flat_trials,
-                lambda trial : [calculate_features(row, args, args) for row in trial],
-                lambda conv_trial, trial_ind : conv_trial[trial_ind: trial_ind+args.obs_window],
-                lambda trial : max(0, len(trial) - args.obs_window - 1),
-                1,
-                batch_size
-            )
-            gc.collect()
-            dataset_queue.start()
-            gc.collect()
+                importer = DataImporter(args=args,env_args=args) #FIXME probably don't handle the args this way
+                # dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*101, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions)
+                # dataset_queue.start()
+
+                handler = importer.get_trials()
+                handler.flatten()
+                flat_trials = handler.flat_trials
+                del handler
+                del importer
+                dataset_queue = CompactLoader(
+                    args, batch_size*10, batch_size*101, 
+                    flat_trials,
+                    lambda trial : [calculate_features(row, args, args) for row in trial],
+                    0,
+                    lambda trial : max(0, len(trial) - args.obs_window - 1),
+                    1,
+                    batch_size
+                )
+                gc.collect()
+                dataset_queue.start()
+                gc.collect()
 
 
             
@@ -249,14 +263,8 @@ def main(args: DictConfig):
         
         data = [torch.as_tensor(np.array(dataset_queue.pop_batch(batch_size)), dtype=torch.float32, device=device) for _ in range(mini_batch_n)] #(B, T, D)
         
-
         new_log = decoder.mini_batch_update(data, loss_map=inverse_rmse_func)
-        
-        # data_ctx = data[:, :decoder.Tc, :]
-        # data_fut = data[:, decoder.Tc:, :]
-        # new_log = decoder.update(data_ctx, data_fut, loss_map=inverse_rmse_func) #doesn't apply inverse cgm func on training data, to not mess with gradients.
-
-
+    
         new_log['lr'] = decoder.lr
         trn_logs.add(new_log)
         
@@ -309,6 +317,7 @@ def main(args: DictConfig):
 
             vld_iteration += 1
             decoder.train()
+            gc.collect()
 
         iteration += 1
 
