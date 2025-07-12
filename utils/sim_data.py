@@ -401,7 +401,7 @@ def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda
 
     actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
 
-    rewards = [linear_scaling(cgm, args.glucose_min, args.glucose_max) for cgm in data_obj[:, 0]]
+    rewards = [reward_func(linear_scaling(cgm, args.glucose_min, args.glucose_max)) for cgm in data_obj[:, 0]] #FIXME check if applied reward func changes things
 
     transitions = []
     for row_n in range(window_size, rows-1):
@@ -413,6 +413,33 @@ def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda
         transitions.append(Transition(state, action, reward, next_state, done))
 
     return transitions
+
+def calculate_augmented_features(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward(None, cgm))):
+    rows, _ = data_obj.shape
+
+    actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
+    rewards = [reward_func(cgm) for cgm in data_obj[:, 0]] #FIXME check if applied reward func changes things
+
+    aug_states = np.array([ np.concatenate([calculate_features(data_row, args, env_args), [actions[n], rewards[n], (n >= rows - 2)]]) for n,data_row in enumerate(data_obj)])
+
+    return aug_states
+
+def retrieval_augmented_feature_trial(aug_states, row_n, window_size):
+    states = aug_states[:, :-3]
+
+    # actions = aug_states[:, -3]
+    # rewards = aug_states[:, -2]
+    # done = aug_states[:, -1]
+
+    state = np.array(states[row_n: row_n+window_size])
+    action = np.array([aug_states[row_n+window_size, -3]])
+    reward = np.array([aug_states[row_n+window_size+1, -2]]) #sample from next states reward
+    next_state = np.array(states[row_n+1: row_n+window_size+1])
+    done = np.array([aug_states[row_n+window_size+1, -1]])
+    
+    return Transition(state, action, reward, next_state, done)
+
+
 
 ### Classes
 

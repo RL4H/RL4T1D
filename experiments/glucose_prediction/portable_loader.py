@@ -21,6 +21,8 @@ from bisect import bisect_right
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
+from utils.sim_data import retrieval_augmented_feature_trial
+
 SIM_DATA_PATH = config("SIM_DATA_PATH")
 
 SAVE_PATH = SIM_DATA_PATH + "/temp_data.pkl"
@@ -43,7 +45,8 @@ def load_compact_loader_object(file_dest):
     return cl
 
 retrieval_funcs = [
-    lambda conv_trial, trial_ind, args : conv_trial[trial_ind: trial_ind+args.obs_window]
+    lambda conv_trial, trial_ind, args : conv_trial[trial_ind: trial_ind+args.obs_window],
+    lambda conv_trial, trial_ind, args : retrieval_augmented_feature_trial(np.array(conv_trial), trial_ind, args.obs_window)
 ]
 
 class CompactLoader:
@@ -91,7 +94,7 @@ class CompactLoader:
 
             print("Saving object.")
             save_obj((trials_list, cum_n), self.save_path)
-            print("temp object saved with length",self.length)
+            print("temp object saved with length",self.length,"to",self.save_path)
 
             print("clearing excess memory")
             del trials_list, cum_n
@@ -111,6 +114,7 @@ class CompactLoader:
             self.vld_queue = []
             
             self.save_compact_loader_object()
+            self.total_transitions = self.length
         
 
         self.validation_ind = 0
@@ -133,6 +137,7 @@ class CompactLoader:
 
         self.training_length = self.length - validation_length
         self.validation_length = validation_length
+        self.total_transitions = self.length
 
         print(args, min_length, max_length, _1, _2, retrieval_func_ind, _3, shuffle_seed, validation_length, len(training_indicies), len(validation_indicies), length, save_dest)
         
@@ -198,6 +203,7 @@ class CompactLoader:
         args = (self.args, self.minimum_length, self.maximum_length, [], None, self.retrieval_func_ind, None, self.shuffle_seed, self.validation_length, self.training_indicies, self.validation_indicies, self.length, self.save_path)
         print(self.args, self.minimum_length, self.maximum_length, [], None, self.retrieval_func_ind, None, self.shuffle_seed, self.validation_length, len(self.training_indicies), len(self.validation_indicies), self.length, self.save_path)
         save_obj(args, self.save_path_args)
+        print("Object Args saved to",self.save_path_args)
 
 
 

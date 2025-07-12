@@ -10,6 +10,13 @@ from metrics.statistics import calc_stats
 
 import pandas as pd
 from omegaconf import OmegaConf, open_dict
+
+
+from decouple import config
+MAIN_PATH = config('MAIN_PATH')
+SIM_DATA_PATH = config('SIM_DATA_PATH')
+
+from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
 from utils.sim_data import patient_id_to_label
 
 from copy import deepcopy
@@ -56,28 +63,51 @@ class Agent:
 
         elif type == "Offline":
             if args.data_type == "simulated":
-                from utils.sim_data import DataImporter
-                
-                # setup imported data buffer
-                importer = DataImporter(args=args,env_args=env_args)
-                importer.create_queue(minimum_length=args.mini_batch_size*100, maximum_length=args.mini_batch_size*1001)
-                importer.queue.start()
+                PRELOAD = False
 
-                self.importer = importer
-                self.alt_importer_active = False
-                if self.args.data_protocols != self.args.post_horizon_data_protocols or self.args.data_algorithms != self.args.post_horizon_data_algorithms:
-                    alt_args = deepcopy(args)
-                    alt_args.data_protocols = self.args.post_horizon_data_protocols
-                    alt_args.data_algorithms = self.args.post_horizon_data_algorithms
-                    assert self.args.data_protocols != self.args.post_horizon_data_protocols or self.args.data_algorithms != self.args.post_horizon_data_algorithms
-                    self.alt_importer = DataImporter(args=alt_args,env_args=env_args)
+                if PRELOAD:
+                    print("Preloading data")
+                    folder = SIM_DATA_PATH + "/object_save/"
+                    data_save_path = folder + f"temp_data_patient_{args.patient_id}.pkl"
+                    data_save_path_args = folder + f"temp_args_{args.patient_id}.pkl"
+                    
+                    queue = load_compact_loader_object(data_save_path_args)
+                    queue.start()
+                    gc.collect()
+                else:
+                    from utils.sim_data import DataImporter, calculate_augmented_features
+                    from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
+
+                    importer = DataImporter(args=args,env_args=env_args)
+                    # queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*101, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions)
+                    # queue.start()
+
+                    handler = importer.get_trials()
+                    handler.flatten()
+                    flat_trials = handler.flat_trials
+                    del handler
+                    del importer
+                    queue = CompactLoader(
+                        args, args.batch_size*10, args.batch_size*101, 
+                        flat_trials,
+                        lambda trial : calculate_augmented_features(trial, args, env_args),
+                        1,
+                        lambda trial : max(0, len(trial) - args.obs_window - 1),
+                        1,
+                        args.batch_size,
+                        folder=SIM_DATA_PATH + "/object_save/"
+                    )
+                    gc.collect()
+                    queue.start()
+                    gc.collect()
+
 
                 if args.use_all_interactions: #override total_interactions, use 98% of total transitions to avoid spilling over
-                    print("overriding total interactions from",args.total_interactions,"to",importer.queue.total_transitions)
-                    self.args.total_interactions = int(importer.queue.total_transitions*0.98)
-                    args.total_interactions = int(importer.queue.total_transitions*0.98)
-                elif args.total_interactions > importer.queue.total_transitions:
-                    print("WARNING: total interactions set (",args.total_interactions,") is greater than available data (",importer.queue.total_transitions,"). ")
+                    print("overriding total interactions from",args.total_interactions,"to",queue.total_transitions)
+                    self.args.total_interactions = int(queue.total_transitions*0.98)
+                    args.total_interactions = int(queue.total_transitions*0.98)
+                elif args.total_interactions > queue.total_transitions:
+                    print("WARNING: total interactions set (",args.total_interactions,") is greater than available data (",queue.total_transitions,"). ")
                 
             elif args.data_type == "clinical":
                 import utils.cln_data as cln_data
@@ -86,15 +116,13 @@ class Agent:
                 importer.create_queue(minimum_length=args.mini_batch_size*100, maximum_length=args.mini_batch_size*1001)
                 importer.queue.start()
 
-                self.importer = importer
             else:
                 raise KeyError("Invlid data_type parameter.")
             
             
             if DEBUG_SHOW: print("Queue Started!")
-            # self.buffer = importer.queue
 
-            self.training_agents = [OfflineSampler(args=self.args, env_args=self.env_args, mode='training', worker_id=i+args.training_agent_id_offset,importer_queue=importer.queue) for i in range(self.args.n_training_workers)]
+            self.training_agents = [OfflineSampler(args=self.args, env_args=self.env_args, mode='training', worker_id=i+args.training_agent_id_offset,importer_queue=queue) for i in range(self.args.n_training_workers)]
             if DEBUG_SHOW: print("Training Agents Initialised")
             self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
             if DEBUG_SHOW: print("Testing Agents Initialised")
@@ -116,14 +144,6 @@ class Agent:
         # learning
         rollout, completed_interactions, logs = 0, 0, {}
         while completed_interactions < self.args.total_interactions:  # steps * n_workers * epochs.
-            if self.agent_type == "Offline" and self.args.use_cirriculum and completed_interactions >= self.args.cirriculum_horizon and (not self.alt_importer_active): #switch importer settings if needed
-                print("Importer switch to alternate settings.")
-                importer = self.importer = self.alt_importer
-                importer.create_queue(minimum_length=self.args.mini_batch_size*100, maximum_length=self.args.mini_batch_size*1001)
-                importer.queue.start()
-
-                for agent in self.training_agents: agent.importer_queue = importer.queue
-
 
             tstart = time.perf_counter()
             for i in range(self.args.n_training_workers):  # run training workers to collect data
