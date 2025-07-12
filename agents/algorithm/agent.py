@@ -63,10 +63,10 @@ class Agent:
 
         elif type == "Offline":
             if args.data_type == "simulated":
-                PRELOAD = False
+                PRELOAD = True
 
                 if PRELOAD:
-                    print("Preloading data")
+                    print("Loading prebuilt data")
                     folder = SIM_DATA_PATH + "/object_save/"
                     data_save_path = folder + f"temp_data_patient_{args.patient_id}.pkl"
                     data_save_path_args = folder + f"temp_args_{args.patient_id}.pkl"
@@ -94,7 +94,7 @@ class Agent:
                         1,
                         lambda trial : max(0, len(trial) - args.obs_window - 1),
                         1,
-                        args.batch_size,
+                        0,
                         folder=SIM_DATA_PATH + "/object_save/"
                     )
                     gc.collect()

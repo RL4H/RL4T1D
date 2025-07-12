@@ -41,7 +41,7 @@ def save_obj(data, file_dest):
 def load_compact_loader_object(file_dest):
     args, min_length, max_length, _1, _2, retrieval_func_ind, _3, shuffle_seed, validation_length, training_indicies, validation_indicies, length, save_dest = load_obj(file_dest)
     cl = CompactLoader(args, min_length, max_length, [], None, retrieval_func_ind, None, shuffle_seed, validation_length, prebuilt=True)
-    cl.prebuilt_init(args, min_length, max_length, _1, _2, retrieval_func_ind, _3, shuffle_seed, validation_length, training_indicies, validation_indicies, length, save_dest)
+    cl.prebuilt_init(args, min_length, max_length, _1, _2, retrieval_func_ind, _3, shuffle_seed, validation_length, training_indicies, validation_indicies, length, save_dest, file_dest)
     return cl
 
 retrieval_funcs = [
@@ -56,12 +56,13 @@ class CompactLoader:
         self.args = args
         self.minimum_length, self.maximum_length = min_length, max_length
 
-        self.save_path = folder + f"temp_data_patient_{args.patient_id}.pkl"
-        self.save_path_args = folder + f"temp_args_{args.patient_id}.pkl"
 
         self.shuffle_seed = shuffle_seed
         
         if not prebuilt:
+
+            self.save_path = folder + f"temp_data_patient_{args.patient_id}.pkl"
+            self.save_path_args = folder + f"temp_args_{args.patient_id}.pkl"
 
             print("Converting")
             n_list = []
@@ -87,8 +88,6 @@ class CompactLoader:
                 cum_n.append(running_total)
             self.length = running_total
             
-            self.training_length = self.length - validation_items
-            self.validation_length = validation_items
 
             print("Length!",self.length)
 
@@ -97,7 +96,7 @@ class CompactLoader:
             print("temp object saved with length",self.length,"to",self.save_path)
 
             print("clearing excess memory")
-            del trials_list, cum_n
+            del trials_list
             gc.collect()
             print("memory cleared")
             
@@ -107,8 +106,66 @@ class CompactLoader:
             seed(shuffle_seed)
             shuffle(indicies)
 
-            self.validation_indicies = indicies[:validation_items]
+            # self.training_length = self.length - validation_items
+            # self.validation_length = validation_items
+
+            # self.validation_indicies = 
             self.training_indicies = indicies[validation_items:]
+
+            #allocate validation indicies to not overlap
+            VALIDATION_IN_TRIAL_REPS = 5
+
+            replacement_validation_indicies = []
+            base_validation_inds = indicies[:validation_items]
+
+            while len(replacement_validation_indicies) < validation_items:
+                ind = base_validation_inds.pop(0)
+                trial_ind, in_trial_ind = self.get_trial_inds(ind)
+                for n in range(VALIDATION_IN_TRIAL_REPS):
+                    trial_len = n_list[trial_ind]
+                    try_in_trial_ind = in_trial_ind + n
+                    if (try_in_trial_ind >= trial_len) or (len(replacement_validation_indicies) >= validation_items): break # exit loop if trial index out of range
+
+                    try_ind = ind + n
+                    if try_ind in self.training_indicies:
+                        self.training_indicies.remove(try_ind)
+                    elif try_ind in base_validation_inds:
+                        base_validation_inds.remove(try_ind)
+                    replacement_validation_indicies.append(try_ind)
+            
+            removed_indicies = []
+            for ind in replacement_validation_indicies:
+                trial_ind, in_trial_ind = self.get_trial_inds(ind)
+                trial_len = n_list[trial_ind]
+                for n in range(args.obs_window):
+                    trial_len = n_list[trial_ind]
+                    try_in_trial_ind = in_trial_ind + n
+                    if (try_in_trial_ind >= trial_len): break #ignore out of index trials
+
+                    #remove trial from other places
+                    try_ind = ind + n
+                    if try_ind in self.training_indicies:
+                        self.training_indicies.remove(try_ind)
+                        removed_indicies.append(try_ind)
+                    elif try_ind in base_validation_inds:
+                        base_validation_inds.remove(try_ind)
+                        removed_indicies.append(try_ind)
+                    # else: we assume it's in replacement_validation_indicies and is fine to keep
+            
+            self.validation_indicies = replacement_validation_indicies
+
+            for ind in base_validation_inds: #add spare validation inds back to training
+                self.training_indicies.append(ind)
+            
+            print(f"Validation indicies applied with length {len(self.validation_indicies)}/{validation_items}, removing {len(removed_indicies)} items from training for validity.")
+            self.validation_length = len(self.validation_indicies)
+            self.training_length = self.length - self.validation_length
+
+
+
+
+            
+            del cum_n
 
             self.queue = []
             self.vld_queue = []
@@ -121,7 +178,7 @@ class CompactLoader:
         self.training_ind = 0
 
         self.loaded = False
-    def prebuilt_init(self, args, min_length, max_length, _1, _2, retrieval_func_ind, _3, shuffle_seed, validation_length, training_indicies, validation_indicies, length, save_dest):
+    def prebuilt_init(self, args, min_length, max_length, _1, _2, retrieval_func_ind, _3, shuffle_seed, validation_length, training_indicies, validation_indicies, length, save_dest, args_save_dest):
         self.args, self.minimum_length, self.maximum_length, self.retrieval_func_ind, self.shuffle_seed, self.validation_length, self.training_indicies, self.validation_indicies, self.length = args, min_length, max_length, retrieval_func_ind, shuffle_seed, validation_length, training_indicies, validation_indicies, length
         self.retrieval_func = retrieval_funcs[self.retrieval_func_ind]
         self.queue = []
@@ -139,6 +196,9 @@ class CompactLoader:
         self.validation_length = validation_length
         self.total_transitions = self.length
 
+        self.save_path = save_dest
+        self.save_path_args = args_save_dest
+
         print(args, min_length, max_length, _1, _2, retrieval_func_ind, _3, shuffle_seed, validation_length, len(training_indicies), len(validation_indicies), length, save_dest)
         
     def start(self):
@@ -152,11 +212,14 @@ class CompactLoader:
         del self.trials_list
         self.loaded = False
         gc.collect()
-    def __getitem__(self, ind):
-        assert self.loaded
+    def get_trial_inds(self, ind): #also assumes loaded, for self.cum_n
         trial_ind = bisect_right(self.cum_n, ind)
         before_ind = int(trial_ind != 0) * self.cum_n[trial_ind-1] #default to starting at index 0 if this is first trial, avoiding if statment for faster retrieval
         in_trial_ind = ind - before_ind
+        return trial_ind, in_trial_ind
+    def __getitem__(self, ind):
+        assert self.loaded
+        trial_ind, in_trial_ind = self.get_trial_inds(ind)
         retrieved = self.retrieval_func(self.trials_list[trial_ind], in_trial_ind, self.args)
         return retrieved
     def __len__(self):
@@ -199,6 +262,7 @@ class CompactLoader:
         return out
     def pop_validation_queue(self, n):
         return [self.pop_validation() for _ in range(n)]
+    
     def save_compact_loader_object(self):
         args = (self.args, self.minimum_length, self.maximum_length, [], None, self.retrieval_func_ind, None, self.shuffle_seed, self.validation_length, self.training_indicies, self.validation_indicies, self.length, self.save_path)
         print(self.args, self.minimum_length, self.maximum_length, [], None, self.retrieval_func_ind, None, self.shuffle_seed, self.validation_length, len(self.training_indicies), len(self.validation_indicies), self.length, self.save_path)

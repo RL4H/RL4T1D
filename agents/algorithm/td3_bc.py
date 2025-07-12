@@ -124,7 +124,6 @@ class TD3_BC(Agent):
 
                 batch = Transition(*zip(*transitions))
                 cur_state_batch = torch.cat(batch.state)
-                print("State batch shape",cur_state_batch.shape)
                 actions_batch = torch.cat(batch.action)
                 reward_batch = torch.cat(batch.reward).unsqueeze(1)
                 next_state_batch = torch.cat(batch.next_state)
