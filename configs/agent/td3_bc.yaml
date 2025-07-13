@@ -32,11 +32,11 @@ n_interactions_lr_decay: 4000000
 
 # training parameters
 pi_lr: 1.5e-4 
-vf_lr: 1.5e-4
+vf_lr: 5e-4
 
 batch_size : 8192
 mini_batch_size: 256
-n_pi_epochs: 5
+n_pi_epochs: 11
 
 # test
 n_testing_workers: 20
@@ -46,6 +46,7 @@ max_test_epi_len: 288  # testing conducted for 1 day: 12 steps/hr * 24 hours
 n_val_trials: 50 #500
 
 #data source
+data_preload: true,
 data_type: "simulated" #simulated | clinical
 data_protocols: ["evaluation","training"] #None defaults to all
 data_algorithms : ["G2P2C","AUXML", "PPO","TD3"] #None defaults to all
