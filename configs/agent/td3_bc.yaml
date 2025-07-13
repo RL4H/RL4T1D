@@ -63,15 +63,15 @@ use_handcraft: 0
 
 n_hidden: 16
 noise_model: "normal_dist"
-noise_std: 0.10
+noise_std: 0.1
 noise_application: 0
 target_action_std: 0.1
-target_action_lim: 0.3
+target_action_lim: 0.2
 soft_tau: 0.005
 
 alpha : 0.25
 beta : 1
 
-vf_lambda : 0
+vf_lambda : 0.1
 pi_lambda : 0
 

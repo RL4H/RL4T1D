@@ -142,11 +142,12 @@ class TD3_BC(Agent):
                 value_loss1 = self.value_criterion1(target_value.detach(), predicted_value1)
                 value_loss2 = self.value_criterion2(target_value.detach(), predicted_value2)
 
-                vf_loss += value_loss1.detach() + value_loss2.detach() #FIXME rearrange for mini-batch set up
                 
 
                 value_loss1.backward()
                 value_loss2.backward()
+
+                vf_loss += (value_loss1 + value_loss2).detach() #FIXME rearrange for mini-batch set up
 
 
                 for param in self.policy.value_net1.parameters():
@@ -195,7 +196,7 @@ class TD3_BC(Agent):
 
                     policy_loss = -self.alpha * q_mean +  self.beta * nn.functional.mse_loss(policy_action,actions_batch) + self.pi_lambda * reg_term
 
-                    pl += policy_loss.detach() #FIXME rearrange for mini-batch set up
+                    pl += policy_loss.item() #FIXME rearrange for mini-batch set up
 
                     policy_loss.backward() 
 
@@ -213,6 +214,9 @@ class TD3_BC(Agent):
 
 
             # perform optimisation for critics
+            torch.nn.utils.clip_grad_norm_(self.policy.value_net1.parameters(), 10) #clip value gradients
+            torch.nn.utils.clip_grad_norm_(self.policy.value_net2.parameters(), 10)
+
             self.value_optimizer1.step()
             self.value_optimizer2.step()
 

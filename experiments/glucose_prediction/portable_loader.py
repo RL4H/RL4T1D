@@ -56,13 +56,15 @@ class CompactLoader:
         self.args = args
         self.minimum_length, self.maximum_length = min_length, max_length
 
+        self.validation_items = validation_items
+
 
         self.shuffle_seed = shuffle_seed
         
         if not prebuilt:
 
-            self.save_path = folder + f"temp_data_patient_{args.patient_id}.pkl"
-            self.save_path_args = folder + f"temp_args_{args.patient_id}.pkl"
+            self.save_path = folder + f"temp_data_patient_{args.patient_id}_{shuffle_seed}.pkl"
+            self.save_path_args = folder + f"temp_args_{args.patient_id}_{shuffle_seed}.pkl"
 
             print("Converting")
             n_list = []
@@ -87,7 +89,10 @@ class CompactLoader:
                 running_total += n
                 cum_n.append(running_total)
             self.length = running_total
+
+            self.n_list = n_list #FIXME remove
             
+            self.reset_shuffle(self.shuffle_seed, n_list)
 
             print("Length!",self.length)
 
@@ -99,71 +104,6 @@ class CompactLoader:
             del trials_list
             gc.collect()
             print("memory cleared")
-            
-
-            indicies = list(range(self.length))
-            self.shuffle_seed = shuffle_seed
-            seed(shuffle_seed)
-            shuffle(indicies)
-
-            # self.training_length = self.length - validation_items
-            # self.validation_length = validation_items
-
-            # self.validation_indicies = 
-            self.training_indicies = indicies[validation_items:]
-
-            #allocate validation indicies to not overlap
-            VALIDATION_IN_TRIAL_REPS = 5
-
-            replacement_validation_indicies = []
-            base_validation_inds = indicies[:validation_items]
-
-            while len(replacement_validation_indicies) < validation_items:
-                ind = base_validation_inds.pop(0)
-                trial_ind, in_trial_ind = self.get_trial_inds(ind)
-                for n in range(VALIDATION_IN_TRIAL_REPS):
-                    trial_len = n_list[trial_ind]
-                    try_in_trial_ind = in_trial_ind + n
-                    if (try_in_trial_ind >= trial_len) or (len(replacement_validation_indicies) >= validation_items): break # exit loop if trial index out of range
-
-                    try_ind = ind + n
-                    if try_ind in self.training_indicies:
-                        self.training_indicies.remove(try_ind)
-                    elif try_ind in base_validation_inds:
-                        base_validation_inds.remove(try_ind)
-                    replacement_validation_indicies.append(try_ind)
-            
-            removed_indicies = []
-            for ind in replacement_validation_indicies:
-                trial_ind, in_trial_ind = self.get_trial_inds(ind)
-                trial_len = n_list[trial_ind]
-                for n in range(args.obs_window):
-                    trial_len = n_list[trial_ind]
-                    try_in_trial_ind = in_trial_ind + n
-                    if (try_in_trial_ind >= trial_len): break #ignore out of index trials
-
-                    #remove trial from other places
-                    try_ind = ind + n
-                    if try_ind in self.training_indicies:
-                        self.training_indicies.remove(try_ind)
-                        removed_indicies.append(try_ind)
-                    elif try_ind in base_validation_inds:
-                        base_validation_inds.remove(try_ind)
-                        removed_indicies.append(try_ind)
-                    # else: we assume it's in replacement_validation_indicies and is fine to keep
-            
-            self.validation_indicies = replacement_validation_indicies
-
-            for ind in base_validation_inds: #add spare validation inds back to training
-                self.training_indicies.append(ind)
-            
-            print(f"Validation indicies applied with length {len(self.validation_indicies)}/{validation_items}, removing {len(removed_indicies)} items from training for validity.")
-            self.validation_length = len(self.validation_indicies)
-            self.training_length = self.length - self.validation_length
-
-
-
-
             
             del cum_n
 
@@ -200,7 +140,66 @@ class CompactLoader:
         self.save_path_args = args_save_dest
 
         print(args, min_length, max_length, _1, _2, retrieval_func_ind, _3, shuffle_seed, validation_length, len(training_indicies), len(validation_indicies), length, save_dest)
+    def reset_shuffle(self,new_seed, n_list):
+        self.shuffle_seed = new_seed
+
+        indicies = list(range(self.length))
+        self.shuffle_seed = self.shuffle_seed
+        seed(self.shuffle_seed)
+        shuffle(indicies)
+
+        #allocate validation indicies to not overlap
+        VALIDATION_IN_TRIAL_REPS = 5
+
+        replacement_validation_indicies = []
+        base_validation_inds = indicies[:self.validation_items]
+        self.training_indicies = indicies[self.validation_items:]
+
+        while len(replacement_validation_indicies) < self.validation_items:
+            ind = base_validation_inds.pop(0)
+            trial_ind, in_trial_ind = self.get_trial_inds(ind)
+            for n in range(VALIDATION_IN_TRIAL_REPS):
+                trial_len = n_list[trial_ind]
+                try_in_trial_ind = in_trial_ind + n
+                if (try_in_trial_ind >= trial_len) or (len(replacement_validation_indicies) >= self.validation_items): break # exit loop if trial index out of range
+
+                try_ind = ind + n
+                if try_ind in self.training_indicies:
+                    self.training_indicies.remove(try_ind)
+                elif try_ind in base_validation_inds:
+                    base_validation_inds.remove(try_ind)
+                replacement_validation_indicies.append(try_ind)
         
+        removed_indicies = []
+        for ind in replacement_validation_indicies:
+            trial_ind, in_trial_ind = self.get_trial_inds(ind)
+            trial_len = n_list[trial_ind]
+            for n in range(self.args.obs_window):
+                trial_len = n_list[trial_ind]
+                try_in_trial_ind = in_trial_ind + n
+                if (try_in_trial_ind >= trial_len): break #ignore out of index trials
+
+                #remove trial from other places
+                try_ind = ind + n
+                if try_ind in self.training_indicies:
+                    self.training_indicies.remove(try_ind)
+                    removed_indicies.append(try_ind)
+                elif try_ind in base_validation_inds:
+                    base_validation_inds.remove(try_ind)
+                    removed_indicies.append(try_ind)
+                # else: we assume it's in replacement_validation_indicies and is fine to keep
+        
+        self.validation_indicies = replacement_validation_indicies
+
+        for ind in base_validation_inds: #add spare validation inds back to training
+            self.training_indicies.append(ind)
+        
+        print(f"Validation indicies applied with length {len(self.validation_indicies)}/{self.validation_items}, removing {len(removed_indicies)} items from training for validity.")
+        self.validation_length = len(self.validation_indicies)
+        self.training_length = self.length - self.validation_length
+
+
+
     def start(self):
         self.sync_queue()
     def load(self):
@@ -263,10 +262,10 @@ class CompactLoader:
     def pop_validation_queue(self, n):
         return [self.pop_validation() for _ in range(n)]
     
-    def save_compact_loader_object(self):
+    def save_compact_loader_object(self,overwrite_dest=None):
         args = (self.args, self.minimum_length, self.maximum_length, [], None, self.retrieval_func_ind, None, self.shuffle_seed, self.validation_length, self.training_indicies, self.validation_indicies, self.length, self.save_path)
         print(self.args, self.minimum_length, self.maximum_length, [], None, self.retrieval_func_ind, None, self.shuffle_seed, self.validation_length, len(self.training_indicies), len(self.validation_indicies), self.length, self.save_path)
-        save_obj(args, self.save_path_args)
+        save_obj(args, self.save_path_args if overwrite_dest == None else overwrite_dest)
         print("Object Args saved to",self.save_path_args)
 
 
