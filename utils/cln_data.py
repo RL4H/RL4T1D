@@ -452,7 +452,7 @@ class ClnDataImporter:
             raise ValueError("Not enough data to split validation trial.")
         return vld_split
     def load(self, vld_split_indicies=None, is_vld=False):
-        self.df_list = read_subj_file(self.ind)
+        self.df_list = read_subj_file(self.subj_ind)
         if SHUFFLE_QUEUE_IMPORTS:
             random.seed(IMPORT_SEED)
             random.shuffle(self.df_list)
