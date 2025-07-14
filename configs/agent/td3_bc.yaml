@@ -2,7 +2,7 @@ agent: 'td3_bc'
 debug: False
 
 n_rnn_hidden: 16
-n_rnn_layers: 1
+n_rnn_layers: 2
 rnn_directions: 1
 bidirectional: False
 
@@ -72,6 +72,6 @@ soft_tau: 0.005
 alpha : 0.25
 beta : 1
 
-vf_lambda : 0.1
+vf_lambda : 1e-3
 pi_lambda : 0
 
