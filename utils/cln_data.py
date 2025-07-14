@@ -613,7 +613,7 @@ class ClnDataQueue:
 
 # Main 
 if __name__ == "__main__":
-    option = input("Select:\n| convert | summarise | display |\n: ").lower()
+    option = input("Select:\n| convert | summarise | display | convert 2 |\n: ").lower().strip()
     if option == "convert":
 
         print("Converting Subject Data to .csv format.")
@@ -743,4 +743,55 @@ if __name__ == "__main__":
             f.write(txt)
         print(f"Summary file saved to {SUMMARY_FILE_DEST}.")
     
+    elif option == "convert 2":
+        import gc
+        from utils.cln_data import ClnDataImporter
+        from experiments.glucose_prediction.portable_loader import CompactLoader
+        from utils.sim_data import calculate_augmented_features
+
+        SEEDS = [0,1,2]
+        CLN_DATA_PATH = config('CLN_DATA_PATH')
+
+        class Args:
+            def __init__(self, patient_id):
+                self.patient_id = patient_id
+                self.batch_size = 8192
+                self.data_type = "simulated" #simulated | clinical
+                self.data_protocols = ["evaluation","training"] #None defaults to all
+                self.data_algorithms = ["G2P2C","AUXML", "PPO","TD3"] #None defaults to all
+                self.obs_window = 12
+                self.control_space_type = 'exponential'
+                self.insulin_min, self.insulin_max = 0, 5
+                self.glucose_min, self.glucose_max = 39, 600
+                self.obs_features = ['cgm','insulin','day_hour']
+
+        for patient_id in range(SUBJECTS_N):
+            gc.collect()
+            print("Importing for patient id",patient_id)
+            args = Args(patient_id)
+
+            importer = ClnDataImporter(args=args,env_args=args)
+            
+            flat_trials = importer.load()
+            del importer
+
+            data = CompactLoader(
+                args, args.batch_size*10, args.batch_size*101, 
+                flat_trials,
+                lambda trial : calculate_augmented_features(trial, args, args),
+                1,
+                lambda trial : max(0, len(trial) - args.obs_window - 1),
+                0,
+                0,
+                folder=CLN_DATA_PATH + "/object_save/"
+            )
+
+            data.save_compact_loader_object()
+            print("\tData saved for seed 0.")
+            for seed in range(1,3):
+                data.reset_shuffle(seed, data.n_list)
+
+                data.save_compact_loader_object()
+                print(f"\tData saved for seed {seed}.")
+
     else: raise ValueError("Invalid input.")
