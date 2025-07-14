@@ -755,6 +755,7 @@ if __name__ == "__main__":
         class Args:
             def __init__(self, patient_id):
                 self.patient_ind = patient_id
+                self.patient_id = patient_id
                 self.batch_size = 8192
                 self.data_type = "simulated" #simulated | clinical
                 self.data_protocols = ["evaluation","training"] #None defaults to all
