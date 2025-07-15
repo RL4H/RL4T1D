@@ -121,17 +121,14 @@ class TD3_BC(Agent):
             # value network update
             # new_action, next_log_prob = self.policy.evaluate_target_policy_noise(next_state_batch)
 
-            next_values = torch.min(self.policy.value_net_target1(next_state_batch, actions_batch),
-                                    self.policy.value_net_target2(next_state_batch, actions_batch))
+            # next_values = torch.min(self.policy.value_net_target1(next_state_batch, actions_batch),
+            #                         self.policy.value_net_target2(next_state_batch, actions_batch))
 
             predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
             predicted_value2 = self.policy.value_net2(cur_state_batch, actions_batch)
 
-
             value_loss1 = self.value_criterion1(reward_batch, predicted_value1)
             value_loss2 = self.value_criterion2(reward_batch, predicted_value2)
-
-            
 
             # perform optimisation for critics
             # torch.nn.utils.clip_grad_norm_(self.policy.value_net1.parameters(), 10) #clip value gradients
@@ -145,7 +142,7 @@ class TD3_BC(Agent):
 
             self.value_optimizer1.step()
             self.value_optimizer2.step()
-            
+
             vf_loss += (value_loss1).detach() 
 
             for param in self.policy.value_net1.parameters():
@@ -159,7 +156,7 @@ class TD3_BC(Agent):
 
             # actor update
 
-            if pi_train_iter % self.target_update_interval:
+            if pi_train_iter % self.target_update_interval == 0:
                 # freeze value networks save compute: ref: openai:
                 for p in self.policy.value_net1.parameters():
                     p.requires_grad = False
@@ -228,8 +225,8 @@ class TD3_BC(Agent):
                     for param, target_param in zip(self.policy.policy_net.parameters(), self.policy.policy_net_target.parameters()):
                         target_param.data.mul_((1 - self.soft_tau))
                         target_param.data.add_(self.soft_tau * param.data)
-            
-                print("################updated target networks in batch")
+                print("################ updated policy network")
+            print("################ updated target networks")
         # logging
         data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_grad=val_grad, val_loss=vf_loss)
         return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}

@@ -14,7 +14,7 @@ lambda_: 0.95
 # parameters for the RL rollout
 normalize_reward: True  # reward received is normalised
 shuffle_rollout: True  # rollout trajectory data is shuffled
-replay_buffer_size: 1024
+replay_buffer_size: 4192 #FIXME remove random sampling
 preserve_trajectories : False
 
 # ppo parameters
@@ -24,7 +24,7 @@ eps_clip: 0.1
 target_kl: 0.01
 
 # train
-n_step: 8192
+n_step: 2048
 max_epi_length: 2880
 n_training_workers: 16
 total_interactions: 6400000 # total number of interactions the agent will train for #800000
