@@ -184,13 +184,13 @@ class TD3_BC(Agent):
                 q_mean = critic_eval.mean()
 
                 # assign lambda constant to scale correctly
-                # lmbda = self.alpha / ( critic_eval.abs().mean() )
+                lmbda = self.beta / ( critic_eval.abs().mean() )
 
                 # calculate policy loss, ref: Fujimoto and Gu (2021)
                 reg_term = sum(torch.norm(param, p=2)**2 for param in self.policy.policy_net.parameters() if param.requires_grad)
 
 
-                policy_loss = -self.alpha * q_mean +  self.beta * nn.functional.mse_loss(policy_action,actions_batch) + self.pi_lambda * reg_term
+                policy_loss = -self.alpha * q_mean  +  lmbda * nn.functional.mse_loss(policy_action,actions_batch) + self.pi_lambda * reg_term
 
 
                 self.policy_optimizer.zero_grad()
