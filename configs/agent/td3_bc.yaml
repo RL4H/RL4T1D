@@ -34,8 +34,8 @@ n_interactions_lr_decay: 4000000
 pi_lr: 1.5e-4 
 vf_lr: 5e-4
 
-batch_size : 8192
-mini_batch_size: 256
+batch_size : 2048
+mini_batch_size: 2048
 n_pi_epochs: 11
 
 # test

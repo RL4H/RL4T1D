@@ -108,146 +108,128 @@ class TD3_BC(Agent):
         pi_grad, val_grad = torch.zeros(1, device=self.device), torch.zeros(1, device=self.device)
         vf_loss = torch.zeros(1, device=self.device)
 
-
         for pi_train_iter in range(self.train_pi_iters):
-            # sample from buffer
+            transitions = self.buffer.sample(self.mini_batch_size)
 
-            self.policy_optimizer.zero_grad()
+            batch = Transition(*zip(*transitions))
+            cur_state_batch = torch.cat(batch.state)
+            actions_batch = torch.cat(batch.action)
+            reward_batch = torch.cat(batch.reward).unsqueeze(1)
+            next_state_batch = torch.cat(batch.next_state)
+            done_batch = torch.cat(batch.done).unsqueeze(1)
+
+            # value network update
+            # new_action, next_log_prob = self.policy.evaluate_target_policy_noise(next_state_batch)
+
+            next_values = torch.min(self.policy.value_net_target1(next_state_batch, actions_batch),
+                                    self.policy.value_net_target2(next_state_batch, actions_batch))
+
+            predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
+            predicted_value2 = self.policy.value_net2(cur_state_batch, actions_batch)
+
+
+            value_loss1 = self.value_criterion1(reward_batch, predicted_value1)
+            value_loss2 = self.value_criterion2(reward_batch, predicted_value2)
+
+            
+
+            # perform optimisation for critics
+            # torch.nn.utils.clip_grad_norm_(self.policy.value_net1.parameters(), 10) #clip value gradients
+            # torch.nn.utils.clip_grad_norm_(self.policy.value_net2.parameters(), 10)
 
             self.value_optimizer1.zero_grad()
             self.value_optimizer2.zero_grad()
-            
-            for _ in range(self.mini_batch_num):
 
-                transitions = self.buffer.sample(self.mini_batch_size)
-
-                batch = Transition(*zip(*transitions))
-                cur_state_batch = torch.cat(batch.state)
-                actions_batch = torch.cat(batch.action)
-                reward_batch = torch.cat(batch.reward).unsqueeze(1)
-                next_state_batch = torch.cat(batch.next_state)
-                done_batch = torch.cat(batch.done).unsqueeze(1)
-
-                # value network update
-                # new_action, next_log_prob = self.policy.evaluate_target_policy_noise(next_state_batch)
-
-                next_values = torch.min(self.policy.value_net_target1(next_state_batch, actions_batch),
-                                        self.policy.value_net_target2(next_state_batch, actions_batch))
-                
-                target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
-
-                predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
-                predicted_value2 = self.policy.value_net2(cur_state_batch, actions_batch)
-
-                value_loss1 = self.value_criterion1(target_value.detach(), predicted_value1)
-                value_loss2 = self.value_criterion2(target_value.detach(), predicted_value2)
-
-                
-
-                value_loss1.backward()
-                value_loss2.backward()
-
-                vf_loss += (value_loss1 + value_loss2).detach() 
-
-
-                for param in self.policy.value_net1.parameters():
-                    if param.grad is not None:
-                        val_grad += param.grad.sum()
-
-                for param in self.policy.value_net2.parameters():
-                    if param.grad is not None:
-                        val_grad += param.grad.sum()
-
-
-                # actor update
-
-                if pi_train_iter % self.target_update_interval:
-                    # freeze value networks save compute: ref: openai:
-                    for p in self.policy.value_net1.parameters():
-                        p.requires_grad = False
-                    for p in self.policy.value_net2.parameters():
-                        p.requires_grad = False
-
-                    for p in self.policy.value_net_target1.parameters():
-                        p.requires_grad = False
-                    for p in self.policy.value_net_target2.parameters():
-                        p.requires_grad = False
-
-
-
-
-                    # evaluate action taken by policy, in a batch
-                    policy_action, _ = self.policy.evaluate_policy_no_noise(cur_state_batch)
-
-                    # take minimum evaluation by critics
-                    critic_eval = torch.min(
-                        self.policy.value_net1(cur_state_batch, policy_action), 
-                        self.policy.value_net2(cur_state_batch, policy_action)
-                    )
-
-                    # evaluate mean of q values
-                    q_mean = critic_eval.mean()
-
-                    # assign lambda constant to scale correctly
-                    # lmbda = self.alpha / ( critic_eval.abs().mean() )
-
-                    # calculate policy loss, ref: Fujimoto and Gu (2021)
-                    reg_term = sum(torch.norm(param, p=2)**2 for param in self.policy.policy_net.parameters() if param.requires_grad)
-
-                    policy_loss = -self.alpha * q_mean +  self.beta * nn.functional.mse_loss(policy_action,actions_batch) + self.pi_lambda * reg_term
-
-                    pl += policy_loss.item() #FIXME rearrange for mini-batch set up
-
-                    policy_loss.backward() 
-
-                    
-                    # save compute: ref: openai:
-                    for p in self.policy.value_net1.parameters():
-                        p.requires_grad = True
-                    for p in self.policy.value_net2.parameters():
-                        p.requires_grad = True
-
-                    for p in self.policy.value_net_target1.parameters():
-                        p.requires_grad = True
-                    for p in self.policy.value_net_target2.parameters():
-                        p.requires_grad = True
-
-
-            # perform optimisation for critics
-            torch.nn.utils.clip_grad_norm_(self.policy.value_net1.parameters(), 10) #clip value gradients
-            torch.nn.utils.clip_grad_norm_(self.policy.value_net2.parameters(), 10)
+            value_loss1.backward()
+            value_loss2.backward()
 
             self.value_optimizer1.step()
             self.value_optimizer2.step()
+            
+            vf_loss += (value_loss1).detach() 
+
+            for param in self.policy.value_net1.parameters():
+                if param.grad is not None:
+                    val_grad += param.grad.sum()
+
+            for param in self.policy.value_net2.parameters():
+                if param.grad is not None:
+                    val_grad += param.grad.sum()
 
 
-            # perform optimisation for actor
-            pi_grad += torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 10) #clip policy gradient
-            self.policy_optimizer.step()
+            # actor update
+
+            if pi_train_iter % self.target_update_interval:
+                # freeze value networks save compute: ref: openai:
+                for p in self.policy.value_net1.parameters():
+                    p.requires_grad = False
+                for p in self.policy.value_net2.parameters():
+                    p.requires_grad = False
+
+                for p in self.policy.value_net_target1.parameters():
+                    p.requires_grad = False
+                for p in self.policy.value_net_target2.parameters():
+                    p.requires_grad = False
 
 
-            # Update target networks
-            with torch.no_grad():
-                # print("################updated target networks")
-                for param, target_param in zip(self.policy.value_net1.parameters(), self.policy.value_net_target1.parameters()):
-                    target_param.data.mul_((1 - self.soft_tau))
-                    target_param.data.add_(self.soft_tau * param.data)
-                for param, target_param in zip(self.policy.value_net2.parameters(), self.policy.value_net_target2.parameters()):
-                    target_param.data.mul_((1 - self.soft_tau))
-                    target_param.data.add_(self.soft_tau * param.data)
 
-                for param, target_param in zip(self.policy.policy_net.parameters(), self.policy.policy_net_target.parameters()):
-                    target_param.data.mul_((1 - self.soft_tau))
-                    target_param.data.add_(self.soft_tau * param.data)
-        
-            print("################updated target networks in batch")
-        
-        # clear gradients to save memory
-        self.policy_optimizer.zero_grad()
 
-        self.value_optimizer1.zero_grad()
-        self.value_optimizer2.zero_grad()
+                # evaluate action taken by policy, in a batch
+                policy_action, _ = self.policy.evaluate_policy_no_noise(cur_state_batch)
 
+                # take minimum evaluation by critics
+                critic_eval = torch.min(
+                    self.policy.value_net1(cur_state_batch, policy_action), 
+                    self.policy.value_net2(cur_state_batch, policy_action)
+                )
+
+                # evaluate mean of q values
+                q_mean = critic_eval.mean()
+
+                # assign lambda constant to scale correctly
+                # lmbda = self.alpha / ( critic_eval.abs().mean() )
+
+                # calculate policy loss, ref: Fujimoto and Gu (2021)
+                reg_term = sum(torch.norm(param, p=2)**2 for param in self.policy.policy_net.parameters() if param.requires_grad)
+
+
+                policy_loss = -self.alpha * q_mean +  self.beta * nn.functional.mse_loss(policy_action,actions_batch) + self.pi_lambda * reg_term
+
+
+                self.policy_optimizer.zero_grad()
+                policy_loss.backward() 
+                self.policy_optimizer.step()
+
+                # perform optimisation for actor
+                pl += policy_loss.item() 
+                pi_grad += torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 10) #clip policy gradient
+
+                # save compute: ref: openai:
+                for p in self.policy.value_net1.parameters():
+                    p.requires_grad = True
+                for p in self.policy.value_net2.parameters():
+                    p.requires_grad = True
+
+                for p in self.policy.value_net_target1.parameters():
+                    p.requires_grad = True
+                for p in self.policy.value_net_target2.parameters():
+                    p.requires_grad = True
+
+                # Update target networks
+                with torch.no_grad():
+                    # print("################updated target networks")
+                    for param, target_param in zip(self.policy.value_net1.parameters(), self.policy.value_net_target1.parameters()):
+                        target_param.data.mul_((1 - self.soft_tau))
+                        target_param.data.add_(self.soft_tau * param.data)
+                    for param, target_param in zip(self.policy.value_net2.parameters(), self.policy.value_net_target2.parameters()):
+                        target_param.data.mul_((1 - self.soft_tau))
+                        target_param.data.add_(self.soft_tau * param.data)
+
+                    for param, target_param in zip(self.policy.policy_net.parameters(), self.policy.policy_net_target.parameters()):
+                        target_param.data.mul_((1 - self.soft_tau))
+                        target_param.data.add_(self.soft_tau * param.data)
+            
+                print("################updated target networks in batch")
         # logging
         data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_grad=val_grad, val_loss=vf_loss)
         return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}
