@@ -129,10 +129,10 @@ class TD3_BC(Agent):
                 done_batch = torch.cat(batch.done).unsqueeze(1)
 
                 # value network update
-                new_action, next_log_prob = self.policy.evaluate_target_policy_noise(next_state_batch)
+                # new_action, next_log_prob = self.policy.evaluate_target_policy_noise(next_state_batch)
 
-                next_values = torch.min(self.policy.value_net_target1(next_state_batch, new_action),
-                                        self.policy.value_net_target2(next_state_batch, new_action))
+                next_values = torch.min(self.policy.value_net_target1(next_state_batch, actions_batch),
+                                        self.policy.value_net_target2(next_state_batch, actions_batch))
                 
                 target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
 
@@ -189,7 +189,7 @@ class TD3_BC(Agent):
                     q_mean = critic_eval.mean()
 
                     # assign lambda constant to scale correctly
-                    #lmbda = self.alpha / ( policy_loss.abs().mean() )
+                    # lmbda = self.alpha / ( critic_eval.abs().mean() )
 
                     # calculate policy loss, ref: Fujimoto and Gu (2021)
                     reg_term = sum(torch.norm(param, p=2)**2 for param in self.policy.policy_net.parameters() if param.requires_grad)
