@@ -27,7 +27,7 @@ target_kl: 0.01
 n_step: 2048
 max_epi_length: 2880
 n_training_workers: 16
-total_interactions: 1600000 # total number of interactions the agent will train for #800000
+total_interactions: 3200000 # total number of interactions the agent will train for #800000
 n_interactions_lr_decay: 4000000
 
 # training parameters
@@ -36,7 +36,7 @@ vf_lr: 5e-4
 
 batch_size : 2048
 mini_batch_size: 2048
-n_pi_epochs: 11
+n_pi_epochs: 5
 
 # test
 n_testing_workers: 20
@@ -69,8 +69,8 @@ target_action_std: 0.1
 target_action_lim: 0.2
 soft_tau: 0.005
 
-alpha : 0.25
-beta : 1
+alpha : 1
+beta : 0.25
 
 vf_lambda : 1e-3
 pi_lambda : 0
