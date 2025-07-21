@@ -373,14 +373,16 @@ def read_subj_file(file_num,generate_as_epi_list=True,show_warnings=True):
         return df
 
 def convert_df_to_arr(df):
-    rows = len(df)
-    cols = len(COL_ORDERING)
+    # rows = len(df)
+    # cols = len(COL_ORDERING)
 
-    arr = np.zeros( (rows, cols) )
-    for col, header in enumerate(COL_ORDERING):
-        arr[:, col] = list(df[header])
+    # arr = np.zeros( (rows, cols) )
+    # for col, header in enumerate(COL_ORDERING):
+    #     arr[:, col] = list(df[header])
     
-    return arr
+    # return arr
+
+    return df[COL_ORDERING].to_numpy()
 
 
 
