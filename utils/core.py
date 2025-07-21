@@ -97,8 +97,9 @@ def r_kl(log_p, log_q):
     
 
 MEAL_MAX = 100 #FIXME paramaterise
+MATH_EXP_4 = math.exp(4)
 def calculate_features(data_row, args, env_args):
-    cgm, meal, ins, t, meal_data = tuple(data_row)
+    cgm, meal, ins, t, meta_data = tuple(data_row)
     days,hours,mins = tuple([int(i) for i in t.split(':')])
 
     info = dict()
@@ -138,6 +139,9 @@ def pump_to_rl_action(pump_action, args, env_args):
     elif control_space_type == 'exponential':
         # pump_action = pump_max * (math.exp((rl_action - 1) * 4))
         rl_action = math.log((pump_action / pump_max) / 4) + 1
+    
+    elif control_space_type == 'exponential_alt':
+        rl_action = 1/4 * math.log(pump_action * (MATH_EXP_4 - 1) + 1 )
 
 
 

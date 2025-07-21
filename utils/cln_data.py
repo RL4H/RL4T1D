@@ -52,7 +52,7 @@ SUMMARY_HEADERS = ["name", "age", "bw", "tdi", "icr", "isf", "height", "sex", "s
 SUMMARY_NAME = "patient_attrs.csv"
 SUMMARY_FILE_DEST = CLN_DATA_SAVE_DEST + '/' + SUMMARY_NAME
 
-COL_ORDERING = ["cgm", "meal", "ins", "t"]
+COL_ORDERING = ["cgm", "meal", "ins", "full_time", "meta"]
 
 # General Helpers
 
@@ -771,7 +771,7 @@ if __name__ == "__main__":
                 self.data_protocols = ["evaluation","training"] #None defaults to all
                 self.data_algorithms = ["G2P2C","AUXML", "PPO","TD3"] #None defaults to all
                 self.obs_window = 12
-                self.control_space_type = 'exponential'
+                self.control_space_type = 'exponential_alt'
                 self.insulin_min, self.insulin_max = 0, 5
                 self.glucose_min, self.glucose_max = 39, 600
                 self.obs_features = ['cgm','insulin','day_hour']
