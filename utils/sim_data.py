@@ -417,6 +417,8 @@ def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda
 def calculate_augmented_features(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward(None, cgm))):
     rows, _ = data_obj.shape
 
+    print(data_obj.shape, data_obj)
+
     actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
     rewards = [reward_func(cgm) for cgm in data_obj[:, 0]] #FIXME check if applied reward func changes things
 
