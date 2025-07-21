@@ -128,7 +128,7 @@ class Agent:
                     from utils.cln_data import ClnDataImporter, get_patient_attrs, convert_df_to_arr
 
                     gc.collect()
-                    print("Importing for patient id",args.patient_id,"index",get_patient_attrs("clinical" + str(args.patient_id)).keys())
+                    print("Importing for patient id",args.patient_id,"index",get_patient_attrs("clinical" + str(args.patient_id))['ind'])
                     args = OmegaConf.create({
                         "patient_ind" : args.patient_id,
                         "patient_id" : args.patient_id,
