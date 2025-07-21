@@ -52,7 +52,7 @@ SUMMARY_HEADERS = ["name", "age", "bw", "tdi", "icr", "isf", "height", "sex", "s
 SUMMARY_NAME = "patient_attrs.csv"
 SUMMARY_FILE_DEST = CLN_DATA_SAVE_DEST + '/' + SUMMARY_NAME
 
-CSV_HEADERS = ["cgm", "carbs", "ins", "t"]
+COL_ORDERING = ["cgm", "meal", "ins", "t"]
 
 # General Helpers
 
@@ -372,6 +372,16 @@ def read_subj_file(file_num,generate_as_epi_list=True,show_warnings=True):
     else:
         return df
 
+def convert_df_to_arr(df):
+    rows = len(df)
+    cols = len(COL_ORDERING)
+
+    arr = np.zeros( (rows, cols) )
+    for col, header in enumerate(COL_ORDERING):
+        arr[:, col] = list(df[header])
+    
+    return arr
+
 
 
 
@@ -610,17 +620,6 @@ class ClnDataQueue:
         return out
     def pop_validation_queue(self, n):
         return [self.pop_validation() for _ in range(n)]
-
-def convert_df_to_arr(df):
-    rows = len(df)
-    cols = len(CSV_HEADERS)
-
-    arr = np.zeros( (rows, cols) )
-    for col, header in enumerate(CSV_HEADERS):
-        arr[:, col] = list(df[header])
-    
-    return arr
-
 
 # Main 
 if __name__ == "__main__":
