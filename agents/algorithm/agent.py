@@ -67,7 +67,7 @@ class Agent:
         elif type == "Offline":
             if args.data_type == "simulated":
 
-                if args.preload:
+                if args.data_preload:
                     print("Loading prebuilt data")
                     folder = SIM_DATA_PATH + "/object_save/"
                     data_save_path = folder + f"temp_data_patient_{args.patient_id}_{args.seed}.pkl"
@@ -113,7 +113,7 @@ class Agent:
                 
             elif args.data_type == "clinical":
 
-                if args.preload:
+                if args.data_preload:
                     print("Loading prebuilt data")
                     folder = CLN_DATA_SAVE_DEST + '/'
                     data_save_path = folder + f"temp_data_patient_{args.patient_id}_{args.seed}.pkl"
