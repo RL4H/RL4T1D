@@ -152,6 +152,7 @@ def calculate_average_tdi(p_df):
 with open(SUMMARY_FILE_DEST,'r') as f:
     lines = [line.split(',') for line in f.read().splitlines()]
 
+#name, age, bw, tdi, icr, isf, height, sex, system_name, injections_type, epi_n, total_time, ind, subj_id
 patient_attr_names = lines[0]
 patient_attr_dict = dict()
 for line in lines[1:]:
@@ -781,7 +782,7 @@ if __name__ == "__main__":
 
         for patient_id in range(SUBJECTS_N):
             gc.collect()
-            print("Importing for patient id",patient_id)
+            print("Importing for patient id",patient_id,"index",get_patient_attrs("clinical" + str(patient_id))["subj_ind"])
             args = Args(patient_id)
 
             importer = ClnDataImporter(args=args,env_args=args)

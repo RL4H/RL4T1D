@@ -127,8 +127,4 @@ class OfflineSampler(Worker):
 
         return
 
-        
-
-
-
 
