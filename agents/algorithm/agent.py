@@ -114,6 +114,20 @@ class Agent:
             elif args.data_type == "clinical":
 
                 if args.data_preload:
+                    class Args:
+                        def __init__(self, patient_id):
+                            self.patient_ind = patient_id
+                            self.patient_id = patient_id
+                            self.batch_size = 8192
+                            self.data_type = "simulated" #simulated | clinical
+                            self.data_protocols = ["evaluation","training"] #None defaults to all
+                            self.data_algorithms = ["G2P2C","AUXML", "PPO","TD3"] #None defaults to all
+                            self.obs_window = 12
+                            self.control_space_type = 'exponential_alt'
+                            self.insulin_min, self.insulin_max = 0, 20
+                            self.glucose_min, self.glucose_max = 39, 600
+                            self.obs_features = ['cgm','insulin','day_hour']
+                            
                     print("Loading prebuilt data")
                     folder = CLN_DATA_SAVE_DEST + '/'
                     data_save_path = folder + f"temp_data_patient_{args.patient_id}_{args.seed}.pkl"
