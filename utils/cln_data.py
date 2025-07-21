@@ -793,7 +793,7 @@ if __name__ == "__main__":
                 flat_trials,
                 lambda trial : calculate_augmented_features(convert_df_to_arr(trial), args, args),
                 1,
-                lambda trial : max(0, len(trial) - args.obs_window - 1) if trial[0][-1].split('_')[-1] == 'Pump' else 0, #exclude non pump data
+                lambda trial : max(0, len(trial) - args.obs_window - 1) if trial['meta'].loc[0].split('_')[-1] == 'Pump' else 0, #exclude non pump data
                 0,
                 0,
                 folder=CLN_DATA_PATH + "/object_save/"
