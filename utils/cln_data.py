@@ -775,7 +775,7 @@ if __name__ == "__main__":
                 self.data_algorithms = ["G2P2C","AUXML", "PPO","TD3"] #None defaults to all
                 self.obs_window = 12
                 self.control_space_type = 'exponential_alt'
-                self.insulin_min, self.insulin_max = 0, 5
+                self.insulin_min, self.insulin_max = 0, 20
                 self.glucose_min, self.glucose_max = 39, 600
                 self.obs_features = ['cgm','insulin','day_hour']
 
