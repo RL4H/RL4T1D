@@ -52,6 +52,8 @@ SUMMARY_HEADERS = ["name", "age", "bw", "tdi", "icr", "isf", "height", "sex", "s
 SUMMARY_NAME = "patient_attrs.csv"
 SUMMARY_FILE_DEST = CLN_DATA_SAVE_DEST + '/' + SUMMARY_NAME
 
+CSV_HEADERS = ["cgm", "carbs", "ins", "t"]
+
 # General Helpers
 
 def force_st_length(st, le):  return st + ' '*(max(0,le - len(st)))
@@ -609,7 +611,16 @@ class ClnDataQueue:
     def pop_validation_queue(self, n):
         return [self.pop_validation() for _ in range(n)]
 
-        
+def convert_df_to_arr(df):
+    rows = len(df)
+    cols = len(CSV_HEADERS)
+
+    arr = np.zeros( (rows, cols) )
+    for col, header in enumerate(CSV_HEADERS):
+        arr[:, col] = list(df[header])
+    
+    return arr
+
 
 # Main 
 if __name__ == "__main__":
@@ -779,7 +790,7 @@ if __name__ == "__main__":
             data = CompactLoader(
                 args, args.batch_size*10, args.batch_size*101, 
                 flat_trials,
-                lambda trial : calculate_augmented_features(trial, args, args),
+                lambda trial : calculate_augmented_features(convert_df_to_arr(trial), args, args),
                 1,
                 lambda trial : max(0, len(trial) - args.obs_window - 1),
                 0,
