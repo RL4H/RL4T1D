@@ -762,7 +762,8 @@ if __name__ == "__main__":
         from utils.sim_data import calculate_augmented_features
 
         SEEDS = [0,1,2]
-        CLN_DATA_PATH = config('CLN_DATA_PATH')
+        # CLN_DATA_PATH = config('CLN_DATA_PATH')
+        
 
         class Args:
             def __init__(self, patient_id):
@@ -796,7 +797,7 @@ if __name__ == "__main__":
                 lambda trial : max(0, len(trial) - args.obs_window - 1) if trial['meta'].loc[0].split('_')[-1] == 'Pump' else 0, #exclude non pump data
                 0,
                 0,
-                folder=CLN_DATA_PATH + "/object_save/"
+                folder= CLN_DATA_SAVE_DEST + '/'
             )
 
             data.save_compact_loader_object()
