@@ -9,7 +9,7 @@ from metrics.metrics import time_in_range
 from metrics.statistics import calc_stats
 
 import pandas as pd
-from omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf, DictConfig, open_dict
 
 
 from decouple import config
@@ -114,20 +114,7 @@ class Agent:
             elif args.data_type == "clinical":
 
                 if args.data_preload:
-                    class Args:
-                        def __init__(self, patient_id):
-                            self.patient_ind = patient_id
-                            self.patient_id = patient_id
-                            self.batch_size = 8192
-                            self.data_type = "simulated" #simulated | clinical
-                            self.data_protocols = ["evaluation","training"] #None defaults to all
-                            self.data_algorithms = ["G2P2C","AUXML", "PPO","TD3"] #None defaults to all
-                            self.obs_window = 12
-                            self.control_space_type = 'exponential_alt'
-                            self.insulin_min, self.insulin_max = 0, 20
-                            self.glucose_min, self.glucose_max = 39, 600
-                            self.obs_features = ['cgm','insulin','day_hour']
-                            
+
                     print("Loading prebuilt data")
                     folder = CLN_DATA_SAVE_DEST + '/'
                     data_save_path = folder + f"temp_data_patient_{args.patient_id}_{args.seed}.pkl"
@@ -140,23 +127,23 @@ class Agent:
                 else:
                     from utils.cln_data import ClnDataImporter, get_patient_attrs, convert_df_to_arr
 
-                    class Args:
-                        def __init__(self, patient_id):
-                            self.patient_ind = patient_id
-                            self.patient_id = patient_id
-                            self.batch_size = 8192
-                            self.data_type = "simulated" #simulated | clinical
-                            self.data_protocols = ["evaluation","training"] #None defaults to all
-                            self.data_algorithms = ["G2P2C","AUXML", "PPO","TD3"] #None defaults to all
-                            self.obs_window = 12
-                            self.control_space_type = 'exponential_alt'
-                            self.insulin_min, self.insulin_max = 0, 20
-                            self.glucose_min, self.glucose_max = 39, 600
-                            self.obs_features = ['cgm','insulin','day_hour']
-
                     gc.collect()
                     print("Importing for patient id",args.patient_id,"index",get_patient_attrs("clinical" + str(args.patient_id))["subj_ind"])
-                    args = Args(args.patient_id)
+                    args = OmegaConf.create({
+                        "patient_ind" : args.patient_id,
+                        "patient_id" : args.patient_id,
+                        "batch_size" : 8192,
+                        "data_type" : "simulated", #simulated | clinical,
+                        "data_protocols" : ["evaluation","training"], #None defaults to all,
+                        "data_algorithms" : ["G2P2C","AUXML", "PPO","TD3"], #None defaults to all,
+                        "obs_window" : 12,
+                        "control_space_type" : 'exponential_alt',
+                        "insulin_min" : 0,
+                        "insulin_max" : 20,
+                        "glucose_min" : 39,
+                        "glucose_max" : 600,
+                        "obs_features" : ['cgm','insulin','day_hour']
+                    })
 
                     importer = ClnDataImporter(args=args,env_args=args)
                     
