@@ -449,7 +449,7 @@ class DummyClass:
 class ClnDataImporter:
     def __init__(self, args, env_args):
         self.args, self.env_args = args, env_args
-        self.subj_ind = args.patient_ind
+        self.subj_ind = args.patient_id
         self.subj_name = "clinical" + str(self.subj_ind)
         self.attrs = get_patient_attrs(self.subj_name)
     def calculate_vld_split(self, mapping):
