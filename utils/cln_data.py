@@ -9,6 +9,7 @@ from datetime import datetime, timezone, timedelta
 import math
 from decouple import config
 import random
+from omegaconf import DictConfig, OmegaConf
 
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
@@ -51,6 +52,8 @@ SUBJECTS_N = 502
 SUMMARY_HEADERS = ["name", "age", "bw", "tdi", "icr", "isf", "height", "sex", "system_name", "injections_type", "epi_n", "total_time", "ind", "subj_id"]
 SUMMARY_NAME = "patient_attrs.csv"
 SUMMARY_FILE_DEST = CLN_DATA_SAVE_DEST + '/' + SUMMARY_NAME
+
+COL_ORDERING = ["cgm", "meal", "ins", "full_time", "meta"]
 
 # General Helpers
 
@@ -150,6 +153,7 @@ def calculate_average_tdi(p_df):
 with open(SUMMARY_FILE_DEST,'r') as f:
     lines = [line.split(',') for line in f.read().splitlines()]
 
+#name, age, bw, tdi, icr, isf, height, sex, system_name, injections_type, epi_n, total_time, ind, subj_id
 patient_attr_names = lines[0]
 patient_attr_dict = dict()
 for line in lines[1:]:
@@ -370,6 +374,18 @@ def read_subj_file(file_num,generate_as_epi_list=True,show_warnings=True):
     else:
         return df
 
+def convert_df_to_arr(df):
+    # rows = len(df)
+    # cols = len(COL_ORDERING)
+
+    # arr = np.zeros( (rows, cols) )
+    # for col, header in enumerate(COL_ORDERING):
+    #     arr[:, col] = list(df[header])
+    
+    # return arr
+
+    return df[COL_ORDERING].to_numpy()
+
 
 
 
@@ -434,7 +450,7 @@ class DummyClass:
 class ClnDataImporter:
     def __init__(self, args, env_args):
         self.args, self.env_args = args, env_args
-        self.subj_ind = args.patient_ind
+        self.subj_ind = args.patient_id
         self.subj_name = "clinical" + str(self.subj_ind)
         self.attrs = get_patient_attrs(self.subj_name)
     def calculate_vld_split(self, mapping):
@@ -609,8 +625,6 @@ class ClnDataQueue:
     def pop_validation_queue(self, n):
         return [self.pop_validation() for _ in range(n)]
 
-        
-
 # Main 
 if __name__ == "__main__":
     option = input("Select:\n| convert | summarise | display | convert 2 |\n: ").lower().strip()
@@ -750,26 +764,27 @@ if __name__ == "__main__":
         from utils.sim_data import calculate_augmented_features
 
         SEEDS = [0,1,2]
-        CLN_DATA_PATH = config('CLN_DATA_PATH')
-
-        class Args:
-            def __init__(self, patient_id):
-                self.patient_ind = patient_id
-                self.patient_id = patient_id
-                self.batch_size = 8192
-                self.data_type = "simulated" #simulated | clinical
-                self.data_protocols = ["evaluation","training"] #None defaults to all
-                self.data_algorithms = ["G2P2C","AUXML", "PPO","TD3"] #None defaults to all
-                self.obs_window = 12
-                self.control_space_type = 'exponential'
-                self.insulin_min, self.insulin_max = 0, 5
-                self.glucose_min, self.glucose_max = 39, 600
-                self.obs_features = ['cgm','insulin','day_hour']
+        # CLN_DATA_PATH = config('CLN_DATA_PATH')
+    
 
         for patient_id in range(SUBJECTS_N):
             gc.collect()
-            print("Importing for patient id",patient_id)
-            args = Args(patient_id)
+            print("Importing for patient id",patient_id,"index",get_patient_attrs("clinical" + str(patient_id))["ind"])
+            args = OmegaConf.create({
+                "patient_ind" : patient_id,
+                "patient_id" : patient_id,
+                "batch_size" : 8192,
+                "data_type" : "simulated", #simulated | clinical,
+                "data_protocols" : ["evaluation","training"], #None defaults to all,
+                "data_algorithms" : ["G2P2C","AUXML", "PPO","TD3"], #None defaults to all,
+                "obs_window" : 12,
+                "control_space_type" : 'exponential_alt',
+                "insulin_min" : 0,
+                "insulin_max" : 20,
+                "glucose_min" : 39,
+                "glucose_max" : 600,
+                "obs_features" : ['cgm','insulin','day_hour']
+            })
 
             importer = ClnDataImporter(args=args,env_args=args)
             
@@ -779,12 +794,12 @@ if __name__ == "__main__":
             data = CompactLoader(
                 args, args.batch_size*10, args.batch_size*101, 
                 flat_trials,
-                lambda trial : calculate_augmented_features(trial, args, args),
+                lambda trial : calculate_augmented_features(convert_df_to_arr(trial), args, args),
                 1,
-                lambda trial : max(0, len(trial) - args.obs_window - 1),
+                lambda trial : max(0, len(trial) - args.obs_window - 1) if trial['meta'].loc[0].split('_')[-1] == 'Pump' else 0, #exclude non pump data
                 0,
                 0,
-                folder=CLN_DATA_PATH + "/object_save/"
+                folder= CLN_DATA_SAVE_DEST + '/'
             )
 
             data.save_compact_loader_object()

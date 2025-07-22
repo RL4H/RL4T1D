@@ -9,12 +9,13 @@ from metrics.metrics import time_in_range
 from metrics.statistics import calc_stats
 
 import pandas as pd
-from omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf, DictConfig, open_dict
 
 
 from decouple import config
 MAIN_PATH = config('MAIN_PATH')
 SIM_DATA_PATH = config('SIM_DATA_PATH')
+CLN_DATA_SAVE_DEST = "/home/users/u7482502/data/cln_pickled_data" #FIXME make into env variable 
 
 from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
 from utils.sim_data import patient_id_to_label
@@ -42,6 +43,8 @@ class Agent:
 
             self.args.feature_history = env_args.obs_window  # TODO: refactor G2P2C to use obs_window
 
+        self.using_OPE = self.agent_type == "Offline" and self.args.data_type == "clinical"
+
         # initialise workers and buffers
         if type == "OnPolicy":
             self.training_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='training',
@@ -63,13 +66,12 @@ class Agent:
 
         elif type == "Offline":
             if args.data_type == "simulated":
-                PRELOAD = True
 
-                if PRELOAD:
+                if args.data_preload:
                     print("Loading prebuilt data")
                     folder = SIM_DATA_PATH + "/object_save/"
-                    data_save_path = folder + f"temp_data_patient_{args.patient_id}.pkl"
-                    data_save_path_args = folder + f"temp_args_{args.patient_id}.pkl"
+                    data_save_path = folder + f"temp_data_patient_{args.patient_id}_{args.seed}.pkl"
+                    data_save_path_args = folder + f"temp_args_{args.patient_id}_{args.seed}.pkl"
                     
                     queue = load_compact_loader_object(data_save_path_args)
                     queue.start()
@@ -110,23 +112,76 @@ class Agent:
                     print("WARNING: total interactions set (",args.total_interactions,") is greater than available data (",queue.total_transitions,"). ")
                 
             elif args.data_type == "clinical":
-                import utils.cln_data as cln_data
 
-                importer = cln_data.ClnDataImporter(args=args, env_args=env_args)
-                importer.create_queue(minimum_length=args.mini_batch_size*100, maximum_length=args.mini_batch_size*1001)
-                importer.queue.start()
+                if args.data_preload:
+
+                    print("Loading prebuilt data")
+                    folder = CLN_DATA_SAVE_DEST + '/'
+                    data_save_path = folder + f"temp_data_patient_{args.patient_id}_{args.seed}.pkl"
+                    data_save_path_args = folder + f"temp_args_{args.patient_id}_{args.seed}.pkl"
+                    
+                    queue = load_compact_loader_object(data_save_path_args)
+                    queue.start()
+                    gc.collect()
+                
+                else:
+                    from utils.cln_data import ClnDataImporter, get_patient_attrs, convert_df_to_arr
+
+                    gc.collect()
+                    print("Importing for patient id",args.patient_id,"index",get_patient_attrs("clinical" + str(args.patient_id))['ind'])
+                    args = OmegaConf.create({
+                        "patient_ind" : args.patient_id,
+                        "patient_id" : args.patient_id,
+                        "batch_size" : 8192,
+                        "data_type" : "simulated", #simulated | clinical,
+                        "data_protocols" : ["evaluation","training"], #None defaults to all,
+                        "data_algorithms" : ["G2P2C","AUXML", "PPO","TD3"], #None defaults to all,
+                        "obs_window" : 12,
+                        "control_space_type" : 'exponential_alt',
+                        "insulin_min" : 0,
+                        "insulin_max" : 20,
+                        "glucose_min" : 39,
+                        "glucose_max" : 600,
+                        "obs_features" : ['cgm','insulin','day_hour']
+                    })
+
+                    importer = ClnDataImporter(args=args,env_args=args)
+                    
+                    flat_trials = importer.load()
+                    del importer
+
+                    queue = CompactLoader(
+                        args, args.batch_size*10, args.batch_size*101, 
+                        flat_trials,
+                        lambda trial : calculate_augmented_features(convert_df_to_arr(trial), args, args),
+                        1,
+                        lambda trial : max(0, len(trial) - args.obs_window - 1) if trial['meta'].loc[0].split('_')[-1] == 'Pump' else 0, #exclude non pump data
+                        0,
+                        0,
+                        folder= CLN_DATA_SAVE_DEST + '/current_run/'
+                    )
+
+                    gc.collect()
+                    queue.start()
+                    gc.collect()
+
+                    if len(queue) == 0:
+                        raise ValueError("Queue length is 0.")
 
             else:
                 raise KeyError("Invlid data_type parameter.")
-            
             
             if DEBUG_SHOW: print("Queue Started!")
 
             self.training_agents = [OfflineSampler(args=self.args, env_args=self.env_args, mode='training', worker_id=i+args.training_agent_id_offset,importer_queue=queue) for i in range(self.args.n_training_workers)]
             if DEBUG_SHOW: print("Training Agents Initialised")
-            self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
+
+            if args.data_type == "simulated": self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
+            else: self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)] #FIXME
             if DEBUG_SHOW: print("Testing Agents Initialised")
-            self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
+
+            if args.data_type == "simulated": self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
+            else: self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)] #FIXME
             if DEBUG_SHOW: print("Validation Agents Initialised")
 
             self.buffer = offpolicy_buffers.ReplayMemory(self.args)
@@ -164,8 +219,11 @@ class Agent:
 
             # testing: run testing workers on the validation scenario
             with torch.no_grad():
-                for i in range(self.args.n_testing_workers):
-                    self.testing_agents[i].rollout(policy=self.policy, buffer=None, logger=self.logger.logWorker)  # these logs will be saved by the worker.
+                if self.using_OPE:
+                    pass #TODO 
+                else:
+                    for i in range(self.args.n_testing_workers):
+                        self.testing_agents[i].rollout(policy=self.policy, buffer=None, logger=self.logger.logWorker)  # these logs will be saved by the worker.
 
             # update the total number of completed interactions.
             completed_interactions += (self.args.n_step * self.args.n_training_workers)
@@ -195,31 +253,39 @@ class Agent:
         with torch.no_grad():
             for i in range(self.args.n_val_trials):
                 self.validation_agents[i].rollout(policy=self.policy, buffer=None, logger=self.logger.logWorker)
+            
+            if self.using_OPE:
+                print("Conducting Offline Evaluation")
 
-            # calculate the final metrics.
-            cohort_res, summary_stats = [], []
-            secondary_columns = ['epi', 't', 'reward', 'normo', 'hypo', 'sev_hypo', 'hyper', 'lgbi',
-                             'hgbi', 'ri', 'sev_hyper', 'aBGP_rmse', 'cBGP_rmse']
-            data = []
-            FOLDER_PATH = self.args.experiment_folder+'/testing/'
-            for i in range(0, self.args.n_val_trials):
-                test_i = 'worker_episode_'+str(self.args.validation_agent_id_offset+i)+'.csv'
-                df = pd.read_csv(FOLDER_PATH+ '/'+test_i)
-                normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper = time_in_range(df['cgm'])
-                reward_val = df['rew'].sum()*(100/288)
-                e = [[i, df.shape[0], reward_val, normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper, 0, 0]]
-                dataframe = pd.DataFrame(e, columns=secondary_columns)
-                data.append(dataframe)
-            res = pd.concat(data)
-            res['PatientID'] = self.args.patient_id
-            res.rename(columns={'sev_hypo':'S_hypo', 'sev_hyper':'S_hyper'}, inplace=True)
-            summary_stats.append(res)
-            metric=['mean', 'std', 'min', 'max']
-            print(calc_stats(res, metric=metric, sim_len=288))
+                #TODO: implement OPE
 
-            print('\nAlgorithm Training/Validation Completed Successfully.')
-            print('---------------------------------------------------------')
-            exit()
+                exit()
+            else:
+
+                # calculate the final metrics.
+                cohort_res, summary_stats = [], []
+                secondary_columns = ['epi', 't', 'reward', 'normo', 'hypo', 'sev_hypo', 'hyper', 'lgbi',
+                                'hgbi', 'ri', 'sev_hyper', 'aBGP_rmse', 'cBGP_rmse']
+                data = []
+                FOLDER_PATH = self.args.experiment_folder+'/testing/'
+                for i in range(0, self.args.n_val_trials):
+                    test_i = 'worker_episode_'+str(self.args.validation_agent_id_offset+i)+'.csv'
+                    df = pd.read_csv(FOLDER_PATH+ '/'+test_i)
+                    normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper = time_in_range(df['cgm'])
+                    reward_val = df['rew'].sum()*(100/288)
+                    e = [[i, df.shape[0], reward_val, normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper, 0, 0]]
+                    dataframe = pd.DataFrame(e, columns=secondary_columns)
+                    data.append(dataframe)
+                res = pd.concat(data)
+                res['PatientID'] = self.args.patient_id
+                res.rename(columns={'sev_hypo':'S_hypo', 'sev_hyper':'S_hyper'}, inplace=True)
+                summary_stats.append(res)
+                metric=['mean', 'std', 'min', 'max']
+                print(calc_stats(res, metric=metric, sim_len=288))
+
+                print('\nAlgorithm Training/Validation Completed Successfully.')
+                print('---------------------------------------------------------')
+                exit()
 
     def decay_lr(self):
         return
