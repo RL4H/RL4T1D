@@ -1,4 +1,4 @@
-run_name: "test_21"
+run_name: "test_22_action_scaling"
 save_path: "/experiments/glucose_prediction/saves/"
 split_seed: 0
 device: 'cuda'
@@ -7,7 +7,8 @@ policy_type: "offline" #offline | online
 
 data_type: "simulated" #simulated | clinical
 data_protocols: [] #None defaults to all
-data_algorithms: [] #None defaults to all
+data_algorithms: ["G2P2C"] #None defaults to all
+data_preload: false
 
 patient_id: 0
 
@@ -37,7 +38,7 @@ insulin_min: 0
 meal_max: 100 #g
 
 
-control_space_type: 'exponential'
+control_space_type: 'exponential_alt'
 
 # algorithm params
 nhead: 4

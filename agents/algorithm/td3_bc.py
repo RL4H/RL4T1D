@@ -199,7 +199,7 @@ class TD3_BC(Agent):
 
                 # perform optimisation for actor
                 pl += policy_loss.item() 
-                pi_grad += torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 10) #clip policy gradient
+                pi_grad += torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 20) #clip policy gradient #TODO: decide if 20 or 10
 
                 # save compute: ref: openai:
                 for p in self.policy.value_net1.parameters():

@@ -181,7 +181,7 @@ def main(args: DictConfig):
         print(f"Using Offline RL with a {args.data_type} data soure on patient id {args.patient_id}.")
         if args.data_type == "simulated":
 
-            if args.agent.data_preload:
+            if args.data_preload:
                 print("Preloading data")
                 folder = MAIN_PATH + f"/experiments/glucose_prediction/"
                 data_save_path = folder + f"temp_data_patient_{args.patient_id}.pkl"

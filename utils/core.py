@@ -95,9 +95,10 @@ def r_kl(log_p, log_q):
     approx_kl = torch.mean(torch.exp(log_ratio)*log_ratio - (torch.exp(log_ratio) - 1))
     return approx_kl
     
-
+EXP_SCALING_FACT = 8
 MEAL_MAX = 100 #FIXME paramaterise
-MATH_EXP_4 = math.exp(4)
+MATH_EXP_FACT = math.exp(EXP_SCALING_FACT)
+
 def calculate_features(data_row, args, env_args):
     cgm, meal, ins, t, meta_data = tuple(data_row)
     days,hours,mins = tuple([int(i) for i in t.split(':')])
@@ -107,7 +108,10 @@ def calculate_features(data_row, args, env_args):
     if ins > args.insulin_max: #FIXME remove
         print(data_row, ins)
         raise ValueError
-    info["insulin"] = linear_scaling(x=ins, x_min=args.insulin_min, x_max=args.insulin_max)
+    # info["insulin"] = linear_scaling(x=ins, x_min=args.insulin_min, x_max=args.insulin_max)
+    info["insulin"] = pump_to_rl_action(ins, args, env_args) #TODO decide if to use this or not
+
+
     info["cgm"] = linear_scaling(x=cgm, x_min=args.glucose_min, x_max=args.glucose_max)
     
     info['future_carb'] = 0 #FIXME implement
@@ -141,7 +145,7 @@ def pump_to_rl_action(pump_action, args, env_args):
         rl_action = math.log((pump_action / pump_max) / 4) + 1
     
     elif control_space_type == 'exponential_alt':
-        rl_action = 1/4 * math.log(pump_action * (MATH_EXP_4 - 1) + 1 )
+        rl_action = 1/EXP_SCALING_FACT * math.log((pump_action / pump_max) * (MATH_EXP_FACT - 1) + 1 )
 
 
 

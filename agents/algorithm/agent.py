@@ -68,10 +68,10 @@ class Agent:
             if args.data_type == "simulated":
 
                 if args.data_preload:
-                    print("Loading prebuilt data")
                     folder = SIM_DATA_PATH + "/object_save/"
                     data_save_path = folder + f"temp_data_patient_{args.patient_id}_{args.seed}.pkl"
                     data_save_path_args = folder + f"temp_args_{args.patient_id}_{args.seed}.pkl"
+                    print("Loading prebuilt data from",data_save_path_args)
                     
                     queue = load_compact_loader_object(data_save_path_args)
                     queue.start()
@@ -95,7 +95,7 @@ class Agent:
                         lambda trial : calculate_augmented_features(trial, args, env_args),
                         1,
                         lambda trial : max(0, len(trial) - args.obs_window - 1),
-                        1,
+                        args.seed,
                         0,
                         folder=SIM_DATA_PATH + "/object_save/"
                     )
@@ -115,11 +115,11 @@ class Agent:
 
                 if args.data_preload:
 
-                    print("Loading prebuilt data")
                     folder = CLN_DATA_SAVE_DEST + '/'
                     data_save_path = folder + f"temp_data_patient_{args.patient_id}_{args.seed}.pkl"
                     data_save_path_args = folder + f"temp_args_{args.patient_id}_{args.seed}.pkl"
                     
+                    print("Loading prebuilt data from", data_save_path_args)
                     queue = load_compact_loader_object(data_save_path_args)
                     queue.start()
                     gc.collect()
@@ -128,7 +128,7 @@ class Agent:
                     from utils.cln_data import ClnDataImporter, get_patient_attrs, convert_df_to_arr
 
                     gc.collect()
-                    print("Importing for patient id",args.patient_id,"index",get_patient_attrs("clinical" + str(args.patient_id))['ind'])
+                    print("Importing for patient id",args.patient_id,"index",get_patient_attrs("clinical" + str(args.patient_id))['subj_id'])
                     args = OmegaConf.create({
                         "patient_ind" : args.patient_id,
                         "patient_id" : args.patient_id,
