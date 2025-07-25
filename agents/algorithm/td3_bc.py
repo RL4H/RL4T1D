@@ -21,6 +21,8 @@ Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state'
 
 DEFAULT_FEAT = 0
 
+def depack(*args): return args
+
 class TD3_BC(Agent):
     def __init__(self, args, env_args, logger, load_model, actor_path, critic_path):
         super(TD3_BC, self).__init__(args, env_args=env_args, logger=logger, type="Offline")
@@ -51,7 +53,7 @@ class TD3_BC(Agent):
         self.mini_batch_size = args.mini_batch_size
         self.mini_batch_num = args.batch_size // args.mini_batch_size
 
-        self.target_update_interval = 1  # 100
+        self.target_update_interval = 5  # 100
         self.n_updates = 0
 
         self.soft_tau = args.soft_tau
@@ -101,6 +103,20 @@ class TD3_BC(Agent):
         print("Setting up offline Agent")
         print(f"Using {args.data_type} data.")
 
+    def sample_buffer(self, n):
+        transitions_cpu = self.buffer_queue.pop_batch(n) #import data
+        # transitions = [Transition( *(torch.as_tensor([arg], dtype=torch.float32, device=self.args.device) for arg in depack(*transition)) ) for transition in transitions_cpu]#move data to gpu
+        # del transitions_cpu
+        batch = Transition(*zip(*transitions_cpu))
+
+        cur_state_batch = torch.tensor(batch.state, dtype=torch.float32, device=self.args.device)
+        actions_batch = torch.tensor(batch.action, dtype=torch.float32, device=self.args.device)
+        reward_batch = torch.tensor(batch.reward, dtype=torch.float32, device=self.args.device).unsqueeze(1)
+        next_state_batch = torch.tensor(batch.next_state, dtype=torch.float32, device=self.args.device)
+        done_batch = torch.tensor(batch.done, dtype=torch.float32, device=self.args.device).unsqueeze(1)
+
+        return cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch
+    
     def update(self):
         print("Running network update...")
 
@@ -109,14 +125,7 @@ class TD3_BC(Agent):
         vf_loss = torch.zeros(1, device=self.device)
 
         for pi_train_iter in range(self.train_pi_iters):
-            transitions = self.buffer.sample(self.mini_batch_size)
-
-            batch = Transition(*zip(*transitions))
-            cur_state_batch = torch.cat(batch.state)
-            actions_batch = torch.cat(batch.action)
-            reward_batch = torch.cat(batch.reward).unsqueeze(1)
-            next_state_batch = torch.cat(batch.next_state)
-            done_batch = torch.cat(batch.done).unsqueeze(1)
+            cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = self.sample_buffer(self.mini_batch_size)
 
             # value network update
             with torch.no_grad():
@@ -130,19 +139,19 @@ class TD3_BC(Agent):
             # critic 1 optimisation
             predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
             value_loss1 = self.value_criterion1(predicted_value1, target_value)
-            torch.nn.utils.clip_grad_norm_(self.policy.value_net1.parameters(), 10) #clip value gradients
 
             self.value_optimizer1.zero_grad()
             value_loss1.backward()
+            # torch.nn.utils.clip_grad_norm_(self.policy.value_net1.parameters(), 10) #clip value gradients
             self.value_optimizer1.step()
 
             # critic 2 optimisation
             predicted_value2 = self.policy.value_net2(cur_state_batch, actions_batch)
             value_loss2 = self.value_criterion2(predicted_value2, target_value)
-            torch.nn.utils.clip_grad_norm_(self.policy.value_net2.parameters(), 10)
 
             self.value_optimizer2.zero_grad()
             value_loss2.backward()
+            # torch.nn.utils.clip_grad_norm_(self.policy.value_net2.parameters(), 10)
             self.value_optimizer2.step()
 
             vf_loss += (value_loss1).detach() 
@@ -158,7 +167,7 @@ class TD3_BC(Agent):
 
             # actor update
 
-            if pi_train_iter % self.target_update_interval == 0:
+            if pi_train_iter % self.target_update_interval == self.target_update_interval - 1:
                 # freeze value networks save compute: ref: openai:
                 for p in self.policy.value_net1.parameters():
                     p.requires_grad = False
@@ -194,14 +203,18 @@ class TD3_BC(Agent):
 
                 policy_loss = -self.alpha * q_mean  +  lmbda * nn.functional.mse_loss(policy_action,actions_batch) + self.pi_lambda * reg_term
 
-
                 self.policy_optimizer.zero_grad()
                 policy_loss.backward() 
+                # pi_grad += torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 5) #clip policy gradient #TODO: decide if 20 or 10
+
+                pi_grad += torch.norm(torch.stack([
+                    p.grad.norm(2) for p in self.policy.policy_net.parameters() if p.grad is not None
+                ]))
+
                 self.policy_optimizer.step()
 
                 # perform optimisation for actor
                 pl += policy_loss.item() 
-                pi_grad += torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 20) #clip policy gradient #TODO: decide if 20 or 10
 
                 # save compute: ref: openai:
                 for p in self.policy.value_net1.parameters():
@@ -227,6 +240,7 @@ class TD3_BC(Agent):
                     for param, target_param in zip(self.policy.policy_net.parameters(), self.policy.policy_net_target.parameters()):
                         target_param.data.mul_((1 - self.soft_tau))
                         target_param.data.add_(self.soft_tau * param.data)
+                print("\t############ Policy Network Updated")
             print("################ updated target networks")
         # logging
         data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_grad=val_grad, val_loss=vf_loss)
@@ -239,13 +253,7 @@ class TD3_BC(Agent):
 
         for _ in range(fqe_epochs):
 
-            transitions = self.buffer.sample(self.mini_batch_size)
-            batch = Transition(*zip(*transitions))
-            cur_state_batch = torch.cat(batch.state)
-            actions_batch = torch.cat(batch.action)
-            reward_batch = torch.cat(batch.reward).unsqueeze(1)
-            next_state_batch = torch.cat(batch.next_state)
-            done_batch = torch.cat(batch.done).unsqueeze(1)
+            cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = self.sample_buffer(self.mini_batch_size)
 
             # value network update
             new_action, next_log_prob = self.policy.evaluate_policy_no_noise(next_state_batch)
@@ -277,11 +285,7 @@ class TD3_BC(Agent):
     def evaluate_fqe(self, fqe_states=100000):
         v_data = []
         for _ in range(fqe_states):
-            transitions = self.buffer.sample(self.mini_batch_size)
-
-            batch = Transition(*zip(*transitions))
-            cur_state_batch = torch.cat(batch.state)
-            actions_batch = torch.cat(batch.action)
+            cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = self.sample_buffer(self.mini_batch_size)
 
             min_critic_value = list(torch.min( self.policy.value_net1(cur_state_batch, actions_batch), self.policy.value_net2(cur_state_batch, actions_batch) ) .detach().cpu().numpy())
 

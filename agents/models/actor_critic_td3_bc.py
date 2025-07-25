@@ -84,12 +84,27 @@ class ActionModule(nn.Module):
                                  (self.n_handcrafted_features * self.use_handcraft)
         self.last_hidden = self.feature_extractor * 2
         self.fc_layer1 = nn.Linear(self.feature_extractor, self.last_hidden)
+        nn.init.kaiming_uniform_(self.fc_layer1.weight)
+        nn.init.zeros_(self.fc_layer1.bias)
+
         self.fc_layer2 = nn.Linear(self.last_hidden, self.last_hidden)
+        nn.init.kaiming_uniform_(self.fc_layer2.weight)
+        nn.init.zeros_(self.fc_layer2.bias)
+
         self.fc_layer3 = nn.Linear(self.last_hidden, self.last_hidden)
+        nn.init.kaiming_uniform_(self.fc_layer3.weight)
+        nn.init.zeros_(self.fc_layer3.bias)
+
         self.mu = nn.Linear(self.last_hidden, self.output)
+        nn.init.kaiming_uniform_(self.mu.weight)
+        nn.init.zeros_(self.mu.bias)
+
         # self.mu = NormedLinear(self.last_hidden, self.output, scale=0.1)
 
         self.sigma = nn.Linear(self.last_hidden, self.output)
+        nn.init.kaiming_uniform_(self.sigma.weight)
+        nn.init.zeros_(self.sigma.bias)
+
         self.normalDistribution = torch.distributions.Normal
         self.noise_model = args.noise_model
         self.noise_std = args.noise_std
