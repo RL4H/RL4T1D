@@ -1,6 +1,6 @@
 run_name: "test_22_action_scaling"
 save_path: "/experiments/glucose_prediction/saves/"
-split_seed: 0
+split_seed: 1
 device: 'cuda'
 # data source params
 policy_type: "offline" #offline | online
@@ -8,7 +8,7 @@ policy_type: "offline" #offline | online
 data_type: "simulated" #simulated | clinical
 data_protocols: [] #None defaults to all
 data_algorithms: ["G2P2C"] #None defaults to all
-data_preload: false
+data_preload: true
 
 patient_id: 0
 
@@ -51,7 +51,7 @@ total_interactions: 500000
 
 vld_interactions: 512
 
-lr: 5e-3
+lr: 1e-2
 
 lr_decay: false 
 lr_minimum: 1e-7

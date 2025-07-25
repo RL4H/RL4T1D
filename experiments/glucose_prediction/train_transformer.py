@@ -183,9 +183,9 @@ def main(args: DictConfig):
 
             if args.data_preload:
                 print("Preloading data")
-                folder = MAIN_PATH + f"/experiments/glucose_prediction/"
-                data_save_path = folder + f"temp_data_patient_{args.patient_id}.pkl"
-                data_save_path_args = folder + f"temp_args_{args.patient_id}.pkl"
+                folder = MAIN_PATH + f"/experiments/glucose_prediction/saves/"
+                data_save_path = folder + f"temp_data_patient_{args.patient_id}_{args.split_seed}.pkl"
+                data_save_path_args = folder + f"temp_args_{args.patient_id}_{args.split_seed}.pkl"
                 
                 dataset_queue = load_compact_loader_object(data_save_path_args)
                 dataset_queue.start()
@@ -202,12 +202,12 @@ def main(args: DictConfig):
                 del handler
                 del importer
                 dataset_queue = CompactLoader(
-                    args, batch_size*10, batch_size*101, 
+                    args, batch_size*10, batch_size*30, 
                     flat_trials,
                     lambda trial : [calculate_features(row, args, args) for row in trial],
                     0,
                     lambda trial : max(0, len(trial) - args.obs_window - 1),
-                    1,
+                    args.split_seed,
                     batch_size
                 )
                 gc.collect()
@@ -327,6 +327,9 @@ def main(args: DictConfig):
 
     torch.save(decoder, MAIN_PATH + args.save_path + args.run_name + '/policy_final.pth')
     torch.cuda.empty_cache()
+
+    trn_logs.save_graph(key="loss",ignore_empty=True)
+    vld_logs.save_graph(key="loss",ignore_empty=True)
 
     trn_logs.graph(key="loss",ignore_empty=True)
     vld_logs.graph(key="loss",ignore_empty=True)

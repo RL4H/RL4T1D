@@ -119,28 +119,30 @@ class TD3_BC(Agent):
             done_batch = torch.cat(batch.done).unsqueeze(1)
 
             # value network update
-            # new_action, next_log_prob = self.policy.evaluate_target_policy_noise(next_state_batch)
+            with torch.no_grad():
+                new_action, next_log_prob = self.policy.evaluate_target_policy_noise(next_state_batch)
 
-            # next_values = torch.min(self.policy.value_net_target1(next_state_batch, actions_batch),
-            #                         self.policy.value_net_target2(next_state_batch, actions_batch))
+                next_values = torch.min(self.policy.value_net_target1(next_state_batch, new_action),
+                                        self.policy.value_net_target2(next_state_batch, new_action))
 
+                target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
+
+            # critic 1 optimisation
             predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
-            predicted_value2 = self.policy.value_net2(cur_state_batch, actions_batch)
-
-            value_loss1 = self.value_criterion1(reward_batch, predicted_value1)
-            value_loss2 = self.value_criterion2(reward_batch, predicted_value2)
-
-            # perform optimisation for critics
-            # torch.nn.utils.clip_grad_norm_(self.policy.value_net1.parameters(), 10) #clip value gradients
-            # torch.nn.utils.clip_grad_norm_(self.policy.value_net2.parameters(), 10)
+            value_loss1 = self.value_criterion1(predicted_value1, target_value)
+            torch.nn.utils.clip_grad_norm_(self.policy.value_net1.parameters(), 10) #clip value gradients
 
             self.value_optimizer1.zero_grad()
-            self.value_optimizer2.zero_grad()
-
             value_loss1.backward()
-            value_loss2.backward()
-
             self.value_optimizer1.step()
+
+            # critic 2 optimisation
+            predicted_value2 = self.policy.value_net2(cur_state_batch, actions_batch)
+            value_loss2 = self.value_criterion2(predicted_value2, target_value)
+            torch.nn.utils.clip_grad_norm_(self.policy.value_net2.parameters(), 10)
+
+            self.value_optimizer2.zero_grad()
+            value_loss2.backward()
             self.value_optimizer2.step()
 
             vf_loss += (value_loss1).detach() 
@@ -225,9 +227,66 @@ class TD3_BC(Agent):
                     for param, target_param in zip(self.policy.policy_net.parameters(), self.policy.policy_net_target.parameters()):
                         target_param.data.mul_((1 - self.soft_tau))
                         target_param.data.add_(self.soft_tau * param.data)
-                print("################ updated policy network")
             print("################ updated target networks")
         # logging
         data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_grad=val_grad, val_loss=vf_loss)
         return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}
 
+    def minibatch_update(self):
+        pass
+
+    def finetune_critics(self, fqe_epochs=20):
+
+        for _ in range(fqe_epochs):
+
+            transitions = self.buffer.sample(self.mini_batch_size)
+            batch = Transition(*zip(*transitions))
+            cur_state_batch = torch.cat(batch.state)
+            actions_batch = torch.cat(batch.action)
+            reward_batch = torch.cat(batch.reward).unsqueeze(1)
+            next_state_batch = torch.cat(batch.next_state)
+            done_batch = torch.cat(batch.done).unsqueeze(1)
+
+            # value network update
+            new_action, next_log_prob = self.policy.evaluate_policy_no_noise(next_state_batch)
+
+            next_values = torch.min(self.policy.value_net_target1(next_state_batch, new_action),
+                                    self.policy.value_net_target2(next_state_batch, new_action))
+
+            target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
+
+            predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
+            predicted_value2 = self.policy.value_net2(cur_state_batch, actions_batch)
+
+            value_loss1 = self.value_criterion1(reward_batch, predicted_value1)
+            value_loss2 = self.value_criterion2(reward_batch, predicted_value2)
+
+            self.value_optimizer1.zero_grad()
+            self.value_optimizer2.zero_grad()
+
+            value_loss1.backward()
+            value_loss2.backward()
+
+            self.value_optimizer1.step()
+            self.value_optimizer2.step()
+
+            vf_loss += (value_loss1).detach() 
+
+            print("################ updated critic networks")
+    
+    def evaluate_fqe(self, fqe_states=100000):
+        v_data = []
+        for _ in range(fqe_states):
+            transitions = self.buffer.sample(self.mini_batch_size)
+
+            batch = Transition(*zip(*transitions))
+            cur_state_batch = torch.cat(batch.state)
+            actions_batch = torch.cat(batch.action)
+
+            min_critic_value = list(torch.min( self.policy.value_net1(cur_state_batch, actions_batch), self.policy.value_net2(cur_state_batch, actions_batch) ) .detach().cpu().numpy())
+
+            v_data += min_critic_value
+
+        return np.mean(min_critic_value)
+            
+            
