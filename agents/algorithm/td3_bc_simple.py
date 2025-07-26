@@ -53,7 +53,7 @@ class TD3_BC(Agent):
         self.mini_batch_size = args.mini_batch_size
         self.mini_batch_num = args.batch_size // args.mini_batch_size
 
-        self.target_update_interval = 5  # 100
+        self.target_update_interval = 1  # 100
         self.n_updates = 0
 
         self.soft_tau = args.soft_tau
@@ -103,7 +103,7 @@ class TD3_BC(Agent):
         print("Setting up offline Agent")
         print(f"Using {args.data_type} data.")
 
-    def direct_sample_buffer(self, n):
+    def sample_buffer(self, n):
         transitions_cpu = self.buffer_queue.pop_batch(n) #import data
         # transitions = [Transition( *(torch.as_tensor([arg], dtype=torch.float32, device=self.args.device) for arg in depack(*transition)) ) for transition in transitions_cpu]#move data to gpu
         # del transitions_cpu
@@ -125,7 +125,6 @@ class TD3_BC(Agent):
         vf_loss = torch.zeros(1, device=self.device)
 
         for pi_train_iter in range(self.train_pi_iters):
-            # cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = self.buffer.sample(self.mini_batch_size)
             transitions = self.buffer.sample(self.mini_batch_size)
 
             batch = Transition(*zip(*transitions))
@@ -136,28 +135,28 @@ class TD3_BC(Agent):
             done_batch = torch.cat(batch.done).unsqueeze(1)
 
             # value network update
-            with torch.no_grad():
-                new_action, next_log_prob = self.policy.evaluate_target_policy_noise(next_state_batch)
+            # new_action, next_log_prob = self.policy.evaluate_target_policy_noise(next_state_batch)
 
-                next_values = torch.min(self.policy.value_net_target1(next_state_batch, new_action),
-                                        self.policy.value_net_target2(next_state_batch, new_action))
+            # next_values = torch.min(self.policy.value_net_target1(next_state_batch, actions_batch),
+            #                         self.policy.value_net_target2(next_state_batch, actions_batch))
 
-                target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
-
-            # critic 1 optimisation
             predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
-            value_loss1 = self.value_criterion1(predicted_value1, target_value)
-            self.value_optimizer1.zero_grad()
-            value_loss1.backward()
-            # torch.nn.utils.clip_grad_norm_(self.policy.value_net1.parameters(), 10) #clip value gradients
-            self.value_optimizer1.step()
-
-            # critic 2 optimisation
             predicted_value2 = self.policy.value_net2(cur_state_batch, actions_batch)
-            value_loss2 = self.value_criterion2(predicted_value2, target_value)
-            self.value_optimizer2.zero_grad()
-            value_loss2.backward()
+
+            value_loss1 = self.value_criterion1(reward_batch, predicted_value1)
+            value_loss2 = self.value_criterion2(reward_batch, predicted_value2)
+
+            # perform optimisation for critics
+            # torch.nn.utils.clip_grad_norm_(self.policy.value_net1.parameters(), 10) #clip value gradients
             # torch.nn.utils.clip_grad_norm_(self.policy.value_net2.parameters(), 10)
+
+            self.value_optimizer1.zero_grad()
+            self.value_optimizer2.zero_grad()
+
+            value_loss1.backward()
+            value_loss2.backward()
+
+            self.value_optimizer1.step()
             self.value_optimizer2.step()
 
             vf_loss += (value_loss1).detach() 
@@ -173,7 +172,7 @@ class TD3_BC(Agent):
 
             # actor update
 
-            if pi_train_iter % self.target_update_interval == self.target_update_interval - 1:
+            if pi_train_iter % self.target_update_interval == 0:
                 # freeze value networks save compute: ref: openai:
                 for p in self.policy.value_net1.parameters():
                     p.requires_grad = False
@@ -201,26 +200,22 @@ class TD3_BC(Agent):
                 q_mean = critic_eval.mean()
 
                 # assign lambda constant to scale correctly
-                lmbda = self.beta / ( torch.min( critic_eval.abs().mean(), 1e-4) ) #avoid collapse to behavioural cloning
+                lmbda = self.beta / ( critic_eval.abs().mean() )
 
                 # calculate policy loss, ref: Fujimoto and Gu (2021)
                 reg_term = sum(torch.norm(param, p=2)**2 for param in self.policy.policy_net.parameters() if param.requires_grad)
 
 
-                policy_loss = -self.alpha * q_mean  +  lmbda * nn.functional.mse_loss(policy_action,actions_batch.detach()) + self.pi_lambda * reg_term
+                policy_loss = -self.alpha * q_mean  +  lmbda * nn.functional.mse_loss(policy_action,actions_batch) + self.pi_lambda * reg_term
+
 
                 self.policy_optimizer.zero_grad()
                 policy_loss.backward() 
-                # pi_grad += torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 5) #clip policy gradient #TODO: decide if 20 or 10
-
-                pi_grad += torch.norm(torch.stack([
-                    p.grad.norm(2) for p in self.policy.policy_net.parameters() if p.grad is not None
-                ]))
-
                 self.policy_optimizer.step()
 
                 # perform optimisation for actor
                 pl += policy_loss.item() 
+                pi_grad += torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 10) #clip policy gradient
 
                 # save compute: ref: openai:
                 for p in self.policy.value_net1.parameters():
@@ -246,7 +241,7 @@ class TD3_BC(Agent):
                     for param, target_param in zip(self.policy.policy_net.parameters(), self.policy.policy_net_target.parameters()):
                         target_param.data.mul_((1 - self.soft_tau))
                         target_param.data.add_(self.soft_tau * param.data)
-                print("\t############ Policy Network Updated")
+                print("################ updated policy network")
             print("################ updated target networks")
         # logging
         data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_grad=val_grad, val_loss=vf_loss)

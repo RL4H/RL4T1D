@@ -109,11 +109,11 @@ class Agent:
                 elif args.total_interactions > queue.total_transitions:
                     print("WARNING: total interactions set (",args.total_interactions,") is greater than available data (",queue.total_transitions,"). ")
 
-                self.training_agents = []
-                self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
-                if DEBUG_SHOW: print("Testing Agents Initialised")
-                self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
-                if DEBUG_SHOW: print("Validation Agents Initialised")
+                # self.training_agents = []
+                # self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
+                # if DEBUG_SHOW: print("Testing Agents Initialised")
+                # self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
+                # if DEBUG_SHOW: print("Validation Agents Initialised")
                 
             elif args.data_type == "clinical":
 
@@ -172,17 +172,26 @@ class Agent:
                     if len(queue) == 0:
                         raise ValueError("Queue length is 0.")
                     
-                    # self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)] #FIXME
-                    # if DEBUG_SHOW: print("Testing Agents Initialised")
-                    # self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)] #FIXME
-                    # if DEBUG_SHOW: print("Validation Agents Initialised")
 
             else:
                 raise KeyError("Invlid data_type parameter.")
             
             if DEBUG_SHOW: print("Queue Started!")
 
+            self.training_agents = [OfflineSampler(args=self.args, env_args=self.env_args, mode='training', worker_id=i+args.training_agent_id_offset,importer_queue=queue) for i in range(self.args.n_training_workers)]
+            if DEBUG_SHOW: print("Training Agents Initialised")
+
+            if args.data_type == "simulated": self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
+            else: self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)] #FIXME
+            if DEBUG_SHOW: print("Testing Agents Initialised")
+
+            if args.data_type == "simulated": self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
+            else: self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)] #FIXME
+            if DEBUG_SHOW: print("Validation Agents Initialised")
+
+            self.buffer = offpolicy_buffers.ReplayMemory(self.args)
             self.buffer_queue = queue
+            if DEBUG_SHOW: print("Agent setup completed")
 
         self.logger = logger
 
@@ -207,7 +216,7 @@ class Agent:
                 elif self.agent_type == "OffPolicy":
                     self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer, logger=self.logger.logWorker)
                 elif self.agent_type == "Offline": 
-                    pass
+                    self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer, logger=self.logger.logWorker)
 
 
             logs = self.update()  # update the models

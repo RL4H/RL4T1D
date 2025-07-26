@@ -105,7 +105,7 @@ class OffPolicyWorker(Worker):
                 self._reset()
         return
 
-class OfflineSampler(Worker):
+class OfflineSampler:
     def __init__(self, args, env_args, mode, worker_id, importer_queue):
         # Worker.__init__(self, args, env_args, mode, worker_id)
         self.importer_queue = importer_queue
