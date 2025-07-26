@@ -117,14 +117,16 @@ class OfflineSampler:
         
         self.episode, self.counter = 0, 0
 
+    # def rollout(self, policy=None, buffer=None,logger=None):
+    #     logger = logger[self.worker_id]
+
+    #     for _ in range(0, self.rollout_steps):
+    #         item = self.importer_queue.pop()
+    #         # print("Saving transition, ",item)
+    #         buffer.store(*item)
+
+    #     return
+
+
     def rollout(self, policy=None, buffer=None,logger=None):
-        logger = logger[self.worker_id]
-
-        for _ in range(0, self.rollout_steps):
-            item = self.importer_queue.pop()
-            # print("Saving transition, ",item)
-            buffer.store(*item)
-
-        return
-
-
+        buffer.store_batch(self.importer_queue.pop_batch(self.rollout_steps))

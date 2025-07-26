@@ -211,11 +211,11 @@ class TD3_BC(Agent):
 
                 self.policy_optimizer.zero_grad()
                 policy_loss.backward() 
-                self.policy_optimizer.step()
-
                 # perform optimisation for actor
                 pl += policy_loss.item() 
                 pi_grad += torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 10) #clip policy gradient
+                self.policy_optimizer.step()
+
 
                 # save compute: ref: openai:
                 for p in self.policy.value_net1.parameters():

@@ -14,7 +14,7 @@ lambda_: 0.95
 # parameters for the RL rollout
 normalize_reward: True  # reward received is normalised
 shuffle_rollout: True  # rollout trajectory data is shuffled
-replay_buffer_size: 4192
+replay_buffer_size: 32768
 preserve_trajectories : False
 
 # ppo parameters
@@ -24,7 +24,7 @@ eps_clip: 0.1
 target_kl: 0.01
 
 # train
-n_step: 4192
+n_step: 8192
 max_epi_length: 2880
 n_training_workers: 16
 total_interactions: 3200000 # total number of interactions the agent will train for #800000
@@ -34,12 +34,13 @@ n_interactions_lr_decay: 4000000
 pi_lr: 1e-3 
 vf_lr: 1e-3
 
-batch_size : 4192
-mini_batch_size: 4192
-n_pi_epochs: 10
+batch_size : 8192
+mini_batch_size: 8192
+n_pi_epochs: 100
+target_update_interval: 20
 
 # test
-n_testing_workers: 20
+n_testing_workers: 5
 max_test_epi_len: 288  # testing conducted for 1 day: 12 steps/hr * 24 hours
 
 # validation
@@ -63,14 +64,14 @@ use_handcraft: 0
 
 n_hidden: 16
 noise_model: "normal_dist"
-noise_std: 0.1
-noise_application: 0
+noise_std: 0.02
+noise_application: 3
 target_action_std: 0.1
-target_action_lim: 0.2
-soft_tau: 0.005
+target_action_lim: 0.03
+soft_tau: 0.002
 
 alpha : 1
-beta : 0.025
+beta : 0.0025
 
 vf_lambda : 0
 pi_lambda : 0

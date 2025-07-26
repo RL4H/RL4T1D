@@ -178,7 +178,7 @@ class Agent:
             
             if DEBUG_SHOW: print("Queue Started!")
 
-            self.training_agents = [OfflineSampler(args=self.args, env_args=self.env_args, mode='training', worker_id=i+args.training_agent_id_offset,importer_queue=queue) for i in range(self.args.n_training_workers)]
+            self.training_agents = []#[OfflineSampler(args=self.args, env_args=self.env_args, mode='training', worker_id=i+args.training_agent_id_offset,importer_queue=queue) for i in range(self.args.n_training_workers)]
             if DEBUG_SHOW: print("Training Agents Initialised")
 
             if args.data_type == "simulated": self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
@@ -215,8 +215,12 @@ class Agent:
                     self.buffer.save_rollout(training_agent_index=i)
                 elif self.agent_type == "OffPolicy":
                     self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer, logger=self.logger.logWorker)
-                elif self.agent_type == "Offline": 
-                    self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer, logger=self.logger.logWorker)
+                # elif self.agent_type == "Offline": 
+                #     self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer, logger=self.logger.logWorker)
+
+            if self.agent_type == "Offline":
+                #store batch directly to avoid bottleneck
+                self.buffer.store_batch(self.buffer_queue.pop_batch(self.args.replay_buffer_size))
 
 
             logs = self.update()  # update the models

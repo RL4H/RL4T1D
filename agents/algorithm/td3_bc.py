@@ -53,7 +53,7 @@ class TD3_BC(Agent):
         self.mini_batch_size = args.mini_batch_size
         self.mini_batch_num = args.batch_size // args.mini_batch_size
 
-        self.target_update_interval = 5  # 100
+        self.target_update_interval = args.target_update_interval  # 100
         self.n_updates = 0
 
         self.soft_tau = args.soft_tau
@@ -173,7 +173,7 @@ class TD3_BC(Agent):
 
             # actor update
 
-            if pi_train_iter % self.target_update_interval == self.target_update_interval - 1:
+            if pi_train_iter % self.target_update_interval == 0:
                 # freeze value networks save compute: ref: openai:
                 for p in self.policy.value_net1.parameters():
                     p.requires_grad = False
@@ -201,7 +201,7 @@ class TD3_BC(Agent):
                 q_mean = critic_eval.mean()
 
                 # assign lambda constant to scale correctly
-                lmbda = self.beta / ( torch.min( critic_eval.abs().mean(), 1e-4) ) #avoid collapse to behavioural cloning
+                lmbda = self.beta / ( critic_eval.abs().mean()) #avoid collapse to behavioural cloning
 
                 # calculate policy loss, ref: Fujimoto and Gu (2021)
                 reg_term = sum(torch.norm(param, p=2)**2 for param in self.policy.policy_net.parameters() if param.requires_grad)
@@ -211,7 +211,7 @@ class TD3_BC(Agent):
 
                 self.policy_optimizer.zero_grad()
                 policy_loss.backward() 
-                # pi_grad += torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 5) #clip policy gradient #TODO: decide if 20 or 10
+                torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 1) #clip policy gradient #TODO: decide if 20 or 10
 
                 pi_grad += torch.norm(torch.stack([
                     p.grad.norm(2) for p in self.policy.policy_net.parameters() if p.grad is not None
