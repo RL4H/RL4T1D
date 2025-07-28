@@ -915,7 +915,7 @@ class SimTorchDataset(Dataset):
         return [self.pop() for _ in range(n)]
 
 if __name__ == "__main__":
-    main_function = input("| pickle | convert | import |\nChoose: \n").lower()
+    main_function = input("| pickle | convert | import | convert 2 |\nChoose: \n").lower()
 
     if main_function == "convert":
         subject = "adult0"
@@ -954,6 +954,82 @@ if __name__ == "__main__":
             print(subject_data.flat_trials[0])
 
             del subject_data
+    
+    elif main_function == "convert 2":
+
+        from utils.sim_data import DataImporter, calculate_augmented_features
+        from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
+        from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
+        
+        for patient_id in range(10, 20):
+            args = OmegaConf.create({
+                "patient_ind" : patient_id,
+                "patient_id" : patient_id,
+                "batch_size" : 8192,
+                "data_type" : "simulated", #simulated | clinical,
+                "data_protocols" : ["evaluation","training"], #None defaults to all,
+                "data_algorithms" : ["G2P2C","AUXML", "PPO","TD3"], #None defaults to all,
+                "obs_window" : 12,
+                "control_space_type" : 'exponential_alt',
+                "insulin_min" : 0,
+                "insulin_max" : 20,
+                "glucose_min" : 39,
+                "glucose_max" : 600,
+                "obs_features" : ['cgm','insulin','day_hour']
+            })
+            
+            importer = DataImporter(args=args,env_args=args)
+
+            handler = importer.get_trials()
+            handler.flatten()
+            flat_trials = handler.flat_trials
+            del handler
+            del importer
+            data = CompactLoader(
+                args, args.batch_size*10, args.batch_size*101, 
+                flat_trials,
+                lambda trial : calculate_augmented_features(trial, args, args),
+                1,
+                lambda trial : max(0, len(trial) - args.obs_window - 1),
+                0,
+                0,
+                folder=SIM_DATA_PATH + "/object_save/"
+            )
+
+            data.save_compact_loader_object()
+            print("\tData saved for seed 0.")
+            for seed in range(1,3):
+                data.reset_shuffle(seed, data.n_list)
+
+                data.save_compact_loader_object()
+                print(f"\tData saved for seed {seed}.")
+
+    elif main_function == "special":
+        #take patient from seed 0 and recalculate for other seeds, for patients 0-9
+
+        from utils.sim_data import DataImporter, calculate_augmented_features
+        from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
+        from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
+        for patient_id in range(0,10):
+            folder = SIM_DATA_PATH + "/object_save/"
+            data_save_path = folder + f"temp_data_patient_{patient_id}_{0}.pkl"
+            data_save_path_args = folder + f"temp_args_{patient_id}_{0}.pkl"
+            print("Loading prebuilt data from",data_save_path_args)
+            
+            data = load_compact_loader_object(data_save_path_args)
+            n_list = data.recalculate_nlist()
+
+            for seed in range(1,3):
+                data.loaded = True 
+                data.reset_shuffle(seed, n_list)
+
+                data.save_compact_loader_object()
+                print(f"\tData saved for seed {seed}.")
+
+
+
+
+
     
     else:
         raise ValueError("Invalid choice.")

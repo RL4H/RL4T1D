@@ -5,6 +5,8 @@ import math
 
 EXP_SCALING_FACT = 8
 EXP_FACT_T1 = math.exp(EXP_SCALING_FACT) - 1
+
+def limit(n, t, b): return max(min(n, t), b)
 class ControlSpace:
     def __init__(self, control_space_type, insulin_min, insulin_max):
         self.pump_min = insulin_min
@@ -27,7 +29,7 @@ class ControlSpace:
             agent_action = self.pump_max * (math.exp((agent_action - 1) * 4))
 
         elif self.control_space_type == 'exponential_alt':
-            agent_action = self.pump_max * ( math.exp(EXP_SCALING_FACT * agent_action) - 1 ) / EXP_FACT_T1
+            agent_action = self.pump_max *  math.exp(EXP_SCALING_FACT * agent_action - 1 ) / EXP_FACT_T1
 
         elif self.control_space_type == 'quadratic':
             if agent_action < 0:

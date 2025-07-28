@@ -61,6 +61,8 @@ class CompactLoader:
 
         self.loaded = True
         self.shuffle_seed = shuffle_seed
+
+        self.folder = folder
         
         if not prebuilt:
 
@@ -144,11 +146,38 @@ class CompactLoader:
         self.save_path_args = args_save_dest
 
         print(args, min_length, max_length, _1, _2, retrieval_func_ind, _3, shuffle_seed, validation_length, len(training_indicies), len(validation_indicies), length, save_dest)
+    def recalculate_nlist(self):
+        if not self.loaded:
+            print("Loading cum_n")
+            _, self.cum_n = load_obj(self.save_path) #load cum_n into memory
+            print("cum_n loaded")
+
+        cum_n_len = len(self.cum_n)
+        c = 0
+        n_list = []
+        prev_item = 0
+        while c < cum_n_len:
+            cum_item = self.cum_n[c]
+
+            new_n_item = cum_item - prev_item
+
+            n_list.append(new_n_item)
+            prev_item = cum_item
+            c += 1
+        print("Cum_n recalculated")
+        
+        if not self.loaded:
+            del self.cum_n
+        
+        return n_list
+
     def reset_shuffle(self,new_seed, n_list):
         if not self.loaded:
             _, self.cum_n = load_obj(self.save_path) #load cum_n into memory
 
         self.shuffle_seed = new_seed
+        self.save_path = self.folder + f"temp_data_patient_{self.args.patient_id}_{self.shuffle_seed}.pkl"
+        self.save_path_args = self.folder + f"temp_args_{self.args.patient_id}_{self.shuffle_seed}.pkl"
 
         indicies = list(range(self.length))
         self.shuffle_seed = self.shuffle_seed

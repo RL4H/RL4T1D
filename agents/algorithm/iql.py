@@ -31,8 +31,8 @@ class IQL(Agent):
 
         # IQL params
         self.discount = 0.99
-        self.tau = 0.005                # Soft target update rate
-        self.beta = 3.0                 # Advantage weighting exponent
+        self.tau = 0.005 # Soft target update rate
+        self.beta = 3.0 # Advantage weighting exponent
         self.value_lr = 1e-3
         self.critic_lr = 1e-3
         self.actor_lr = 1e-3

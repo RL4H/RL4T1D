@@ -124,6 +124,8 @@ class TD3_BC(Agent):
         pi_grad, val_grad = torch.zeros(1, device=self.device), torch.zeros(1, device=self.device)
         vf_loss = torch.zeros(1, device=self.device)
 
+        q_abs_list = []
+
         for pi_train_iter in range(self.train_pi_iters):
             transitions = self.buffer.sample(self.mini_batch_size)
 
@@ -159,7 +161,7 @@ class TD3_BC(Agent):
             self.value_optimizer1.step()
             self.value_optimizer2.step()
 
-            vf_loss += (value_loss1).detach() 
+            vf_loss += (value_loss1).detach() / self.train_pi_iters
 
             for param in self.policy.value_net1.parameters():
                 if param.grad is not None:
@@ -200,7 +202,7 @@ class TD3_BC(Agent):
                 q_mean = critic_eval.mean()
 
                 # assign lambda constant to scale correctly
-                lmbda = self.beta / ( critic_eval.abs().mean() )
+                lmbda = self.beta / ( critic_eval.abs().mean() ) #.clamp(min=1.0)
 
                 # calculate policy loss, ref: Fujimoto and Gu (2021)
                 reg_term = sum(torch.norm(param, p=2)**2 for param in self.policy.policy_net.parameters() if param.requires_grad)
@@ -215,6 +217,7 @@ class TD3_BC(Agent):
                 pl += policy_loss.item() 
                 pi_grad += torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 10) #clip policy gradient
                 self.policy_optimizer.step()
+
 
 
                 # save compute: ref: openai:
@@ -247,8 +250,6 @@ class TD3_BC(Agent):
         data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_grad=val_grad, val_loss=vf_loss)
         return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}
 
-    def minibatch_update(self):
-        pass
 
     def finetune_critics(self, fqe_epochs=20):
 
