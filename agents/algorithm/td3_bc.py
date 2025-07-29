@@ -217,7 +217,7 @@ class TD3_BC(Agent):
 
                 self.policy_optimizer.zero_grad()
                 policy_loss.backward() 
-                torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 5) #clip policy gradient #TODO: decide if 20 or 10
+                torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 1) #clip policy gradient #TODO: decide if 20 or 10
 
                 pi_grad += torch.norm(torch.stack([
                     p.grad.norm(2) for p in self.policy.policy_net.parameters() if p.grad is not None

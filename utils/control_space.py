@@ -3,7 +3,7 @@
 # Australasian Joint Conference on Artificial Intelligence. Cham: Springer International Publishing, 2022.
 import math
 
-EXP_SCALING_FACT = 8
+EXP_SCALING_FACT = 5
 EXP_FACT_T1 = math.exp(EXP_SCALING_FACT) - 1
 
 def limit(n, t, b): return max(min(n, t), b)

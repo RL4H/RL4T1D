@@ -446,7 +446,7 @@ def plot_episode(experiment, tester, episode):
     ax2 = fig.add_subplot(111)
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     ax2.set_yscale('log')
-    ax2.set_ylim((1e-3, 5))
+    ax2.set_ylim((1e-2, 5))
     divider = make_axes_locatable(ax2)
     ax = divider.append_axes("top", size=3.0, pad=0.02, sharex=ax2)
     #ax.set_ylim((5, 600))

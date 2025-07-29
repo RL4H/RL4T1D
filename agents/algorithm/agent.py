@@ -222,7 +222,7 @@ class Agent:
                 #store batch directly to avoid bottleneck
                 self.buffer.store_batch(self.buffer_queue.pop_batch(self.args.replay_buffer_step))
 
-            self.alpha = self.args.alpha * (1 - completed_interactions / self.args.total_interactions)
+            # self.alpha = self.args.alpha * (1 - completed_interactions / self.args.total_interactions)
             logs = self.update()  # update the models
             self.logger.save_rollout(logs)  # logging
             self.policy.save(rollout)  # save model weights as checkpoints

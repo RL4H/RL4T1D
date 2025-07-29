@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 
 from agents.algorithm.agent import Agent
-from agents.models.actor_critic_iql import QNetwork, ValueNetwork, PolicyNetwork
+from agents.models.actor_critic_iql import QNetwork, ValueNetwork, PolicyNetwork, ActorCritic
 
 from decouple import config
 import sys
@@ -19,10 +19,11 @@ Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state'
 
 
 class IQL(Agent):
-    def __init__(self, args, env_args, logger):
+    def __init__(self, args, env_args, logger, load_model, actor_path, critic_path):
         super(IQL, self).__init__(args, env_args=env_args, logger=logger, type="Offline")
         self.device = args.device
         self.completed_interactions = 0
+        self.batch_size = args.batch_size
 
         # training params
         self.train_pi_iters = args.n_pi_epochs
@@ -31,26 +32,28 @@ class IQL(Agent):
 
         # IQL params
         self.discount = 0.99
-        self.tau = 0.005 # Soft target update rate
+        self.soft_tau = 0.005 # Soft target update rate
         self.beta = 3.0 # Advantage weighting exponent
         self.value_lr = 1e-3
         self.critic_lr = 1e-3
         self.actor_lr = 1e-3
 
         # component networks
-        self.critic_network_1 = QNetwork(args, self.device)
-        self.critic_network_2 = QNetwork(args, self.device)
+        self.policy = ActorCritic(args, load_model, actor_path, critic_path, self.device).to(self.device)
+        # self.critic_network_1 = QNetwork(args, self.device)
+        # self.critic_network_2 = QNetwork(args, self.device)
         self.value_network = ValueNetwork(args, self.device)
-        self.policy = PolicyNetwork(args, self.device)
+        # self.policy = PolicyNetwork(args, self.device)
 
-        self.critic_network_1_target = deepcopy(self.critic_network_1)
-        self.critic_network_2_target = deepcopy(self.critic_network_2)
+        # self.critic_network_1_target = deepcopy(self.critic_network_1)
+        # self.critic_network_2_target = deepcopy(self.critic_network_2)
         self.value_network_target = deepcopy(self.value_network)
 
-        self.critic_optim_1 = torch.optim.Adam(self.critic_network_1.parameters() , lr=self.critic_lr, weight_decay=0)
-        self.critic_optim_2 = torch.optim.Adam(self.critic_network_2.parameters() , lr=self.critic_lr, weight_decay=0)
+        self.critic_optim_1 = torch.optim.Adam(self.policy.value_net1.parameters() , lr=self.critic_lr, weight_decay=0)
+        self.critic_optim_2 = torch.optim.Adam(self.policy.value_net1.parameters() , lr=self.critic_lr, weight_decay=0)
         self.value_optim = torch.optim.Adam(self.value_network.parameters() , lr=self.value_lr, weight_decay=0)
         self.policy_optim = torch.optim.Adam(self.policy.parameters() , lr=self.actor_lr, weight_decay=0)
+
 
         # readout
         print("Setting up offline Agent")
@@ -64,7 +67,7 @@ class IQL(Agent):
         vf_loss = torch.zeros(1, device=self.device)
 
         for _ in range(self.train_pi_iters):
-            transitions = self.buffer.sample(self.mini_batch_size)
+            transitions = self.buffer.sample(self.batch_size)
 
             batch = Transition(*zip(*transitions))
             cur_state_batch = torch.cat(batch.state)
@@ -75,16 +78,16 @@ class IQL(Agent):
 
             # update critic networks
             with torch.no_grad():
-                next_value_batch = self.value_network_target(next_state_batch) #use stabilised value network instead
+                next_value_batch = self.value_network(next_state_batch) #use stabilised value network instead
                 target_q_batch = reward_batch + self.discount * (1 - done_batch) * next_value_batch #FIXME check elementwise
 
-            q1_batch = self.critic_network_1(cur_state_batch, actions_batch)
+            q1_batch = self.policy.value_net1(cur_state_batch, actions_batch)
             critic_loss_1 = F.mse_loss(q1_batch, target_q_batch)
             self.critic_optim_1.zero_grad()
             critic_loss_1.backward()
             self.critic_optim_1.step()
 
-            q2_batch = self.critic_network_2(cur_state_batch, actions_batch)
+            q2_batch = self.policy.value_net2(cur_state_batch, actions_batch)
             critic_loss_2 = F.mse_loss(q2_batch, target_q_batch)
             self.critic_optim_2.zero_grad()
             critic_loss_2.backward()
@@ -108,7 +111,7 @@ class IQL(Agent):
                 advantage = q_min - self.value_network(cur_state_batch)
                 weights = torch.exp(self.beta * advantage).clamp(max=1e2)
             
-            log_prob_batch = self.policy.log_prob(cur_state_batch, actions_batch)
+            log_prob_batch = self.policy.policy_net.log_prob(cur_state_batch, actions_batch)
             actor_loss = -(weights * log_prob_batch).mean()
 
             self.policy_optim.zero_grad()
@@ -119,12 +122,18 @@ class IQL(Agent):
             # gentle updates 
             with torch.no_grad():
                 for param, target_param in zip(self.value_network.parameters(), self.value_network_target.parameters()):
-                    target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+                    target_param.data.copy_(self.soft_tau * param.data + (1 - self.soft_tau) * target_param.data)
 
-                for param, target_param in zip(self.critic_network_1.parameters(), self.critic_network_1_target.parameters()):
-                    target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
-                for param, target_param in zip(self.critic_network_2.parameters(), self.critic_network_2_target.parameters()):
-                    target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+                for param, target_param in zip(self.policy.value_net1.parameters(), self.policy.value_net_target1.parameters()):
+                    target_param.data.mul_((1 - self.soft_tau))
+                    target_param.data.add_(self.soft_tau * param.data)
+                for param, target_param in zip(self.policy.value_net2.parameters(), self.policy.value_net_target2.parameters()):
+                    target_param.data.mul_((1 - self.soft_tau))
+                    target_param.data.add_(self.soft_tau * param.data)
+
+                for param, target_param in zip(self.policy.policy_net.parameters(), self.policy.policy_net_target.parameters()):
+                    target_param.data.mul_((1 - self.soft_tau))
+                    target_param.data.add_(self.soft_tau * param.data)
 
             print("################updated target networks")
 

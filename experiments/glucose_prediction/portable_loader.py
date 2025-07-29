@@ -97,12 +97,12 @@ class CompactLoader:
             
             self.cum_n = cum_n
             print("Length!",self.length)
+            
+            self.trials_list = trials_list
             self.reset_shuffle(self.shuffle_seed, n_list)
             print("Shuffle initialised.")
 
 
-            print("Saving object.")
-            save_obj((trials_list, cum_n), self.save_path)
             print("temp object saved with length",self.length,"to",self.save_path)
 
             print("clearing excess memory")
@@ -172,8 +172,9 @@ class CompactLoader:
         return n_list
 
     def reset_shuffle(self,new_seed, n_list):
-        if not self.loaded:
-            _, self.cum_n = load_obj(self.save_path) #load cum_n into memory
+        clear_load = False
+        if not self.loaded: 
+            self.load()
 
         self.shuffle_seed = new_seed
         self.save_path = self.folder + f"temp_data_patient_{self.args.patient_id}_{self.shuffle_seed}.pkl"
@@ -213,34 +214,6 @@ class CompactLoader:
                     removed_indicies.append(try_ind)
         
         print("Allocated",len(replacement_validation_indicies),'/',self.validation_items)
-        # print("Removing Overlapping Validation Indicies") #removed this section, subsumed by first section code
-        # removed_indicies = []
-        # c = 0
-        # for ind in replacement_validation_indicies:
-        #     print(c, len(replacement_validation_indicies))
-        #     trial_ind, in_trial_ind = self.get_trial_inds(ind)
-        #     print("\tRetrieved index")
-        #     trial_len = n_list[trial_ind]
-        #     for n in range(self.args.obs_window):
-        #         trial_len = n_list[trial_ind]
-        #         try_in_trial_ind = in_trial_ind + n
-        #         if (try_in_trial_ind >= trial_len): break #ignore out of index trials
-
-        #         #remove trial from other places
-        #         try_ind = ind + n
-        #         if try_ind in self.training_indicies:
-        #             print("\tFirst in done")
-        #             self.training_indicies.remove(try_ind)
-        #             removed_indicies.append(try_ind)
-        #         elif try_ind in base_validation_inds:
-        #             print("\tFirst and second in done")
-        #             base_validation_inds.remove(try_ind)
-        #             removed_indicies.append(try_ind)
-        #         else:
-        #             break #encountering a skipped index implies that remaining range can be skipped.
-        #         # else: we assume it's in replacement_validation_indicies and is fine to keep
-        #         print("\tInd skipped.")
-        #     c += 1
 
         
         self.validation_indicies = replacement_validation_indicies
@@ -253,8 +226,13 @@ class CompactLoader:
         print(f"Validation indicies applied with length {len(self.validation_indicies)}/{self.validation_items}, removing {len(removed_indicies)} items from training for validity.")
         self.validation_length = len(self.validation_indicies)
         self.training_length = self.length - self.validation_length
+        
 
-        if not self.loaded: del self.cum_n #clear cum_n from memory
+        print("Saving object.")
+        save_obj((self.trials_list, self.cum_n), self.save_path)
+
+        if clear_load:
+            self.clear_load()
 
 
 
@@ -326,5 +304,5 @@ class CompactLoader:
         save_obj(args, self.save_path_args if overwrite_dest == None else overwrite_dest)
         print("Object Args saved to",self.save_path_args)
 
-
+        
 

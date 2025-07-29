@@ -23,7 +23,7 @@ class FeatureExtractor(nn.Module):
         self.n_layers = args.n_rnn_layers
         self.bidirectional = args.bidirectional
         self.directions = args.rnn_directions
-        self.LSTM = nn.LSTM(input_size=self.n_features, hidden_size=self.n_hidden, num_layers=self.n_layers, batch_first=True, bidirectional=self.bidirectional)  # (seq_len, batch, input_size)
+        self.LSTM = nn.LSTM(input_size=self.n_features, hidden_size=self.n_hidden, num_layers=self.n_layers, batch_first=True, bidirectional=self.bidirectional, device=args.device)  # (seq_len, batch, input_size)
 
     def forward(self, s, mode):
         if mode == 'batch':
@@ -55,11 +55,11 @@ class QvalModel(nn.Module):
         self.feature_extractor = self.n_hidden * self.n_layers * self.directions + \
                                  (self.n_handcrafted_features * self.use_handcraft)
         self.last_hidden = self.feature_extractor * 2
-        self.fc_layer1 = nn.Linear(self.feature_extractor + self.output, self.last_hidden)
-        self.fc_layer2 = nn.Linear(self.last_hidden, self.last_hidden)
-        self.fc_layer3 = nn.Linear(self.last_hidden, self.last_hidden)
+        self.fc_layer1 = nn.Linear(self.feature_extractor + self.output, self.last_hidden, device=device)
+        self.fc_layer2 = nn.Linear(self.last_hidden, self.last_hidden, device=device)
+        self.fc_layer3 = nn.Linear(self.last_hidden, self.last_hidden, device=device)
 
-        self.q = nn.Linear(self.last_hidden, self.output)
+        self.q = nn.Linear(self.last_hidden, self.output, device=device)
 
     def forward(self, extract_state, action, mode):
         concat_dim = 1 if (mode == 'batch') else 0
@@ -85,12 +85,12 @@ class ActionModule(nn.Module):
         self.feature_extractor = self.n_hidden * self.n_layers * self.directions + \
                                  (self.n_handcrafted_features * self.use_handcraft)
         self.last_hidden = self.feature_extractor * 2
-        self.fc_layer1 = nn.Linear(self.feature_extractor, self.last_hidden)
-        self.fc_layer2 = nn.Linear(self.last_hidden, self.last_hidden)
-        self.fc_layer3 = nn.Linear(self.last_hidden, self.last_hidden)
-        self.mu = nn.Linear(self.last_hidden, self.output)
+        self.fc_layer1 = nn.Linear(self.feature_extractor, self.last_hidden, device=device)
+        self.fc_layer2 = nn.Linear(self.last_hidden, self.last_hidden, device=device)
+        self.fc_layer3 = nn.Linear(self.last_hidden, self.last_hidden, device=device)
+        self.mu = nn.Linear(self.last_hidden, self.output, device=device)
 
-        self.sigma = nn.Linear(self.last_hidden, self.output)
+        self.sigma = nn.Linear(self.last_hidden, self.output, device=device)
         self.normalDistribution = torch.distributions.Normal
         self.noise_model = args.noise_model
         self.noise_std = args.noise_std
@@ -196,10 +196,10 @@ class ValueModule(nn.Module):
         self.feature_extractor = self.n_hidden * self.n_layers * self.directions + \
                                  (self.n_handcrafted_features * self.use_handcraft)
         self.last_hidden = self.feature_extractor * 2
-        self.fc_layer1 = nn.Linear(self.feature_extractor, self.last_hidden)
-        self.fc_layer2 = nn.Linear(self.last_hidden, self.last_hidden)
-        self.fc_layer3 = nn.Linear(self.last_hidden, self.last_hidden)
-        self.value = nn.Linear(self.last_hidden, self.output)
+        self.fc_layer1 = nn.Linear(self.feature_extractor, self.last_hidden, device=device)
+        self.fc_layer2 = nn.Linear(self.last_hidden, self.last_hidden, device=device)
+        self.fc_layer3 = nn.Linear(self.last_hidden, self.last_hidden, device=device)
+        self.value = nn.Linear(self.last_hidden, self.output, device=device)
 
     def forward(self, extract_states):
         fc_output1 = F.relu(self.fc_layer1(extract_states))
@@ -224,7 +224,7 @@ class PolicyNetwork(nn.Module):
         return mu, sigma, action, log_prob
     
     def log_prob(self, s, a):
-        extract_states, _ = self.FeatureExtractor.forward(s, mode='forward')
+        extract_states, _ = self.FeatureExtractor.forward(s, mode='batch')
         mu, sigma, _, _ = self.ActionModule.forward(extract_states, worker_mode='training')
         sigma = torch.clamp(sigma, min=1e-6)
 
@@ -235,6 +235,20 @@ class PolicyNetwork(nn.Module):
         log_prob = log_prob.sum(dim=-1) # Sum over action dimension : (batch_size,)
 
         return log_prob
+    
+    
+    def save(self, episode):
+        policy_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net.pth'
+        policy_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net_target.pth'
+        
+        value_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_value_net.pth'
+        value_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_value_net_target.pth'
+
+        torch.save(self.policy_net, policy_net_path)
+        torch.save(self.policy_net_target, policy_net_target_path)
+        
+        torch.save(self.value_net1, value_net_path)
+        torch.save(self.value_net_target1, value_net_target_path)
 
 
 
@@ -253,8 +267,8 @@ class ValueNetwork(nn.Module):
 class QNetwork(nn.Module):
     def __init__(self, args, device):
         super(QNetwork, self).__init__()
-        self.FeatureExtractor = FeatureExtractor(args)
-        self.QvalModel = QvalModel(args, device)
+        self.FeatureExtractor = FeatureExtractor(args).to(device)
+        self.QvalModel = QvalModel(args, device).to(device)
 
     def forward(self, s, action, mode='batch'):
         extract_states, lstmOut = self.FeatureExtractor.forward(s, mode)
@@ -291,3 +305,69 @@ class ExploratoryNoise:
         self.x_prev = self.x0 if self.x0 is not None else np.zeros_like(self.mu)
         self.noise = torch.distributions.Normal(0, self.sigma).rsample()
 
+class ActorCritic(nn.Module):
+    def __init__(self, args, load, actor_path, critic_path, device):
+        super(ActorCritic, self).__init__()
+        self.device = device
+        self.experiment_dir = args.experiment_dir
+        self.is_testing_worker = False
+        # self.sac_v2 = args.sac_v2
+        self.policy_net = PolicyNetwork(args, device)
+
+        self.value_net1 = QNetwork(args, device)
+        self.value_net2 = QNetwork(args, device)
+
+        if load:
+            self.policy_net = torch.load(actor_path, map_location=device)
+            self.value_net1 = torch.load(critic_path, map_location=device)
+            self.value_net2 = torch.load(critic_path, map_location=device)
+
+        # Copy for target networks
+        self.policy_net_target = deepcopy(self.policy_net)  # PolicyNetwork(args, device)
+        self.value_net_target1 = deepcopy(self.value_net1)#QNetwork(args, device)
+        self.value_net_target2 = deepcopy(self.value_net2)  # QNetwork(args, device)
+
+    def get_action(self, s, mode='forward', worker_mode='training'):
+        s = torch.as_tensor(s, dtype=torch.float32, device=self.device)
+        mu, sigma, action, log_prob = self.policy_net.forward(s, mode=mode, worker_mode=worker_mode)
+    
+        
+        # data = dict(mu=mu[0], std=sigma[0], action=action[0], log_prob=log_prob[0], state_value=mu[0]) #FIXME give actual state_value
+        # return {k: v.detach().cpu().numpy() for k, v in data.items()}
+        return dict (
+            mu = mu.detach().cpu().numpy(),
+            std = sigma.detach().cpu().numpy(),
+            action = action.detach().cpu().numpy(),
+            log_prob = [log_prob],
+            state_value = mu.detach().cpu().numpy()
+        )
+
+    def get_action_no_noise(self, s, mode='forward', worker_mode='training'):
+        s = torch.as_tensor(s, dtype=torch.float32, device=self.device)
+        mu, sigma, action, log_prob = self.policy_net.forward(s, mode=mode, worker_mode='no noise')
+        return action.detach().cpu().numpy(), mu.detach().cpu().numpy(), sigma.detach().cpu().numpy()
+
+    def evaluate_policy(self, state):  # evaluate batch
+        mu, sigma, action, log_prob = self.policy_net.forward(state, mode='batch')
+        return action, log_prob
+
+    def evaluate_policy_no_noise(self, state):  # evaluate batch
+        mu, sigma, action, log_prob = self.policy_net.forward(state, mode='batch', worker_mode='no noise')
+        return action, log_prob
+
+    def evaluate_target_policy_noise(self, state):  # evaluate batch
+        mu, sigma, action, log_prob = self.policy_net_target.forward(state, mode='batch', worker_mode='target')
+        return action, log_prob
+
+    def save(self, episode):
+        policy_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net.pth'
+        policy_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net_target.pth'
+        
+        value_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_value_net.pth'
+        value_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_value_net_target.pth'
+
+        torch.save(self.policy_net, policy_net_path)
+        torch.save(self.policy_net_target, policy_net_target_path)
+        
+        torch.save(self.value_net1, value_net_path)
+        torch.save(self.value_net_target1, value_net_target_path)

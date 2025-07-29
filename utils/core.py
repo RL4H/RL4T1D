@@ -95,7 +95,7 @@ def r_kl(log_p, log_q):
     approx_kl = torch.mean(torch.exp(log_ratio)*log_ratio - (torch.exp(log_ratio) - 1))
     return approx_kl
     
-EXP_SCALING_FACT = 8
+EXP_SCALING_FACT = 5
 MEAL_MAX = 100 #FIXME paramaterise
 MATH_EXP_FACT = math.exp(EXP_SCALING_FACT)
 
