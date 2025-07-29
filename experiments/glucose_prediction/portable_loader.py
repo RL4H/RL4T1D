@@ -93,11 +93,11 @@ class CompactLoader:
                 cum_n.append(running_total)
             self.length = running_total
 
-            self.n_list = n_list #FIXME remove
+            #self.n_list = n_list #FIXME remove
             
             self.cum_n = cum_n
             print("Length!",self.length)
-            
+
             self.trials_list = trials_list
             self.reset_shuffle(self.shuffle_seed, n_list)
             print("Shuffle initialised.")
