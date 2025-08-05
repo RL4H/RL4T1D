@@ -235,7 +235,7 @@ def main(args: DictConfig):
             del importer
 
             queue = CompactLoader(
-                args, args.batch_size*10, args.batch_size*101, 
+                args, args.batch_size*2, 4096, 
                 flat_trials,
                 lambda trial : [calculate_features(row, args, args) for row in convert_df_to_arr(trial)],
                 0,
