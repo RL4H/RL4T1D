@@ -500,7 +500,7 @@ class ClnDataQueue:
         self.importer, self.minimum_length, self.maximum_length, self.mapping = importer, minimum_length, maximum_length, mapping
         self.queue = []
         self.queue_revolutions = 0
-        self.subjects_n = len(self.importer.subjects)
+        self.subjects_n = 1 #len(self.importer.subjects)
         assert maximum_length >= minimum_length
 
         self.reserve_validation = reserve_validation
