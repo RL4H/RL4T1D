@@ -308,8 +308,9 @@ class TD3_BC(Agent):
         val_queue = self.buffer_queue
         val_queue.start_validation()
         with torch.no_grad():
-            v_data = []
-            critic_loss = []
+            critic_eval_list = []
+            critic_loss_list = []
+            bc_loss_list = []
             completed_iters = 0
             while completed_iters < val_queue.validation_length:
                 transitions = val_queue.pop_validation_batch(self.mini_batch_size)
@@ -330,7 +331,7 @@ class TD3_BC(Agent):
                 predicted_value = torch.min(self.policy.value_net1(cur_state_batch, actions_batch), self.policy.value_net2(cur_state_batch, actions_batch))
 
                 value_loss = self.value_criterion1(predicted_value, target_value).item()
-                critic_loss += [value_loss]
+                critic_loss_list += [value_loss]
 
                 # estimate q value of policy actions
                 policy_action, _ = self.policy.evaluate_policy_no_noise(cur_state_batch)
@@ -338,11 +339,18 @@ class TD3_BC(Agent):
                     self.policy.value_net1(cur_state_batch, policy_action), 
                     self.policy.value_net2(cur_state_batch, policy_action)
                 ).detach().cpu().numpy()
-                min_critic_value += critic_eval
+                critic_eval_list += critic_eval
+
+
+                #calculate action difference
+                diff = nn.functional.mse_loss(policy_action,actions_batch.detach()).item()
+                bc_loss_list += [diff]
+
 
                 completed_iters += self.mini_batch_size
 
 
-            return { 'critic_loss': np.mean(critic_loss), 'critic_eval': np.mean(min_critic_value)}
+
+            return { 'critic_loss': np.mean(critic_loss_list), 'critic_eval': np.mean(critic_eval_list), 'action_diff': np.mean(bc_loss_list)}
             
             
