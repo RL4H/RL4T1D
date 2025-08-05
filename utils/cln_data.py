@@ -490,7 +490,7 @@ class ClnDataImporter:
         else:
             return self.df_list
     def clear(self):
-        del self.df
+        del self.df_list
     def create_queue(self, minimum_length=1024, maximum_length=8192, mapping=convert_trial_into_transitions, reserve_validation=0):
         self.queue = ClnDataQueue(self, minimum_length, maximum_length, mapping, reserve_validation)
         return self.queue 
