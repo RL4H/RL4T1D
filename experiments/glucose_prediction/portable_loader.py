@@ -266,10 +266,10 @@ class CompactLoader:
         if len(self.queue) < self.minimum_length:
             self.load()
             remaining_length = self.maximum_length - len(self.queue)
-            print(self.training_length, len(self.training_indicies), remaining_length)
+            tr_length = len(self.training_indicies)
             for _ in range(remaining_length):
                 self.queue.append(self[self.training_indicies[self.training_ind]])
-                self.training_ind = (self.training_ind + 1) % self.training_length
+                self.training_ind = (self.training_ind + 1) % tr_length
             self.clear_load()
             gc.collect()
     def pop(self):
