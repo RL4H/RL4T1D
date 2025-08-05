@@ -5,9 +5,9 @@ device: 'cuda'
 # data source params
 policy_type: "offline" #offline | online
 
-data_type: "simulated" #simulated | clinical
+data_type: "clinical" #simulated | clinical
 data_protocols: [] #None defaults to all
-data_algorithms: ["G2P2C"] #None defaults to all
+data_algorithms: [] #None defaults to all
 data_preload: true
 
 patient_id: 0

@@ -78,9 +78,9 @@ noise_std: 0.2
 noise_application: 3
 target_action_std: 0.2
 target_action_lim: 0.5
-soft_tau: 0.007
+soft_tau: 0.005
 
-push_action_clip: false
+push_action_clip: true
 
 
 alpha : 1

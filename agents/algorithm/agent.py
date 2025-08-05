@@ -44,7 +44,7 @@ class Agent:
             self.args.feature_history = env_args.obs_window  # TODO: refactor G2P2C to use obs_window
 
         self.using_OPE = self.agent_type == "Offline" and self.args.data_type == "clinical"
-        if not self.using_OPE: self.args.n_val_trials = 0
+        if self.using_OPE: self.args.n_val_trials = 0
 
         # initialise workers and buffers
         if type == "OnPolicy":

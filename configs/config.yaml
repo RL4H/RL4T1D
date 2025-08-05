@@ -36,7 +36,7 @@ agent:
   verbose: ${experiment.verbose}
   seed: ${experiment.seed}
   debug_params: ${debug}
-  control_space_type: 'exponential'
+  control_space_type: 'exponential_alt'
   mlflow_track: ${mlflow.track}
 
   t_meal: ${env.t_meal}  # only for g2p2c need to refactor
