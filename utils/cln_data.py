@@ -796,8 +796,8 @@ if __name__ == "__main__":
                 lambda trial : calculate_augmented_features(convert_df_to_arr(trial), args, args),
                 1,
                 lambda trial : max(0, len(trial) - args.obs_window - 1) if trial['meta'].loc[0].split('_')[-1] == 'Pump' else 0, #exclude non pump data
-                1024,
                 0,
+                1024,
                 folder= CLN_DATA_SAVE_DEST + '/'
             )
 
