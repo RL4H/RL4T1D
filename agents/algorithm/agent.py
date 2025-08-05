@@ -272,7 +272,8 @@ class Agent:
                 del self.buffer
 
                 res = self.evaluate_fqe()
-                print("Mean fqe")
+                for k in res:
+                    print(k, '\t', res[k])
 
 
                 #TODO: implement OPE
