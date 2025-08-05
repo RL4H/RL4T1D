@@ -237,11 +237,11 @@ def main(args: DictConfig):
             queue = CompactLoader(
                 args, args.batch_size*10, args.batch_size*101, 
                 flat_trials,
-                lambda trial : [calculate_features(row, args, args) for row in (convert_df_to_arr(trial), args, args)],
+                lambda trial : [calculate_features(row, args, args) for row in convert_df_to_arr(trial)],
                 0,
                 lambda trial : max(0, len(trial) - args.obs_window - 1) if trial['meta'].loc[0].split('_')[-1] == 'Pump' else 0, #exclude non pump data
                 0,
-                0,
+                1024,
                 folder= CLN_DATA_SAVE_DEST + '/glucose_pred_run/'
             )
 
