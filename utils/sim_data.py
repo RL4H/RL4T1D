@@ -102,8 +102,8 @@ for line in lines[1:]:
 
 def get_patient_attrs(subject): return patient_attr_dict[subject.lower()]
 
-DEFAULT_REWARD_FUNC = lambda cgm : composite_reward_2(None, cgm[-1])
-# DEFAULT_REWARD_FUNC = lambda cgm : composite_reward_3(None, cgm)
+# DEFAULT_REWARD_FUNC = lambda cgm : composite_reward_2(None, cgm[-1])
+DEFAULT_REWARD_FUNC = lambda cgm : composite_reward_3(None, cgm)
 
     
 
@@ -968,7 +968,7 @@ if __name__ == "__main__":
         from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
         from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
         
-        for patient_id in [0,4,6,19]: #all, except 4
+        for patient_id in [6]: #all, except 4
             args = OmegaConf.create({
                 "patient_ind" : patient_id,
                 "patient_id" : patient_id,
@@ -977,7 +977,7 @@ if __name__ == "__main__":
                 "data_protocols" : ["testing", "evaluation"], #None defaults to all,
                 "data_algorithms" : ["G2P2C"], #None defaults to all,
                 "obs_window" : 12,
-                "control_space_type" : 'exponential',
+                "control_space_type" : 'exponential_alt',
                 "insulin_min" : 0,
                 "insulin_max" : 5,
                 "glucose_min" : 39,
