@@ -780,14 +780,13 @@ if __name__ == "__main__":
                 "obs_window" : 12,
                 "control_space_type" : 'exponential_alt',
                 "insulin_min" : 0,
-                "insulin_max" : 35,
+                "insulin_max" : 155,
                 "glucose_min" : 39,
                 "glucose_max" : 600,
                 "obs_features" : ['cgm','insulin','day_hour']
             })
 
             importer = ClnDataImporter(args=args,env_args=args)
-            
             flat_trials = importer.load()
             del importer
 
