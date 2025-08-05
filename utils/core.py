@@ -97,7 +97,8 @@ def r_kl(log_p, log_q):
     
 EXP_SCALING_FACT = 4
 MEAL_MAX = 100 #FIXME paramaterise
-MATH_EXP_FACT = math.exp(EXP_SCALING_FACT)
+EXP_FACT_PS_SUM = math.exp(EXP_SCALING_FACT) - math.exp(-EXP_SCALING_FACT)
+EXP_S_FACT = math.exp(-EXP_SCALING_FACT)
 
 def calculate_features(data_row, args, env_args):
     cgm, meal, ins, t, meta_data = tuple(data_row)
@@ -146,7 +147,7 @@ def pump_to_rl_action(pump_action, args, env_args):
         rl_action = math.log((pump_action / pump_max)) / 4 + 1
     
     elif control_space_type == 'exponential_alt':
-        rl_action = 1/EXP_SCALING_FACT * math.log((pump_action / pump_max) * (MATH_EXP_FACT - 1) + 1 ) #maps to [0,1]
+        rl_action = 1/EXP_SCALING_FACT * math.log((pump_action / pump_max) * EXP_FACT_PS_SUM + EXP_S_FACT ) #maps to [0,1]
         # rl_action =limit ( 1/EXP_SCALING_FACT * math.log((pump_action / pump_max) * (MATH_EXP_FACT - 1) + 1 ), 1, 0)
 
 

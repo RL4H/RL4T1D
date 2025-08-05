@@ -4,7 +4,8 @@
 import math
 
 EXP_SCALING_FACT = 4
-EXP_FACT_T1 = math.exp(EXP_SCALING_FACT) - 1
+EXP_FACT_PS_SUM = math.exp(EXP_SCALING_FACT) - math.exp(-EXP_SCALING_FACT)
+EXP_S_FACT = math.exp(-EXP_SCALING_FACT)
 
 def limit(n, t, b): return max(min(n, t), b)
 class ControlSpace:
@@ -29,7 +30,7 @@ class ControlSpace:
             agent_action = self.pump_max * (math.exp((agent_action - 1) * 4))
 
         elif self.control_space_type == 'exponential_alt':
-            agent_action = self.pump_max *  math.exp(EXP_SCALING_FACT * agent_action - 1 ) / EXP_FACT_T1
+            agent_action = self.pump_max *  (math.exp(EXP_SCALING_FACT * agent_action) - EXP_S_FACT) / EXP_FACT_PS_SUM
             # agent_action = self.pump_max *  math.exp(EXP_SCALING_FACT * limit(agent_action,1,0) - 1 ) / EXP_FACT_T1
 
         elif self.control_space_type == 'quadratic':
