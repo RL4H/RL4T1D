@@ -339,7 +339,7 @@ class TD3_BC(Agent):
                     self.policy.value_net1(cur_state_batch, policy_action), 
                     self.policy.value_net2(cur_state_batch, policy_action)
                 ).detach().cpu().numpy()
-                critic_eval_list += critic_eval
+                critic_eval_list += list(critic_eval)
 
 
                 #calculate action difference
