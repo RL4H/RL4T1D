@@ -234,7 +234,7 @@ def main(args: DictConfig):
             flat_trials = importer.load()
             del importer
 
-            queue = CompactLoader(
+            dataset_queue = CompactLoader(
                 args, args.batch_size*2, 4096, 
                 flat_trials,
                 lambda trial : [calculate_features(row, args, args) for row in convert_df_to_arr(trial)],
@@ -246,10 +246,10 @@ def main(args: DictConfig):
             )
 
             gc.collect()
-            queue.start()
+            dataset_queue.start()
             gc.collect()
 
-            if len(queue) == 0:
+            if len(dataset_queue) == 0:
                 raise ValueError("Queue length is 0.")
 
     elif args.policy_type == "online":
