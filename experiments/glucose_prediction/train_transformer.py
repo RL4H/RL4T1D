@@ -242,7 +242,7 @@ def main(args: DictConfig):
                 lambda trial : max(0, len(trial) - args.obs_window - 1) if trial['meta'].loc[0].split('_')[-1] == 'Pump' else 0, #exclude non pump data
                 0,
                 0,
-                folder= CLN_DATA_SAVE_DEST + 'glucose_pred_run/'
+                folder= CLN_DATA_SAVE_DEST + '/glucose_pred_run/'
             )
 
             gc.collect()
