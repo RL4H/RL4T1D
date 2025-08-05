@@ -88,7 +88,7 @@ horizion_size=6
 def custom_reward_3(bg_hist, **kwargs):
     lgbi, hbgi, ri = risk_index([bg_hist[-1]], horizion_size)
     # return -(0.7*lgbi + 1.3*hbgi)
-    return max([lgbi, hbgi])
+    return -max([lgbi, hbgi])
 
 
 def get_basal(patient_name='none'):
