@@ -304,23 +304,45 @@ class TD3_BC(Agent):
 
             print("################ updated critic networks")
     
-    def evaluate_fqe(self, val_queue):
-        v_data = []
-        completed_iters = 0
-        while completed_iters < val_queue:
-            transitions = val_queue.pop_batch(self.mini_batch_size)
+    def evaluate_fqe(self):
+        val_queue = self.buffer_queue
+        val_queue.start_validation()
+        with torch.no_grad():
+            v_data = []
+            critic_loss = []
+            completed_iters = 0
+            while completed_iters < val_queue:
+                transitions = val_queue.pop_validation_batch(self.mini_batch_size)
 
-            fields = list(zip(*transitions))
-            tensor_fields = [torch.as_tensor(field, dtype=torch.float32, device=self.args.device) for field in fields]
+                fields = list(zip(*transitions))
+                tensor_fields = [torch.as_tensor(field, dtype=torch.float32, device=self.args.device) for field in fields]
 
-            cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = tuple(tensor_fields)
+                cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = tuple(tensor_fields)
 
-            min_critic_value = list(torch.min( self.policy.value_net1(cur_state_batch, actions_batch), self.policy.value_net2(cur_state_batch, actions_batch) ) .detach().cpu().numpy())
 
-            v_data += min_critic_value
+                min_critic_value = list(torch.min( self.policy.value_net1(cur_state_batch, actions_batch), self.policy.value_net2(cur_state_batch, actions_batch) ) .detach().cpu().numpy())
 
-            completed_iters += self.mini_batch_size
+                # calculate critic loss
+                new_action, next_log_prob = self.policy.evaluate_policy_no_noise(next_state_batch)
+                next_values = torch.min(self.policy.value_net_target1(next_state_batch, new_action), self.policy.value_net_target2(next_state_batch, new_action))
+                target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
 
-        return np.mean(min_critic_value)
+                predicted_value = torch.min(self.policy.value_net1(cur_state_batch, actions_batch), self.policy.value_net2(cur_state_batch, actions_batch))
+
+                value_loss = self.value_criterion1(predicted_value, target_value).item()
+                critic_loss += [value_loss]
+
+                # estimate q value of policy actions
+                policy_action, _ = self.policy.evaluate_policy_no_noise(cur_state_batch)
+                critic_eval = torch.min(
+                    self.policy.value_net1(cur_state_batch, policy_action), 
+                    self.policy.value_net2(cur_state_batch, policy_action)
+                ).detach().cpu().numpy()
+                min_critic_value += critic_eval
+
+                completed_iters += self.mini_batch_size
+
+
+            return { 'critic_loss': np.mean(critic_loss), 'critic_eval': np.mean(min_critic_value)}
             
             

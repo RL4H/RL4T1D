@@ -298,7 +298,7 @@ class CompactLoader:
         out = self.vld_queue.pop(0)
         self.sync_validation()
         return out
-    def pop_validation_queue(self, n):
+    def pop_validation_batch(self, n):
         return [self.pop_validation() for _ in range(n)]
     
     def save_compact_loader_object(self,overwrite_dest=None):
