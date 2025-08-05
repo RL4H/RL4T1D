@@ -311,7 +311,7 @@ class TD3_BC(Agent):
             v_data = []
             critic_loss = []
             completed_iters = 0
-            while completed_iters < val_queue:
+            while completed_iters < val_queue.validation_length:
                 transitions = val_queue.pop_validation_batch(self.mini_batch_size)
 
                 fields = list(zip(*transitions))
