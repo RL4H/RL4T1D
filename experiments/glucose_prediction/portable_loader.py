@@ -266,6 +266,7 @@ class CompactLoader:
         if len(self.queue) < self.minimum_length:
             self.load()
             remaining_length = self.maximum_length - len(self.queue)
+            print(self.training_length, len(self.training_indicies), remaining_length)
             for _ in range(remaining_length):
                 self.queue.append(self[self.training_indicies[self.training_ind]])
                 self.training_ind = (self.training_ind + 1) % self.training_length
