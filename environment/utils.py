@@ -82,7 +82,7 @@ def custom_reward(bg_hist, **kwargs):
 
 def custom_reward_2(bg_hist, **kwargs):
     lgbi, hbgi, ri = risk_index([bg_hist[-1]], 1)
-    return -(hbgi + lgbi*2.5)
+    return -(hbgi + lgbi)
 
 horizion_size=6
 def custom_reward_3(bg_hist, **kwargs):
