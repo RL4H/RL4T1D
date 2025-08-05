@@ -189,7 +189,7 @@ class CompactLoader:
         shuffle(indicies)
 
         #allocate validation indicies to not overlap
-        VALIDATION_IN_TRIAL_REPS = self.args.obs_window // 4
+        VALIDATION_IN_TRIAL_REPS = self.args.obs_window * 4
 
         replacement_validation_indicies = []
         removed_indicies = []
@@ -226,7 +226,7 @@ class CompactLoader:
         for ind in base_validation_inds: #add spare validation inds back to training
             self.training_indicies.append(ind)
         
-        print(f"Validation indicies applied with length {len(self.validation_indicies)}/{self.validation_items}, removing {len(removed_indicies)} items from training for validity.")
+        print(f"Validation indicies applied with length {len(self.validation_indicies)}/{self.validation_items}, removing {len(removed_indicies)} items from training for validity. Remaining length: {len(self.training_indicies)}")
         self.validation_length = len(self.validation_indicies)
         self.training_length = self.length - self.validation_length
         
