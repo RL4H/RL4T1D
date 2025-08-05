@@ -16,6 +16,7 @@ torch.cuda.empty_cache()
 
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
+CLN_DATA_SAVE_DEST = "/home/users/u7482502/data/cln_pickled_data" #FIXME make into env variable 
 
 from utils.sim_data import convert_trial_into_windows
 from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
@@ -218,11 +219,38 @@ def main(args: DictConfig):
             
 
         elif args.data_type == "clinical":
-            from utils.cln_data import ClnDataImporter
+            # from utils.cln_data import ClnDataImporter
 
-            importer = ClnDataImporter(args=args,env_args=args) #FIXME probably don't handle the args this way
-            dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*51, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions*2)
-            dataset_queue.start()
+            # importer = ClnDataImporter(args=args,env_args=args) #FIXME probably don't handle the args this way
+            # dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*51, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions*2)
+            # dataset_queue.start()
+            from utils.cln_data import ClnDataImporter, get_patient_attrs, convert_df_to_arr
+
+            gc.collect()
+            print("Importing for patient id",args.patient_id,"index",get_patient_attrs("clinical" + str(args.patient_id))['subj_id'])
+
+            importer = ClnDataImporter(args=args,env_args=args)
+            
+            flat_trials = importer.load()
+            del importer
+
+            queue = CompactLoader(
+                args, args.batch_size*10, args.batch_size*101, 
+                flat_trials,
+                lambda trial : [calculate_features(row, args, args) for row in (convert_df_to_arr(trial), args, args)],
+                0,
+                lambda trial : max(0, len(trial) - args.obs_window - 1) if trial['meta'].loc[0].split('_')[-1] == 'Pump' else 0, #exclude non pump data
+                0,
+                0,
+                folder= CLN_DATA_SAVE_DEST + 'glucose_pred_run/'
+            )
+
+            gc.collect()
+            queue.start()
+            gc.collect()
+
+            if len(queue) == 0:
+                raise ValueError("Queue length is 0.")
 
     elif args.policy_type == "online":
         raise NotImplementedError("Online data collection not yet implemented.")
