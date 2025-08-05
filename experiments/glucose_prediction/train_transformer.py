@@ -171,7 +171,6 @@ def main(args: DictConfig):
     batch_size = args.batch_size
     mini_batch_n = args.mini_batch_n
     assert args.input_window + args.t_future == args.obs_window
-    args.window_size = args.obs_window
 
 
 

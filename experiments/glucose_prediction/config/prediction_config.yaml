@@ -16,6 +16,7 @@ patient_id: 0
 input_window : 100 #288 #FIXME check on this
 t_future: 48
 obs_window: 148
+window_size : 148
 
 preserve_trajectories : false
 #NOTE: ensure input_window + t_future = obs_window
