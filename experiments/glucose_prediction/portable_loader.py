@@ -93,6 +93,9 @@ class CompactLoader:
                 cum_n.append(running_total)
             self.length = running_total
 
+            if self.validation_items > self.length / 2:
+                self.validation_items = 0
+
             self.n_list = n_list #FIXME remove
             
             self.cum_n = cum_n
