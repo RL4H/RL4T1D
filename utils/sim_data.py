@@ -11,6 +11,7 @@ import gc
 from random import randrange
 from decouple import config
 from collections import namedtuple, deque
+from random import randrange
 
 import torch
 from torch.utils.data import Dataset
@@ -20,7 +21,7 @@ from torchvision.transforms import ToTensor
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-from environment.reward_func import composite_reward, composite_reward_2
+from environment.reward_func import composite_reward, composite_reward_2, composite_reward_3
 from utils.core import linear_scaling, calculate_features, pump_to_rl_action
 Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'done'))
 
@@ -100,6 +101,10 @@ for line in lines[1:]:
         patient_attr_dict[line[0].lower()][var] = line[c]
 
 def get_patient_attrs(subject): return patient_attr_dict[subject.lower()]
+
+# DEFAULT_REWARD_FUNC = lambda cgm : composite_reward_2(None, cgm[-1])
+DEFAULT_REWARD_FUNC = lambda cgm : composite_reward_3(None, cgm)
+
     
 
 ### Helpers
@@ -373,7 +378,7 @@ def patient_id_to_label(patient_id):
     if patient_id < 0 or patient_id >= 30: raise ValueError("Invalid patient id")
     return ["adolescent","adult","child"][patient_id//10] + str(patient_id % 10)
 
-def convert_trial_into_windows(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward_2(None, cgm))):
+def convert_trial_into_windows(data_obj, args, env_args, reward_func=DEFAULT_REWARD_FUNC):
     window_size = args.obs_window
 
     rows, _ = data_obj.shape
@@ -391,7 +396,7 @@ def convert_trial_into_windows(data_obj, args, env_args, reward_func=(lambda cgm
 
     return window_states #FIXME check if this should be transposed
 
-def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward_2(None, cgm))):
+def convert_trial_into_transitions(data_obj, args, env_args, reward_func=DEFAULT_REWARD_FUNC):
     #data_obj is a 2D numpy array , rows x columns. Columns are :  cgm, meal, ins, t, meta_data
     window_size = args.obs_window
 
@@ -401,26 +406,28 @@ def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda
 
     actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
 
-    rewards = [reward_func(linear_scaling(cgm, args.glucose_min, args.glucose_max)) for cgm in data_obj[:, 0]] #FIXME check if applied reward func changes things
+    # rewards = [reward_func(cgm, args.glucose_min, args.glucose_max) for cgm in data_obj[:, 0]] #FIXME check if applied reward func changes things
+    rewards = [reward_func( data_obj[:, 0][max(0, row_n+1-reward_horizon):row_n+1] ) for row_n in range(rows)]
 
     transitions = []
     for row_n in range(window_size, rows-1):
-        state = np.array(states[row_n-window_size: row_n])
+        state = np.array(states[row_n-window_size+1: row_n+1])
         action = np.array([actions[row_n]])
-        reward = np.array([rewards[row_n+1]]) #sample from next states reward
-        next_state = np.array(states[row_n-window_size+1: row_n+1])
-        done = np.array([int(row_n == rows - 2)]) #FIXME change condition
+        reward = np.array([rewards[row_n]])
+        next_state = np.array(states[row_n-window_size+2: row_n+2])
+        done = np.array([int(row_n == rows - 1)]) #FIXME change condition
         transitions.append(Transition(state, action, reward, next_state, done))
 
     return transitions
 
-def calculate_augmented_features(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward_2(None, cgm))):
+reward_horizon=6
+def calculate_augmented_features(data_obj, args, env_args, reward_func=DEFAULT_REWARD_FUNC):
     rows, _ = data_obj.shape
 
     actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
-    rewards = [reward_func(cgm) for cgm in data_obj[:, 0]] #FIXME check if applied reward func changes things
+    rewards = [reward_func( data_obj[:, 0][max(0, row_n+1-reward_horizon):row_n+1] ) for row_n in range(rows)] #FIXME check if applied reward func changes things
 
-    aug_states = np.array([ np.concatenate([calculate_features(data_row, args, env_args), [actions[n], rewards[n], (n >= rows - 2)]]) for n,data_row in enumerate(data_obj)])
+    aug_states = np.array([ np.concatenate([calculate_features(data_row, args, env_args), [actions[n], rewards[n], (n >= rows - 1)]]) for n,data_row in enumerate(data_obj)])
 
     return aug_states
 
@@ -431,11 +438,11 @@ def retrieval_augmented_feature_trial(aug_states, row_n, window_size):
     # rewards = aug_states[:, -2]
     # done = aug_states[:, -1]
 
-    state = np.array(states[row_n: row_n+window_size])
+    state = np.array(states[row_n+1: row_n+window_size+1])
     action = np.array([aug_states[row_n+window_size, -3]])
-    reward = np.array([aug_states[row_n+window_size+1, -2]]) #sample from next states reward
-    next_state = np.array(states[row_n+1: row_n+window_size+1])
-    done = np.array([aug_states[row_n+window_size+1, -1]])
+    reward = np.array([aug_states[row_n+window_size, -2]])
+    next_state = np.array(states[row_n+2: row_n+window_size+2])
+    done = np.array([aug_states[row_n+window_size, -1]])
     
     return Transition(state, action, reward, next_state, done)
 
@@ -957,7 +964,7 @@ if __name__ == "__main__":
     
     elif main_function == "convert 2":
 
-        from utils.sim_data import DataImporter, calculate_augmented_features
+        # from utils.sim_data import DataImporter, calculate_augmented_features
         from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
         from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
         
@@ -967,8 +974,8 @@ if __name__ == "__main__":
                 "patient_id" : patient_id,
                 "batch_size" : 8192,
                 "data_type" : "simulated", #simulated | clinical,
-                "data_protocols" : ["evaluation","testing"], #None defaults to all,
-                "data_algorithms" : [], #None defaults to all,
+                "data_protocols" : ["testing", "evaluation"], #None defaults to all,
+                "data_algorithms" : ["G2P2C"], #None defaults to all,
                 "obs_window" : 12,
                 "control_space_type" : 'exponential',
                 "insulin_min" : 0,
@@ -1007,7 +1014,7 @@ if __name__ == "__main__":
     elif main_function == "special":
         #take patient from seed 0 and recalculate for other seeds, for patients 0-9
 
-        from utils.sim_data import DataImporter, calculate_augmented_features
+        # from utils.sim_data import DataImporter, calculate_augmented_features
         from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
         from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
         for patient_id in range(20):

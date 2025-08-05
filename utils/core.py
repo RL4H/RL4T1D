@@ -143,7 +143,7 @@ def pump_to_rl_action(pump_action, args, env_args):
 
     elif control_space_type == 'exponential':
         # pump_action = pump_max * (math.exp((rl_action - 1) * 4))
-        rl_action = math.log((pump_action / pump_max) / 4) + 1
+        rl_action = math.log((pump_action / pump_max)) / 4 + 1
     
     elif control_space_type == 'exponential_alt':
         rl_action = 1/EXP_SCALING_FACT * math.log((pump_action / pump_max) * (MATH_EXP_FACT - 1) + 1 ) #maps to [0,1]
