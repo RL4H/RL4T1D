@@ -102,8 +102,8 @@ for line in lines[1:]:
 
 def get_patient_attrs(subject): return patient_attr_dict[subject.lower()]
 
-# DEFAULT_REWARD_FUNC = lambda cgm : composite_reward_2(None, cgm[-1])
-DEFAULT_REWARD_FUNC = lambda cgm : composite_reward_3(None, cgm)
+DEFAULT_REWARD_FUNC = lambda cgm : composite_reward_2(None, cgm[-1])
+# DEFAULT_REWARD_FUNC = lambda cgm : composite_reward_3(None, cgm)
 
     
 

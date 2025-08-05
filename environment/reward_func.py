@@ -2,6 +2,7 @@ import math
 import torch
 import numpy as np
 from collections import deque
+from random import randrange
 
 from environment.utils import custom_reward, custom_reward_2, custom_reward_3
 
@@ -26,7 +27,7 @@ def composite_reward_2(args, state=None, reward=None):
     if reward == None:
         reward = custom_reward_2([state])
     x_max, x_min = 0, custom_reward_2([MAX_GLUCOSE]) #get_IS_Rew(MAX_GLUCOSE, 4) # custom_reward([MAX_GLUCOSE])
-    reward = ((reward - x_min) / (x_max - x_min))
+    reward = ((reward - x_min) / (x_max - x_min)) ** 3
     if state <= 40:
         reward = -6
     elif state >= MAX_GLUCOSE:
