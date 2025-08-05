@@ -20,7 +20,7 @@ from torchvision.transforms import ToTensor
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-from environment.reward_func import composite_reward
+from environment.reward_func import composite_reward, composite_reward_2
 from utils.core import linear_scaling, calculate_features, pump_to_rl_action
 Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'done'))
 
@@ -373,7 +373,7 @@ def patient_id_to_label(patient_id):
     if patient_id < 0 or patient_id >= 30: raise ValueError("Invalid patient id")
     return ["adolescent","adult","child"][patient_id//10] + str(patient_id % 10)
 
-def convert_trial_into_windows(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward(None, cgm))):
+def convert_trial_into_windows(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward_2(None, cgm))):
     window_size = args.obs_window
 
     rows, _ = data_obj.shape
@@ -391,7 +391,7 @@ def convert_trial_into_windows(data_obj, args, env_args, reward_func=(lambda cgm
 
     return window_states #FIXME check if this should be transposed
 
-def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward(None, cgm))):
+def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward_2(None, cgm))):
     #data_obj is a 2D numpy array , rows x columns. Columns are :  cgm, meal, ins, t, meta_data
     window_size = args.obs_window
 
@@ -414,7 +414,7 @@ def convert_trial_into_transitions(data_obj, args, env_args, reward_func=(lambda
 
     return transitions
 
-def calculate_augmented_features(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward(None, cgm))):
+def calculate_augmented_features(data_obj, args, env_args, reward_func=(lambda cgm : composite_reward_2(None, cgm))):
     rows, _ = data_obj.shape
 
     actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
@@ -961,16 +961,16 @@ if __name__ == "__main__":
         from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
         from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
         
-        for patient_id in range(20):
+        for patient_id in [0,4,6,19]: #all, except 4
             args = OmegaConf.create({
                 "patient_ind" : patient_id,
                 "patient_id" : patient_id,
                 "batch_size" : 8192,
                 "data_type" : "simulated", #simulated | clinical,
-                "data_protocols" : ["evaluation"], #None defaults to all,
-                "data_algorithms" : ["G2P2C"], #None defaults to all,
+                "data_protocols" : ["evaluation","testing"], #None defaults to all,
+                "data_algorithms" : [], #None defaults to all,
                 "obs_window" : 12,
-                "control_space_type" : 'exponential_alt',
+                "control_space_type" : 'exponential',
                 "insulin_min" : 0,
                 "insulin_max" : 5,
                 "glucose_min" : 39,
@@ -1010,7 +1010,7 @@ if __name__ == "__main__":
         from utils.sim_data import DataImporter, calculate_augmented_features
         from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
         from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
-        for patient_id in range(0,10):
+        for patient_id in range(20):
             folder = SIM_DATA_PATH + "/object_save/"
             data_save_path = folder + f"temp_data_patient_{patient_id}_{0}.pkl"
             data_save_path_args = folder + f"temp_args_{patient_id}_{0}.pkl"

@@ -127,7 +127,7 @@ class ActionModule(nn.Module):
             # Noise Model 3 - Additive to tanh(mu) with clamp [-1,1]
             elif self.noise_application == 3:
                 action = torch.tanh(mu) + noise_value
-                action = torch.clamp(action, min=-1, max=1)
+                action = torch.clamp(action, min=0, max=1)
 
             # Noise Model 4 - Multiplicative to tanh(mu) with clamp [-1,1]
             elif self.noise_application == 4:

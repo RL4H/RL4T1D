@@ -95,7 +95,7 @@ def r_kl(log_p, log_q):
     approx_kl = torch.mean(torch.exp(log_ratio)*log_ratio - (torch.exp(log_ratio) - 1))
     return approx_kl
     
-EXP_SCALING_FACT = 5
+EXP_SCALING_FACT = 4
 MEAL_MAX = 100 #FIXME paramaterise
 MATH_EXP_FACT = math.exp(EXP_SCALING_FACT)
 
@@ -124,6 +124,7 @@ def calculate_features(data_row, args, env_args):
     return [ info[feat] for feat in env_args.obs_features]
 
 
+def limit(n, t, b): return max(min(n, t), b)
 def pump_to_rl_action(pump_action, args, env_args):
     control_space_type = args.control_space_type
     pump_max = args.insulin_max
@@ -145,7 +146,8 @@ def pump_to_rl_action(pump_action, args, env_args):
         rl_action = math.log((pump_action / pump_max) / 4) + 1
     
     elif control_space_type == 'exponential_alt':
-        rl_action = 1/EXP_SCALING_FACT * math.log((pump_action / pump_max) * (MATH_EXP_FACT - 1) + 1 )
+        rl_action = 1/EXP_SCALING_FACT * math.log((pump_action / pump_max) * (MATH_EXP_FACT - 1) + 1 ) #maps to [0,1]
+        # rl_action =limit ( 1/EXP_SCALING_FACT * math.log((pump_action / pump_max) * (MATH_EXP_FACT - 1) + 1 ), 1, 0)
 
 
 

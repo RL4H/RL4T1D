@@ -31,12 +31,12 @@ class IQL(Agent):
         self.vf_lr = args.vf_lr
 
         # IQL params
-        self.discount = 0.99
-        self.soft_tau = 0.005 # Soft target update rate
-        self.beta = 3.0 # Advantage weighting exponent
-        self.value_lr = 1e-3
-        self.critic_lr = 1e-3
-        self.actor_lr = 1e-3
+        self.discount = args.gamma
+        self.soft_tau = args.soft_tau # Soft target update rate
+        self.beta = args.beta # Advantage weighting exponent
+        self.value_lr = args.vf_lr
+        self.critic_lr = args.cr_lr
+        self.actor_lr = args.pi_lr
 
         # component networks
         self.policy = ActorCritic(args, load_model, actor_path, critic_path, self.device).to(self.device)
@@ -135,7 +135,7 @@ class IQL(Agent):
                     target_param.data.mul_((1 - self.soft_tau))
                     target_param.data.add_(self.soft_tau * param.data)
 
-            print("################updated target networks")
+        print(f"################ updated target networks {self.train_pi_iters} times")
 
 
 

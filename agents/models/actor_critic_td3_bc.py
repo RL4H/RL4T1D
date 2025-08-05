@@ -84,7 +84,7 @@ class ActionModule(nn.Module):
                                  (self.n_handcrafted_features * self.use_handcraft)
         self.last_hidden = self.feature_extractor * 2
         self.fc_layer1 = nn.Linear(self.feature_extractor, self.last_hidden)
-        nn.init.kaiming_uniform_(self.fc_layer1.weight)
+        nn.init.kaiming_uniform_(self.fc_layer1.weight) #FIXME make not random
         nn.init.zeros_(self.fc_layer1.bias)
 
         self.fc_layer2 = nn.Linear(self.last_hidden, self.last_hidden)
@@ -193,6 +193,9 @@ class ActionModule(nn.Module):
         # logp_pi -= (2 * (np.log(2) - gaussian_action[0] - F.softplus(-2 * gaussian_action[0])))  # .sum(axis=1)
         # SAC paper implementation
         # log_prob = dst.log_prob(gaussian_action[0]) - torch.log(1 - action[0] ** 2 + 1e-6)
+
+        # action = (action + 1) / 2 #change range of action from [-1,1] to [-1,1]
+        action = 0.75 * action + 0.25 #scale action to [-0.5, 1]
 
         return mu, action_std, action, logp_pi
 

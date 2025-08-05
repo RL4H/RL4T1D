@@ -80,6 +80,11 @@ def risk_index(BG, horizon):
 def custom_reward(bg_hist, **kwargs):
     return -risk_index([bg_hist[-1]], 1)[-1]
 
+def custom_reward_2(bg_hist, **kwargs):
+    lgbi, hbgi, ri = risk_index([bg_hist[-1]], 1)
+    return -(lgbi*0.9 + hbgi*1.1)
+
+
 
 def get_basal(patient_name='none'):
     if patient_name == 'none':

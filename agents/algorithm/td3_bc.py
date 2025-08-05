@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 import numpy as np
+import math
 
 from agents.algorithm.agent import Agent
 from agents.models.actor_critic_td3_bc import ActorCritic
@@ -126,8 +127,9 @@ class TD3_BC(Agent):
         q_abs_list = []
         bc_loss_list = []
         td3_loss_list = []
-
+        vf_completed_iters = pi_completed_iters = 0
         for pi_train_iter in range(self.train_pi_iters):
+            vf_completed_iters += 1
             # cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = self.buffer.sample(self.mini_batch_size)
             transitions = self.buffer.sample(self.mini_batch_size)
 
@@ -154,7 +156,7 @@ class TD3_BC(Agent):
             value_loss1 = self.value_criterion1(predicted_value1, target_value)
             self.value_optimizer1.zero_grad()
             value_loss1.backward()
-            # torch.nn.utils.clip_grad_norm_(self.policy.value_net1.parameters(), 10) #clip value gradients
+            torch.nn.utils.clip_grad_norm_(self.policy.value_net1.parameters(), 1) #clip value gradients
             self.value_optimizer1.step()
 
             # critic 2 optimisation
@@ -162,7 +164,7 @@ class TD3_BC(Agent):
             value_loss2 = self.value_criterion2(predicted_value2, target_value)
             self.value_optimizer2.zero_grad()
             value_loss2.backward()
-            # torch.nn.utils.clip_grad_norm_(self.policy.value_net2.parameters(), 10)
+            torch.nn.utils.clip_grad_norm_(self.policy.value_net2.parameters(), 1)
             self.value_optimizer2.step()
 
             vf_loss += (value_loss1).detach() / self.train_pi_iters
@@ -178,7 +180,8 @@ class TD3_BC(Agent):
 
             # actor update
 
-            if pi_train_iter % self.target_update_interval == 0:
+            if pi_train_iter % self.target_update_interval == 0 and self.completed_interactions >= self.args.vf_pretrain_iters:
+                pi_completed_iters += 1
                 # freeze value networks save compute: ref: openai:
                 for p in self.policy.value_net1.parameters():
                     p.requires_grad = False
@@ -211,13 +214,14 @@ class TD3_BC(Agent):
                 reg_term = sum(torch.norm(param, p=2)**2 for param in self.policy.policy_net.parameters() if param.requires_grad)
 
                 # alpha_adj = (self.alpha / critic_eval.abs().mean().clamp(min=0.1, max=10.0)).detach()
-                lmbda = (self.beta / critic_eval.abs().mean().clamp(min=0.1, max=10.0)).detach()
+                alpha, beta = (self.alpha, self.beta) if self.completed_interactions >= self.args.bc_pretrain_iters else (0, 1)
+                lmbda = (beta / critic_eval.abs().mean().clamp(min=0.1, max=10.0)).detach()
 
-                policy_loss = -self.alpha * q_mean + lmbda * nn.functional.mse_loss(policy_action, actions_batch.detach())
+                policy_loss = -alpha * q_mean + lmbda * nn.functional.mse_loss(policy_action, actions_batch.detach())
 
                 self.policy_optimizer.zero_grad()
                 policy_loss.backward() 
-                torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), 1) #clip policy gradient #TODO: decide if 20 or 10
+                torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), self.args.pi_clip) #clip policy gradient #TODO: decide if 20 or 10
 
                 pi_grad += torch.norm(torch.stack([
                     p.grad.norm(2) for p in self.policy.policy_net.parameters() if p.grad is not None
@@ -229,7 +233,7 @@ class TD3_BC(Agent):
                 pl += policy_loss.item() 
                 q_abs_list.append( critic_eval.abs().mean().item() )
                 bc_loss_list.append((lmbda * nn.functional.mse_loss(policy_action,actions_batch.detach())).item())
-                td3_loss_list.append((-self.alpha * q_mean ).item())
+                td3_loss_list.append((-alpha * q_mean ).item())
 
                 # save compute: ref: openai:
                 for p in self.policy.value_net1.parameters():
@@ -257,7 +261,7 @@ class TD3_BC(Agent):
                         target_param.data.add_(self.soft_tau * param.data)
             #     print("\t############ Policy Network Updated")
             # print("################ updated target networks")
-        print(f"################ updated value networks {self.train_pi_iters} times and policy network {self.train_pi_iters // self.target_update_interval} times. Average abs q: {np.mean(q_abs_list)}, BC loss: {np.mean(bc_loss_list)}, TD3 loss: {np.mean(td3_loss_list)}")
+        print(f"################ updated value networks {vf_completed_iters} times and policy network {pi_completed_iters} times. Average abs q: {np.mean(q_abs_list)}, BC loss: {np.mean(bc_loss_list)}, TD3 loss: {np.mean(td3_loss_list)}" + (". Used BC default" if self.completed_interactions < self.args.bc_pretrain_iters else ""))
         # logging
         data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_grad=val_grad, val_loss=vf_loss)
         return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}

@@ -3,7 +3,7 @@
 # Australasian Joint Conference on Artificial Intelligence. Cham: Springer International Publishing, 2022.
 import math
 
-EXP_SCALING_FACT = 5
+EXP_SCALING_FACT = 4
 EXP_FACT_T1 = math.exp(EXP_SCALING_FACT) - 1
 
 def limit(n, t, b): return max(min(n, t), b)
@@ -30,6 +30,7 @@ class ControlSpace:
 
         elif self.control_space_type == 'exponential_alt':
             agent_action = self.pump_max *  math.exp(EXP_SCALING_FACT * agent_action - 1 ) / EXP_FACT_T1
+            # agent_action = self.pump_max *  math.exp(EXP_SCALING_FACT * limit(agent_action,1,0) - 1 ) / EXP_FACT_T1
 
         elif self.control_space_type == 'quadratic':
             if agent_action < 0:

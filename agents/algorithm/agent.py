@@ -237,6 +237,7 @@ class Agent:
 
             # update the total number of completed interactions.
             completed_interactions += (self.args.n_step * self.args.n_training_workers)
+            self.completed_interactions = completed_interactions
             rollout += 1
             gc.collect()  # garbage collector to clean unused objects.
 

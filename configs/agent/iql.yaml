@@ -14,19 +14,19 @@ lambda_: 0.95
 # parameters for the RL rollout
 normalize_reward: True  # reward received is normalised
 shuffle_rollout: True  # rollout trajectory data is shuffled
-replay_buffer_size: 4192 #FIXME remove random sampling
-replay_buffer_step: 2048
+replay_buffer_size: 65536 #FIXME remove random sampling
+replay_buffer_step: 8192
 preserve_trajectories : False
 
 # train
-n_step: 2048
+n_step: 8192
 max_epi_length: 2880
 n_training_workers: 16
-total_interactions: 3200000 # total number of interactions the agent will train for #800000
+total_interactions: 6400000 # total number of interactions the agent will train for #800000
 n_interactions_lr_decay: 4000000
 
-batch_size : 2048
-n_pi_epochs: 5
+batch_size : 8192
+n_pi_epochs: 100
 
 # test
 n_testing_workers: 5
@@ -50,11 +50,11 @@ target_action_std: 0.1
 target_action_lim: 0.2
 soft_tau: 0.005
 
-alpha : 1
-beta : 0.25
+beta : 3
 
 pi_lr: 1e-3
 vf_lr: 1e-3
+cr_lr: 1e-3
 
 
 n_handcrafted_features: -10 #FIXME
