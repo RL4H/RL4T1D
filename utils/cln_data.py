@@ -464,7 +464,7 @@ class ClnDataImporter:
                 break
         self.clear()
 
-        if vld_split != None:
+        if vld_split == None:
             raise ValueError("Not enough data to split validation trial.")
         return vld_split
     def load(self, vld_split_indicies=None, is_vld=False):
