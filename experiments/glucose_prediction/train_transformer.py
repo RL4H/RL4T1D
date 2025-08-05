@@ -321,7 +321,7 @@ def main(args: DictConfig):
             vld_interactions = 0
             while vld_interactions <  args.vld_interactions:
                 
-                data = torch.as_tensor(np.array(dataset_queue.pop_validation_queue(batch_size)), dtype=torch.float32, device=device) #(B, T, D)
+                data = torch.as_tensor(np.array(dataset_queue.pop_validation_batch(batch_size)), dtype=torch.float32, device=device) #(B, T, D)
 
                 data_ctx = data[:, :decoder.Tc, :]
                 data_fut = data[:, decoder.Tc:, :]
