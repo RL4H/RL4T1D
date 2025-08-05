@@ -80,7 +80,7 @@ target_action_std: 0.2
 target_action_lim: 0.5
 soft_tau: 0.007
 
-push_action_clip: true
+push_action_clip: false
 
 
 alpha : 1

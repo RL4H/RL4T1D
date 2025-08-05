@@ -304,14 +304,22 @@ class TD3_BC(Agent):
 
             print("################ updated critic networks")
     
-    def evaluate_fqe(self, fqe_states=100000):
+    def evaluate_fqe(self, val_queue):
         v_data = []
-        for _ in range(fqe_states):
-            cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = self.sample_buffer(self.mini_batch_size)
+        completed_iters = 0
+        while completed_iters < val_queue:
+            transitions = val_queue.pop_batch(self.mini_batch_size)
+
+            fields = list(zip(*transitions))
+            tensor_fields = [torch.as_tensor(field, dtype=torch.float32, device=self.args.device) for field in fields]
+
+            cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = tuple(tensor_fields)
 
             min_critic_value = list(torch.min( self.policy.value_net1(cur_state_batch, actions_batch), self.policy.value_net2(cur_state_batch, actions_batch) ) .detach().cpu().numpy())
 
             v_data += min_critic_value
+
+            completed_iters += self.mini_batch_size
 
         return np.mean(min_critic_value)
             
