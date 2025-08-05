@@ -151,6 +151,8 @@ class TD3_BC(Agent):
 
                 target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
 
+            print(reward_batch[:5], target_value[:5], done_batch[:5])
+
             # critic 1 optimisation
             predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
             value_loss1 = self.value_criterion1(predicted_value1, target_value)
