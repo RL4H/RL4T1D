@@ -107,7 +107,7 @@ def calculate_features(data_row, args, env_args):
     info = dict()
 
     if ins > args.insulin_max: #FIXME remove
-        print(data_row, ins)
+        print(data_row, ins, args.insulin_max)
         raise ValueError
     # info["insulin"] = linear_scaling(x=ins, x_min=args.insulin_min, x_max=args.insulin_max)
     info["insulin"] = pump_to_rl_action(ins, args, env_args) #TODO decide if to use this or not

@@ -415,7 +415,7 @@ def convert_trial_into_transitions(data_obj, args, env_args, reward_func=DEFAULT
         action = np.array([actions[row_n]])
         reward = np.array([rewards[row_n]])
         next_state = np.array(states[row_n-window_size+2: row_n+2])
-        done = np.array([int(row_n == rows - 1)]) #FIXME change condition
+        done = np.array([int(row_n == rows - 2)]) #FIXME change condition
         transitions.append(Transition(state, action, reward, next_state, done))
 
     return transitions

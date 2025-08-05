@@ -60,7 +60,7 @@ post_horizon_data_protocols: ["evaluation"]
 post_horizon_data_algorithms: ["G2P2C","AUXML", "PPO","TD3"]
 
 vf_pretrain_iters : 0
-bc_pretrain_iters : 160000
+bc_pretrain_iters : 0 #160000
 
 n_handcrafted_features: -10 #FIXME
 n_features: 32
