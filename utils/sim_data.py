@@ -15,8 +15,8 @@ from random import randrange
 
 import torch
 from torch.utils.data import Dataset
-from torchvision import datasets
-from torchvision.transforms import ToTensor
+# from torchvision import datasets
+# from torchvision.transforms import ToTensor
 
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
@@ -377,7 +377,7 @@ def convert_to_frames(data_obj, window_size=16, default_starting_window=True, de
 
 def patient_id_to_label(patient_id):
     if patient_id < 0 or patient_id >= 30: raise ValueError("Invalid patient id")
-    return ["adolescent","adult","child"][patient_id//10] + str(patient_id % 10)
+    return ["adolescent","child", "adult"][patient_id//10] + str(patient_id % 10)
 
 def convert_trial_into_windows(data_obj, args, env_args, reward_func=DEFAULT_REWARD_FUNC):
     window_size = args.obs_window
