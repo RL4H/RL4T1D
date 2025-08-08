@@ -65,7 +65,8 @@ class TD3_BC(Agent):
         self.grad_clip = args.grad_clip
 
 
-        self.weight_decay = args.vf_lambda
+        self.weight_decay_vf = args.vf_lambda
+        self.weight_decay_pi = args.pi_lambda
 
 
         ### TD3 networks:
@@ -73,10 +74,10 @@ class TD3_BC(Agent):
 
         self.value_criterion1 = nn.MSELoss()
         self.value_criterion2 = nn.MSELoss()
-        self.value_optimizer1 = torch.optim.Adam(self.policy.value_net1.parameters(), lr=self.value_lr, weight_decay=self.weight_decay)
-        self.value_optimizer2 = torch.optim.Adam(self.policy.value_net2.parameters(), lr=self.value_lr, weight_decay=self.weight_decay)
+        self.value_optimizer1 = torch.optim.Adam(self.policy.value_net1.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
+        self.value_optimizer2 = torch.optim.Adam(self.policy.value_net2.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
 
-        self.policy_optimizer = torch.optim.Adam(self.policy.policy_net.parameters(), lr=self.policy_lr, weight_decay=self.weight_decay)
+        self.policy_optimizer = torch.optim.Adam(self.policy.policy_net.parameters(), lr=self.policy_lr, weight_decay=self.weight_decay_pi)
         for target_param, param in zip(self.policy.policy_net.parameters(), self.policy.policy_net_target.parameters()):
             target_param.data.copy_(param.data)
 
@@ -213,7 +214,7 @@ class TD3_BC(Agent):
                 # assign lambda constant to scale correctly
 
                 # calculate policy loss, ref: Fujimoto and Gu (2021)
-                reg_term = sum(torch.norm(param, p=2)**2 for param in self.policy.policy_net.parameters() if param.requires_grad)
+                # reg_term = sum(torch.norm(param, p=2)**2 for param in self.policy.policy_net.parameters() if param.requires_grad)
 
                 # alpha_adj = (self.alpha / critic_eval.abs().mean().clamp(min=0.1, max=10.0)).detach()
                 alpha, beta = (self.alpha, self.beta) if self.completed_interactions >= self.args.bc_pretrain_iters else (0, 1)

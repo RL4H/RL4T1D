@@ -426,7 +426,7 @@ def calculate_augmented_features(data_obj, args, env_args, reward_func=DEFAULT_R
     rows, _ = data_obj.shape
 
     actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
-    rewards = [reward_func( data_obj[:, 0][max(0, row_n+1-reward_horizon):row_n+1] ) for row_n in range(rows)] #FIXME check if applied reward func changes things
+    rewards = [reward_func( data_obj[:, 0][max(0, row_n+1-reward_horizon):row_n+1] ) for row_n in range(rows)] 
 
     aug_states = np.array([ np.concatenate([calculate_features(data_row, args, env_args), [actions[n], rewards[n], (n >= rows - 1)]]) for n,data_row in enumerate(data_obj)])
 
@@ -923,7 +923,7 @@ class SimTorchDataset(Dataset):
         return [self.pop() for _ in range(n)]
 
 if __name__ == "__main__":
-    main_function = input("| pickle | convert | import | convert 2 |\nChoose: \n").lower()
+    main_function = "convert 2" #input("| pickle | convert | import | convert 2 |\nChoose: \n").lower()
 
     if main_function == "convert":
         subject = "adult0"
@@ -969,16 +969,16 @@ if __name__ == "__main__":
         from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
         from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
         
-        for patient_id in range(20): #all, except 4
+        for patient_id in list(range(0,10)) + list(range(20,30)):
             args = OmegaConf.create({
                 "patient_ind" : patient_id,
                 "patient_id" : patient_id,
                 "batch_size" : 8192,
                 "data_type" : "simulated", #simulated | clinical,
-                "data_protocols" : ["evaluation"], #None defaults to all,
+                "data_protocols" : ["evaluation", "testing"], #None defaults to all,
                 "data_algorithms" : ["G2P2C","AUXML", "PPO","TD3"], #None defaults to all,
                 "obs_window" : 12,
-                "control_space_type" : 'exponential_alt',
+                "control_space_type" : 'exponential',
                 "insulin_min" : 0,
                 "insulin_max" : 5,
                 "glucose_min" : 39,
