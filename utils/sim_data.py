@@ -21,7 +21,7 @@ from torch.utils.data import Dataset
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-from environment.reward_func import composite_reward, composite_reward_2, composite_reward_3
+from environment.reward_func import composite_reward, composite_reward_2, composite_reward_3, composite_reward_4
 from utils.core import linear_scaling, calculate_features, pump_to_rl_action
 Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'done'))
 
@@ -102,9 +102,10 @@ for line in lines[1:]:
 
 def get_patient_attrs(subject): return patient_attr_dict[subject.lower()]
 
-DEFAULT_REWARD_FUNC = lambda cgm : composite_reward(None, cgm[-1])
+# DEFAULT_REWARD_FUNC = lambda cgm : composite_reward(None, cgm[-1])
 # DEFAULT_REWARD_FUNC = lambda cgm : composite_reward_2(None, cgm[-1])
 # DEFAULT_REWARD_FUNC = lambda cgm : composite_reward_3(None, cgm)
+DEFAULT_REWARD_FUNC = lambda cgm : composite_reward_4(None, cgm[-1])
 
     
 
@@ -421,29 +422,48 @@ def convert_trial_into_transitions(data_obj, args, env_args, reward_func=DEFAULT
 
     return transitions
 
+def extend_slice(li, start, end):
+    if start < 0:
+        prefix = [li[0]] * (abs(start))
+        start = 0
+    else: prefix = []
+
+    len_li = len(li)
+    if end > len_li:
+        suffix = [li[-1]] * (end - len_li)
+        end = len_li
+    else: suffix = []
+
+    return np.concatenate( (prefix, li[start:end], suffix) )
+
 reward_horizon=6
+reward_shift = 3
 def calculate_augmented_features(data_obj, args, env_args, reward_func=DEFAULT_REWARD_FUNC):
     rows, _ = data_obj.shape
 
     actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
-    rewards = [reward_func( data_obj[:, 0][max(0, row_n+1-reward_horizon):row_n+1] ) for row_n in range(rows)] 
+    rewards = [reward_func( [data_obj[:, 0][min(row_n + 1, rows - 1)] ])for row_n in range(rows)] 
+    print(np.column_stack((data_obj[:, 0], rewards)) )
+    1/0
+    # rewards = [reward_func( extend_slice(data_obj[:, 0], row_n+reward_shift-reward_horizon, row_n+reward_shift) ) for row_n in range(rows)] 
 
-    aug_states = np.array([ np.concatenate([calculate_features(data_row, args, env_args), [actions[n], rewards[n], (n >= rows - 1)]]) for n,data_row in enumerate(data_obj)])
+    aug_states = np.array([ np.concatenate([calculate_features(data_row, args, env_args), [actions[n], rewards[n], (n >= rows - 2)]]) for n,data_row in enumerate(data_obj)])
 
     return aug_states
 
 def retrieval_augmented_feature_trial(aug_states, row_n, window_size):
     states = aug_states[:, :-3]
+    rows, _ = aug_states.shape
 
     # actions = aug_states[:, -3]
     # rewards = aug_states[:, -2]
     # done = aug_states[:, -1]
 
-    state = np.array(states[row_n+1: row_n+window_size+1])
-    action = np.array([aug_states[row_n+window_size, -3]])
-    reward = np.array([aug_states[row_n+window_size, -2]])
-    next_state = np.array(states[row_n+2: row_n+window_size+2])
-    done = np.array([aug_states[row_n+window_size, -1]])
+    state = np.array(states[row_n: row_n+window_size])
+    action = np.array([aug_states[row_n+window_size-1, -3]])
+    reward = np.array([aug_states[row_n+window_size-1, -2]])
+    next_state = np.array(states[row_n+1: row_n+window_size+1])
+    done = np.array([aug_states[min(row_n + window_size, rows - 1), -1]])
     
     return Transition(state, action, reward, next_state, done)
 
@@ -969,14 +989,14 @@ if __name__ == "__main__":
         from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
         from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
         
-        for patient_id in list(range(0,10)) + list(range(20,30)):
+        for patient_id in [0]:#list(range(0,10)) + list(range(20,30)):
             args = OmegaConf.create({
                 "patient_ind" : patient_id,
                 "patient_id" : patient_id,
                 "batch_size" : 8192,
                 "data_type" : "simulated", #simulated | clinical,
-                "data_protocols" : ["evaluation", "testing"], #None defaults to all,
-                "data_algorithms" : ["G2P2C","AUXML", "PPO","TD3"], #None defaults to all,
+                "data_protocols" : ["evaluation", "training"], #None defaults to all,
+                "data_algorithms" : ["AUXML"], #None defaults to all,
                 "obs_window" : 12,
                 "control_space_type" : 'exponential',
                 "insulin_min" : 0,
