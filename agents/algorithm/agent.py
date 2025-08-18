@@ -269,11 +269,8 @@ class Agent:
         if self.using_OPE:
             print("Conducting Offline Evaluation")
 
-            del self.buffer
-
             res = self.evaluate_fqe()
-            for k in res:
-                print(k, '\t', res[k])
+            for k in res: print(k, '\t', res[k])
 
             #TODO save logs
 
