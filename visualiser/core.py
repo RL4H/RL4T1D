@@ -46,7 +46,7 @@ def experiment_error_check(cohort, algorithm, algoAbbreviation,
     print('Error checking is complete. No errors detected!')
 
 def display_commands_v2(arr):
-    n_disp_experiments = 40
+    n_disp_experiments = 50
     disp_arr = np.array([True] * n_disp_experiments)
     if len(arr) != 0:
         for cmd in arr:
@@ -205,6 +205,14 @@ class  ExperimentVisualise:
             if df['epi'].iloc[-1] < latest_epi:
                 latest_epi = df['epi'].iloc[-1]
         return latest_epi
+    
+    def get_summary_dict(self):
+        di_list = []
+        for tester in self.testing_seeds:
+            df = pd.read_csv(self.MAIN_PATH + '/testing/worker_episode_summary_' + str(tester) +'.csv')
+            di_list.append(df.tail(1).to_dict())
+
+        return di_list
 
     def get_testing_summary(self):
         arr = []

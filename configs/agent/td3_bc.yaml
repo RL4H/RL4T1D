@@ -8,7 +8,7 @@ bidirectional: False
 
 # parameters for RL discounting strategies
 return_type: 'average'   # discount | average; is average gamma and lamda -> 1.
-gamma: 0.99
+gamma: 0.9
 lambda_: 0.95
 
 # parameters for the RL rollout
@@ -28,17 +28,17 @@ target_kl: 0.01
 n_step: 8192
 max_epi_length: 2880
 n_training_workers: 16
-total_interactions: 3200000 # total number of interactions the agent will train for #800000
+total_interactions: 4000000 # total number of interactions the agent will train for #800000
 n_interactions_lr_decay: 4000000
 
 # training parameters
-pi_lr: 3e-3
-vf_lr: 3e-3
+pi_lr: 0.001
+vf_lr: 0.003
 
 batch_size : 8192
 mini_batch_size: 8192
-n_pi_epochs: 10
-target_update_interval: 2
+n_pi_epochs: 2
+target_update_interval: 1
 
 # test
 n_testing_workers: 4
@@ -74,17 +74,17 @@ noise_model: "normal_dist"
 # target_action_lim: 0.1
 # soft_tau: 0.005
 
-noise_std: 0.2
+noise_std: 0.05
 noise_application: 3
-target_action_std: 0.2
+target_action_std: 0.5
 target_action_lim: 0.5
-soft_tau: 0.005
+soft_tau: 0.007
 
 push_action_clip: false
 
 
 alpha : 1
-beta : 2.5
+beta : 1
 
 awc_enabled : false
 beta_awac : 1

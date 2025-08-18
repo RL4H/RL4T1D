@@ -265,46 +265,46 @@ class Agent:
         with torch.no_grad():
             for i in range(self.args.n_val_trials):
                 self.validation_agents[i].rollout(policy=self.policy, buffer=None, logger=self.logger.logWorker)
-            
-            if self.using_OPE:
-                print("Conducting Offline Evaluation")
+        
+        if self.using_OPE:
+            print("Conducting Offline Evaluation")
 
-                del self.buffer
+            del self.buffer
 
-                res = self.evaluate_fqe()
-                for k in res:
-                    print(k, '\t', res[k])
+            res = self.evaluate_fqe()
+            for k in res:
+                print(k, '\t', res[k])
 
+            #TODO save logs
 
-                #TODO: implement OPE
-                print("OPE Completed")
-                exit()
-            else:
+            print("OPE Completed")
+            exit()
+        else:
 
-                # calculate the final metrics.
-                cohort_res, summary_stats = [], []
-                secondary_columns = ['epi', 't', 'reward', 'normo', 'hypo', 'sev_hypo', 'hyper', 'lgbi',
-                                'hgbi', 'ri', 'sev_hyper', 'aBGP_rmse', 'cBGP_rmse']
-                data = []
-                FOLDER_PATH = self.args.experiment_folder+'/testing/'
-                for i in range(0, self.args.n_val_trials):
-                    test_i = 'worker_episode_'+str(self.args.validation_agent_id_offset+i)+'.csv'
-                    df = pd.read_csv(FOLDER_PATH+ '/'+test_i)
-                    normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper = time_in_range(df['cgm'])
-                    reward_val = df['rew'].sum()*(100/288)
-                    e = [[i, df.shape[0], reward_val, normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper, 0, 0]]
-                    dataframe = pd.DataFrame(e, columns=secondary_columns)
-                    data.append(dataframe)
-                res = pd.concat(data)
-                res['PatientID'] = self.args.patient_id
-                res.rename(columns={'sev_hypo':'S_hypo', 'sev_hyper':'S_hyper'}, inplace=True)
-                summary_stats.append(res)
-                metric=['mean', 'std', 'min', 'max']
-                print(calc_stats(res, metric=metric, sim_len=288))
+            # calculate the final metrics.
+            cohort_res, summary_stats = [], []
+            secondary_columns = ['epi', 't', 'reward', 'normo', 'hypo', 'sev_hypo', 'hyper', 'lgbi',
+                            'hgbi', 'ri', 'sev_hyper', 'aBGP_rmse', 'cBGP_rmse']
+            data = []
+            FOLDER_PATH = self.args.experiment_folder+'/testing/'
+            for i in range(0, self.args.n_val_trials):
+                test_i = 'worker_episode_'+str(self.args.validation_agent_id_offset+i)+'.csv'
+                df = pd.read_csv(FOLDER_PATH+ '/'+test_i)
+                normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper = time_in_range(df['cgm'])
+                reward_val = df['rew'].sum()*(100/288)
+                e = [[i, df.shape[0], reward_val, normo, hypo, sev_hypo, hyper, lgbi, hgbi, ri, sev_hyper, 0, 0]]
+                dataframe = pd.DataFrame(e, columns=secondary_columns)
+                data.append(dataframe)
+            res = pd.concat(data)
+            res['PatientID'] = self.args.patient_id
+            res.rename(columns={'sev_hypo':'S_hypo', 'sev_hyper':'S_hyper'}, inplace=True)
+            summary_stats.append(res)
+            metric=['mean', 'std', 'min', 'max']
+            print(calc_stats(res, metric=metric, sim_len=288))
 
-                print('\nAlgorithm Training/Validation Completed Successfully.')
-                print('---------------------------------------------------------')
-                exit()
+            print('\nAlgorithm Training/Validation Completed Successfully.')
+            print('---------------------------------------------------------')
+            exit()
 
     def decay_lr(self):
         return

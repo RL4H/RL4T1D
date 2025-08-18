@@ -5,7 +5,7 @@ import numpy as np
 import math
 
 from agents.algorithm.agent import Agent
-from agents.models.actor_critic_td3_bc import ActorCritic
+from agents.models.actor_critic_td3_bc import ActorCritic, QNetwork, PolicyNetwork
 
 from decouple import config
 import sys
@@ -95,6 +95,16 @@ class TD3_BC(Agent):
 
         for p in self.policy.value_net_target2.parameters():
             p.requires_grad = False
+
+        ### FQE Networks
+        
+        self.bc_policy = None
+        self.bc_policy_optimizer = None
+
+        self.bc_value_net = None
+
+        self.bc_value_criterion = nn.MSELoss()
+
 
         print('Policy Parameters: {}'.format(sum(p.numel() for p in self.policy.policy_net.parameters() if p.requires_grad)))
         print('Value network 1 Parameters: {}'.format(sum(p.numel() for p in self.policy.value_net1.parameters() if p.requires_grad)))
@@ -272,45 +282,99 @@ class TD3_BC(Agent):
     def minibatch_update(self):
         pass
 
-    def finetune_critics(self, fqe_epochs=20):
+    def create_full_bc(self, bc_epochs=200):
+        self.bc_policy = PolicyNetwork(self.args, self.device).to(self.device)
+        self.bc_policy_optimizer = torch.optim.Adam(self.bc_policy.parameters(), lr=self.policy_lr, weight_decay=self.weight_decay_pi)
+        for p in self.bc_policy.parameters(): p.requires_grad_(True)
 
-        for _ in range(fqe_epochs):
+        for _ in range(bc_epochs):
+            transitions = self.buffer.sample(self.mini_batch_size)
 
-            cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = self.sample_buffer(self.mini_batch_size)
+            batch = Transition(*zip(*transitions))
+            cur_state_batch = torch.cat(batch.state)
+            actions_batch = torch.cat(batch.action)
+
+            # evaluate action taken by policy, in a batch
+            _, _, policy_action, _ = self.bc_policy.forward(cur_state_batch, mode='batch', worker_mode='target')
+
+            policy_loss = nn.functional.mse_loss(policy_action, actions_batch)
+
+            self.bc_policy_optimizer.zero_grad()
+            policy_loss.backward() 
+            torch.nn.utils.clip_grad_norm_(self.bc_policy.parameters(), 100)
+            self.bc_policy_optimizer.step()       
+
+    def finetune_critics(self, base_critic_epochs=100, bc_critic_epochs=100):
+        assert self.bc_value_net == None
+        self.bc_value_net = QNetwork(self.args, self.device).to(self.device)
+        self.bc_value_optimizer = torch.optim.Adam(self.bc_value_net.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
+        for p in self.bc_value_net.parameters(): p.requires_grad = True
+
+        for epoch in range(max(base_critic_epochs, bc_critic_epochs)):
+
+            # cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = self.sample_buffer(self.mini_batch_size)
+            transitions = self.buffer.sample(self.mini_batch_size)
+
+            batch = Transition(*zip(*transitions))
+            cur_state_batch = torch.cat(batch.state)
+            actions_batch = torch.cat(batch.action)
+            reward_batch = torch.cat(batch.reward).unsqueeze(1)
+            next_state_batch = torch.cat(batch.next_state)
+            done_batch = torch.cat(batch.done).unsqueeze(1)
 
             # value network update
-            new_action, next_log_prob = self.policy.evaluate_policy_no_noise(next_state_batch)
 
-            next_values = torch.min(self.policy.value_net_target1(next_state_batch, new_action),
-                                    self.policy.value_net_target2(next_state_batch, new_action))
+            if epoch < base_critic_epochs:
+                new_action, next_log_prob = self.policy.evaluate_policy_no_noise(next_state_batch)
+                next_values = torch.min(self.policy.value_net_target1(next_state_batch, new_action),
+                                        self.policy.value_net_target2(next_state_batch, new_action))
 
-            target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
+                target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach()
 
-            predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
-            predicted_value2 = self.policy.value_net2(cur_state_batch, actions_batch)
+                predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
+                value_loss1 = self.value_criterion1(target_value, predicted_value1)
+                self.value_optimizer1.zero_grad()
+                value_loss1.backward()
+                self.value_optimizer1.step()
 
-            value_loss1 = self.value_criterion1(reward_batch, predicted_value1)
-            value_loss2 = self.value_criterion2(reward_batch, predicted_value2)
+                predicted_value2 = self.policy.value_net2(cur_state_batch, actions_batch)
+                value_loss2 = self.value_criterion2(target_value, predicted_value2)
+                self.value_optimizer2.zero_grad()
+                value_loss2.backward()
+                self.value_optimizer2.step()
 
-            self.value_optimizer1.zero_grad()
-            self.value_optimizer2.zero_grad()
+            if epoch < bc_critic_epochs:
+                _, _, new_action, next_log_prob = self.bc_policy.forward(cur_state_batch, mode='batch', worker_mode='target')
+                next_values = self.bc_value_net(next_state_batch, new_action)
 
-            value_loss1.backward()
-            value_loss2.backward()
+                target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
 
-            self.value_optimizer1.step()
-            self.value_optimizer2.step()
+                predicted_value = self.bc_value_net(cur_state_batch, actions_batch)
 
-            vf_loss += (value_loss1).detach() 
+                value_loss = self.bc_value_criterion(target_value, predicted_value)
 
-            print("################ updated critic networks")
+                self.bc_value_optimizer.zero_grad()
+                value_loss.backward()
+
+                self.bc_value_optimizer.step()
+
     
     def evaluate_fqe(self):
+        print("Training BC Network")
+        self.create_full_bc()
+
+        print("Finetuning critics")
+        self.finetune_critics()
+
+        print("Running eval on validation set")
+
         val_queue = self.buffer_queue
         val_queue.start_validation()
         with torch.no_grad():
             critic_eval_list = []
+            ds_critic_loss_list = []
             critic_loss_list = []
+            ds_critic_eval_list = []
             bc_loss_list = []
             completed_iters = 0
             while completed_iters < val_queue.validation_length:
@@ -320,9 +384,6 @@ class TD3_BC(Agent):
                 tensor_fields = [torch.as_tensor(field, dtype=torch.float32, device=self.args.device) for field in fields]
 
                 cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = tuple(tensor_fields)
-
-
-                min_critic_value = list(torch.min( self.policy.value_net1(cur_state_batch, actions_batch), self.policy.value_net2(cur_state_batch, actions_batch) ) .detach().cpu().numpy())
 
                 # calculate critic loss
                 new_action, next_log_prob = self.policy.evaluate_policy_no_noise(next_state_batch)
@@ -334,6 +395,16 @@ class TD3_BC(Agent):
                 value_loss = self.value_criterion1(predicted_value, target_value).item()
                 critic_loss_list += [value_loss]
 
+                # calculate dataset critic loss
+                _, _, new_action, _ = self.bc_policy.forward(next_state_batch, mode='batch', worker_mode='no noise')
+                next_values = self.bc_value_net(next_state_batch, new_action)
+                target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
+
+                predicted_value = self.bc_value_net(cur_state_batch, actions_batch)
+
+                ds_value_loss = self.value_criterion1(predicted_value, target_value).item()
+                ds_critic_loss_list += [ds_value_loss]
+
                 # estimate q value of policy actions
                 policy_action, _ = self.policy.evaluate_policy_no_noise(cur_state_batch)
                 critic_eval = torch.min(
@@ -342,6 +413,10 @@ class TD3_BC(Agent):
                 ).detach().cpu().numpy()
                 critic_eval_list += list(critic_eval)
 
+                # estimate q value of dataset actions
+                _, _, dataset_action, _ = self.bc_policy.forward(cur_state_batch, mode='batch', worker_mode='no noise')
+                ds_critic_eval = (self.bc_value_net(cur_state_batch, dataset_action)).detach().cpu().numpy()
+                ds_critic_eval_list += list(ds_critic_eval)
 
                 #calculate action difference
                 diff = nn.functional.mse_loss(policy_action,actions_batch.detach()).item()
@@ -351,7 +426,35 @@ class TD3_BC(Agent):
                 completed_iters += self.mini_batch_size
 
 
+            return { 'critic_loss': np.mean(critic_loss_list), 'critic_eval': np.mean(critic_eval_list), 'ds_critic_loss' : np.mean(ds_critic_loss_list), 'ds_critic_eval' : np.mean(ds_critic_eval_list), 'action_diff': np.mean(bc_loss_list)}
+            
 
-            return { 'critic_loss': np.mean(critic_loss_list), 'critic_eval': np.mean(critic_eval_list), 'action_diff': np.mean(bc_loss_list)}
-            
-            
+class RewardPredictor:
+    def __init__(self, args, queue):
+        self.device = args.device
+        self.value_lr = args.vf_lr
+        self.weight_decay_vf = args.vf_lambda
+
+        self.value_net = QNetwork(args, self.device)
+        self.value_optimizer = torch.optim.Adam(self.value_net.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
+
+    def update(self):
+        for pi_train_iter in range(self.train_pi_iters):
+            vf_completed_iters += 1
+            # cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = self.buffer.sample(self.mini_batch_size)
+            transitions = self.buffer.sample(self.mini_batch_size)
+
+            batch_size = self.mini_batch_size
+
+            batch = Transition(*zip(*transitions))
+            cur_state_batch = torch.cat(batch.state)
+            actions_batch = torch.cat(batch.action)
+            reward_batch = torch.cat(batch.reward).unsqueeze(1)
+            next_state_batch = torch.cat(batch.next_state)
+            done_batch = torch.cat(batch.done).unsqueeze(1)
+
+
+
+
+    def evaluate(self):
+        pass

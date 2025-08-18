@@ -58,7 +58,7 @@ def composite_reward_3(args, state=None, reward=None):
 
 TARGET_GLUC = 125
 MAX_GLUCOSE = 600
-MIN_GLUCOSE = 39
+MIN_GLUCOSE = 40
 
 def custom_reward_4(state):
     b,m,M = TARGET_GLUC, MIN_GLUCOSE, MAX_GLUCOSE
@@ -66,15 +66,8 @@ def custom_reward_4(state):
     else: return -1/((b-M)**2) * ((state-M)**2) + 2/(b-M)*(state-M)
 
 def composite_reward_4(args, state=None, reward=None):
-
-    if reward == None:
-        reward = custom_reward_4(state)
-
-    if state <= 40:
-        reward = -6
-    elif state >= MAX_GLUCOSE:
-        reward = -5
-    else:
-        reward = reward
+    if reward == None: reward = custom_reward_4(state)
+    if state <= 40:  reward = -20
+    elif state >= MAX_GLUCOSE: reward = -20
     return reward
 
