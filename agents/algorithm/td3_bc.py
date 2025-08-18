@@ -373,9 +373,13 @@ class TD3_BC(Agent):
         with torch.no_grad():
             critic_eval_list = []
             ds_critic_loss_list = []
+
             critic_loss_list = []
             ds_critic_eval_list = []
+
             bc_loss_list = []
+            full_bc_loss_list = []
+
             completed_iters = 0
             while completed_iters < val_queue.validation_length:
                 transitions = val_queue.pop_validation_batch(self.mini_batch_size)
@@ -422,11 +426,23 @@ class TD3_BC(Agent):
                 diff = nn.functional.mse_loss(policy_action,actions_batch.detach()).item()
                 bc_loss_list += [diff]
 
+                full_diff = nn.functional.mse_loss(dataset_action,actions_batch.detach()).item()
+                full_bc_loss_list += [full_diff]
+
+
+
 
                 completed_iters += self.mini_batch_size
 
 
-            return { 'critic_loss': np.mean(critic_loss_list), 'critic_eval': np.mean(critic_eval_list), 'ds_critic_loss' : np.mean(ds_critic_loss_list), 'ds_critic_eval' : np.mean(ds_critic_eval_list), 'action_diff': np.mean(bc_loss_list)}
+            return { 
+                'critic_loss': np.mean(critic_loss_list), 
+                'critic_eval': np.mean(critic_eval_list), 
+                'ds_critic_loss' : np.mean(ds_critic_loss_list), 
+                'ds_critic_eval' : np.mean(ds_critic_eval_list), 
+                'action_diff': np.mean(bc_loss_list),
+                'bc_action_diff' : np.mean(full_bc_loss_list)
+            }
             
 
 class RewardPredictor:
