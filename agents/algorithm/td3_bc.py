@@ -144,8 +144,6 @@ class TD3_BC(Agent):
             # cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = self.buffer.sample(self.mini_batch_size)
             transitions = self.buffer.sample(self.mini_batch_size)
 
-            batch_size = self.mini_batch_size
-
             batch = Transition(*zip(*transitions))
             cur_state_batch = torch.cat(batch.state)
             actions_batch = torch.cat(batch.action)
@@ -279,16 +277,16 @@ class TD3_BC(Agent):
         data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_grad=val_grad, val_loss=vf_loss)
         return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}
 
-    def minibatch_update(self):
-        pass
-
-    def create_full_bc(self, bc_epochs=200):
+    def create_full_bc(self, use_vld=None, bc_epochs=200):
         self.bc_policy = PolicyNetwork(self.args, self.device).to(self.device)
         self.bc_policy_optimizer = torch.optim.Adam(self.bc_policy.parameters(), lr=self.policy_lr, weight_decay=self.weight_decay_pi)
         for p in self.bc_policy.parameters(): p.requires_grad_(True)
 
+        if use_vld != None: sample_buffer = self.buffer.sample
+        else: sample_buffer = use_vld.pop_validation_batch
+
         for _ in range(bc_epochs):
-            transitions = self.buffer.sample(self.mini_batch_size)
+            transitions = sample_buffer(self.mini_batch_size)
 
             batch = Transition(*zip(*transitions))
             cur_state_batch = torch.cat(batch.state)
@@ -304,16 +302,19 @@ class TD3_BC(Agent):
             torch.nn.utils.clip_grad_norm_(self.bc_policy.parameters(), 100)
             self.bc_policy_optimizer.step()       
 
-    def finetune_critics(self, base_critic_epochs=100, bc_critic_epochs=100):
+    def finetune_critics(self, use_vld=None, base_critic_epochs=100, bc_critic_epochs=100):
         assert self.bc_value_net == None
         self.bc_value_net = QNetwork(self.args, self.device).to(self.device)
         self.bc_value_optimizer = torch.optim.Adam(self.bc_value_net.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
         for p in self.bc_value_net.parameters(): p.requires_grad = True
 
+        if use_vld != None: sample_buffer = self.buffer.sample
+        else: sample_buffer = use_vld.pop_validation_batch
+
         for epoch in range(max(base_critic_epochs, bc_critic_epochs)):
 
             # cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = self.sample_buffer(self.mini_batch_size)
-            transitions = self.buffer.sample(self.mini_batch_size)
+            transitions = sample_buffer(self.mini_batch_size)
 
             batch = Transition(*zip(*transitions))
             cur_state_batch = torch.cat(batch.state)
@@ -362,12 +363,14 @@ class TD3_BC(Agent):
     def evaluate_fqe(self, save_dest=None):
         val_queue = self.buffer_queue
         val_queue.start_validation()
-        
+
         print("Training BC Network")
         self.create_full_bc()
+        self.create_full_bc(val_queue)
 
         print("Finetuning critics")
-        self.finetune_critics()
+        self.finetune_critics(None, 100, 500)
+        self.finetune_critics(val_queue, 10, 100)
 
         print("Running eval on validation set")
 
