@@ -345,7 +345,7 @@ class TD3_BC(Agent):
 
                 value_loss = self.bc_value_criterion(target_value.squeeze(1), predicted_value.squeeze(1))
 
-                manual_mse_loss = ( sum([(value_loss[n].item() - predicted_value[n].item())**2 for n in range(self.mini_batch_size)]) ) * 1/self.mini_batch_size
+                manual_mse_loss = ( torch.sum( (target_value.squeeze(1) - predicted_value.squeeze(1)) ** 2  ) ).item() * 1/self.mini_batch_size
 
                 self.bc_value_optimizer.zero_grad()
                 value_loss.backward()
