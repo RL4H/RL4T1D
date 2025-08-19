@@ -147,9 +147,9 @@ class TD3_BC(Agent):
             batch = Transition(*zip(*transitions))
             cur_state_batch = torch.cat(batch.state)
             actions_batch = torch.cat(batch.action)
-            reward_batch = torch.cat(batch.reward).unsqueeze(1)
+            reward_batch = torch.cat(batch.reward) #.unsqueeze(1)
             next_state_batch = torch.cat(batch.next_state)
-            done_batch = torch.cat(batch.done).unsqueeze(1)
+            done_batch = torch.cat(batch.done) #.unsqueeze(1)
 
             # value network update
             with torch.no_grad():
@@ -165,7 +165,7 @@ class TD3_BC(Agent):
             # critic 1 optimisation
             predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
             print("TD3 Update loop", predicted_value1.shape, target_value.shape)
-            value_loss1 = self.value_criterion1(predicted_value1, target_value)
+            value_loss1 = self.value_criterion1(predicted_value1.squeeze(1), target_value.squeeze(1))
             self.value_optimizer1.zero_grad()
             value_loss1.backward()
             torch.nn.utils.clip_grad_norm_(self.policy.value_net1.parameters(), 1) #clip value gradients
@@ -173,7 +173,7 @@ class TD3_BC(Agent):
 
             # critic 2 optimisation
             predicted_value2 = self.policy.value_net2(cur_state_batch, actions_batch)
-            value_loss2 = self.value_criterion2(predicted_value2, target_value)
+            value_loss2 = self.value_criterion2(predicted_value2.squeeze(1), target_value.squeeze(1))
             self.value_optimizer2.zero_grad()
             value_loss2.backward()
             torch.nn.utils.clip_grad_norm_(self.policy.value_net2.parameters(), 1)
@@ -324,13 +324,13 @@ class TD3_BC(Agent):
                 target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach()
 
                 predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
-                value_loss1 = self.value_criterion1(target_value, predicted_value1)
+                value_loss1 = self.value_criterion1(target_value.squeeze(1), predicted_value1.squeeze(1))
                 self.value_optimizer1.zero_grad()
                 value_loss1.backward()
                 self.value_optimizer1.step()
 
                 predicted_value2 = self.policy.value_net2(cur_state_batch, actions_batch)
-                value_loss2 = self.value_criterion2(target_value, predicted_value2)
+                value_loss2 = self.value_criterion2(target_value.squeeze(1), predicted_value2.squeeze(1))
                 self.value_optimizer2.zero_grad()
                 value_loss2.backward()
                 self.value_optimizer2.step()
@@ -343,7 +343,7 @@ class TD3_BC(Agent):
 
                 predicted_value = self.bc_value_net(cur_state_batch, actions_batch)
 
-                value_loss = self.bc_value_criterion(target_value, predicted_value)
+                value_loss = self.bc_value_criterion(target_value.squeeze(1), predicted_value.squeeze(1))
 
                 self.bc_value_optimizer.zero_grad()
                 value_loss.backward()
