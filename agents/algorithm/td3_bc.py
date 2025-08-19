@@ -343,6 +343,7 @@ class TD3_BC(Agent):
                 predicted_value = self.bc_value_net(cur_state_batch, actions_batch)
 
                 value_loss = self.bc_value_criterion(target_value, predicted_value)
+                print(value_loss.item())
 
                 self.bc_value_optimizer.zero_grad()
                 value_loss.backward()
