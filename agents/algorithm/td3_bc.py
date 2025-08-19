@@ -345,13 +345,13 @@ class TD3_BC(Agent):
 
                 value_loss = self.bc_value_criterion(target_value.squeeze(1), predicted_value.squeeze(1))
 
-                # manual_mse_loss = ( sum([(value_loss[n] - predicted_value[n])**2 for n in range(self.mini_batch_size)]) ) * 1/self.mini_batch_size
+                manual_mse_loss = ( sum([(value_loss[n][0].item() - predicted_value[n][0].item())**2 for n in range(self.mini_batch_size)]) ) * 1/self.mini_batch_size
 
                 self.bc_value_optimizer.zero_grad()
                 value_loss.backward()
                 self.bc_value_optimizer.step()
 
-                print(value_loss.item(), predicted_value[0][0].item(), target_value[0][0].item(), predicted_value.shape, target_value.shape, predicted_value.squeeze(1).shape, target_value.squeeze(1).shape)
+                print(value_loss.item(),manual_mse_loss,  predicted_value[0][0].item(), target_value[0][0].item(), predicted_value.shape, target_value.shape, predicted_value.squeeze(1).shape, target_value.squeeze(1).shape)
 
     def evaluate_fqe(self, save_dest=None):
         val_queue = self.buffer_queue
