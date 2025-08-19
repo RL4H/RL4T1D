@@ -164,7 +164,6 @@ class TD3_BC(Agent):
 
             # critic 1 optimisation
             predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
-            print("TD3 Update loop", predicted_value1.shape, target_value.shape)
             value_loss1 = self.value_criterion1(predicted_value1.squeeze(1), target_value.squeeze(1))
             self.value_optimizer1.zero_grad()
             value_loss1.backward()
@@ -311,9 +310,6 @@ class TD3_BC(Agent):
 
         for epoch in range(max(base_critic_epochs, bc_critic_epochs)):
             cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = sample_buffer(self.mini_batch_size)
-            print(reward_batch)
-
-            
 
             # value network update
 
@@ -359,7 +355,7 @@ class TD3_BC(Agent):
         self.create_full_bc(val_queue, 10)
 
         print("Finetuning critics")
-        self.finetune_critics(None, 10, 1000)
+        self.finetune_critics(None, 10, 100)
         self.finetune_critics(val_queue, 10, 20)
 
         print("Running eval on validation set")
