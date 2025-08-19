@@ -335,7 +335,7 @@ class TD3_BC(Agent):
                 self.value_optimizer2.step()
 
             if epoch < bc_critic_epochs:
-                _, _, new_action, next_log_prob = self.bc_policy.forward(cur_state_batch, mode='batch', worker_mode='target')
+                _, _, new_action, next_log_prob = self.bc_policy.forward(cur_state_batch, mode='batch', worker_mode='no noise')
                 next_values = self.bc_value_net(next_state_batch, new_action)
 
                 target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach()
