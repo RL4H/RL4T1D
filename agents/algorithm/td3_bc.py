@@ -302,7 +302,7 @@ class TD3_BC(Agent):
     def finetune_critics(self, use_vld=None, base_critic_epochs=100, bc_critic_epochs=100):
         if self.bc_value_net == None:
             self.bc_value_net = QNetwork(self.args, self.device).to(self.device)
-            self.bc_value_optimizer = torch.optim.Adam(self.bc_value_net.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
+            self.bc_value_optimizer = torch.optim.Adam(self.bc_value_net.parameters(), lr=self.value_lr / 10, weight_decay=self.weight_decay_vf)
             for p in self.bc_value_net.parameters(): p.requires_grad = True
 
         if use_vld == None: sample_buffer = lambda bsize : take_trn_batch(self.buffer, bsize, self.args)
@@ -343,7 +343,7 @@ class TD3_BC(Agent):
                 predicted_value = self.bc_value_net(cur_state_batch, actions_batch)
 
                 value_loss = self.bc_value_criterion(target_value, predicted_value)
-                print(value_loss.item())
+                print(value_loss.item(), target_value[0].item(), predicted_value[0].item())
 
                 self.bc_value_optimizer.zero_grad()
                 value_loss.backward()
