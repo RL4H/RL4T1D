@@ -242,9 +242,7 @@ class CompactLoader:
     def start(self):
         self.sync_queue()
     def load(self):
-        print("\tLoading object.")
         self.trials_list, self.cum_n = load_obj(self.save_path)
-        print("\tObject loaded.")
         self.loaded = True
     def clear_load(self):
         del self.trials_list

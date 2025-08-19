@@ -354,7 +354,7 @@ class TD3_BC(Agent):
 
         print("Training BC Network")
         self.create_full_bc()
-        self.create_full_bc(val_queue)
+        self.create_full_bc(val_queue, 10)
 
         print("Finetuning critics")
         self.finetune_critics(None, 100, 500)
