@@ -323,7 +323,6 @@ class TD3_BC(Agent):
                 target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach()
 
                 predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
-                print("base",target_value.shape, predicted_value1.shape)
                 value_loss1 = self.value_criterion1(target_value, predicted_value1)
                 self.value_optimizer1.zero_grad()
                 value_loss1.backward()
@@ -339,20 +338,17 @@ class TD3_BC(Agent):
                 _, _, new_action, next_log_prob = self.bc_policy.forward(cur_state_batch, mode='batch', worker_mode='no noise')
                 next_values = self.bc_value_net(next_state_batch, new_action)
 
-                print()
-                print(done_batch.shape, reward_batch.shape, next_values.shape)
                 target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach()
 
                 predicted_value = self.bc_value_net(cur_state_batch, actions_batch)
 
                 value_loss = self.bc_value_criterion(target_value, predicted_value)
-                print(target_value.shape, predicted_value.shape)
-                print(value_loss.item(), target_value[0][0].item(), predicted_value[0][0].item())
-                1/0
 
                 self.bc_value_optimizer.zero_grad()
                 value_loss.backward()
                 self.bc_value_optimizer.step()
+
+                print(value_loss.item(), predicted_value[0][0].item(), target_value[0][0].item())
 
     def evaluate_fqe(self, save_dest=None):
         val_queue = self.buffer_queue
