@@ -466,9 +466,9 @@ def take_trn_batch(queue, batch_size, args):
     batch = Transition(*zip(*transitions))
     cur_state_batch = torch.cat(batch.state)
     actions_batch = torch.cat(batch.action)
-    reward_batch = torch.cat(batch.reward).unsqueeze(1)
+    reward_batch = torch.cat(batch.reward)
     next_state_batch = torch.cat(batch.next_state)
-    done_batch = torch.cat(batch.done).unsqueeze(1)
+    done_batch = torch.cat(batch.done)
 
     return cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch
 
