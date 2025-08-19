@@ -339,17 +339,19 @@ class TD3_BC(Agent):
                 _, _, new_action, next_log_prob = self.bc_policy.forward(cur_state_batch, mode='batch', worker_mode='no noise')
                 next_values = self.bc_value_net(next_state_batch, new_action)
 
-                target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach()
+                target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach().squeeze(1)
 
-                predicted_value = self.bc_value_net(cur_state_batch, actions_batch)
+                predicted_value = self.bc_value_net(cur_state_batch, actions_batch).squeeze(1)
 
-                value_loss = self.bc_value_criterion(target_value.squeeze(1), predicted_value.squeeze(1))
+                value_loss = self.bc_value_criterion(target_value, predicted_value)
+
+                manual_mse_loss = ( sum([(value_loss[n] - predicted_value[n])**2 for n in range(self.mini_batch_size)]) ) * 1/self.mini_batch_size
 
                 self.bc_value_optimizer.zero_grad()
                 value_loss.backward()
                 self.bc_value_optimizer.step()
 
-                print(value_loss.item(), predicted_value[0][0].item(), target_value[0][0].item())
+                print(value_loss.item(), manual_mse_loss, predicted_value[0][0].item(), target_value[0][0].item(), predicted_value.shape, target_value.shape)
 
     def evaluate_fqe(self, save_dest=None):
         val_queue = self.buffer_queue
