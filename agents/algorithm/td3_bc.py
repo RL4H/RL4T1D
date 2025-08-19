@@ -344,8 +344,6 @@ class TD3_BC(Agent):
                 value_loss.backward()
                 self.bc_value_optimizer.step()
 
-                print(value_loss.item())
-
     def evaluate_fqe(self, save_dest=None):
         val_queue = self.buffer_queue
         val_queue.start_validation()
