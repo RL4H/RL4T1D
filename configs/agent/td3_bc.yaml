@@ -32,7 +32,7 @@ total_interactions: 4000000 # total number of interactions the agent will train 
 n_interactions_lr_decay: 4000000
 
 # training parameters
-pi_lr: 1e-4 #0.002
+pi_lr: 0.001
 vf_lr: 1e-5
 
 batch_size : 8192
@@ -84,7 +84,7 @@ push_action_clip: false
 
 
 alpha : 1
-beta : 0.25
+beta : 1.5
 
 awc_enabled : false
 beta_awac : 1
