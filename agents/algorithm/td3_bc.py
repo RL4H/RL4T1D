@@ -359,7 +359,10 @@ class TD3_BC(Agent):
                 self.bc_value_optimizer.step()
 
     
-    def evaluate_fqe(self):
+    def evaluate_fqe(self, save_dest=None):
+        val_queue = self.buffer_queue
+        val_queue.start_validation()
+        
         print("Training BC Network")
         self.create_full_bc()
 
@@ -368,8 +371,6 @@ class TD3_BC(Agent):
 
         print("Running eval on validation set")
 
-        val_queue = self.buffer_queue
-        val_queue.start_validation()
         with torch.no_grad():
             critic_eval_list = []
             ds_critic_loss_list = []
@@ -434,8 +435,7 @@ class TD3_BC(Agent):
 
                 completed_iters += self.mini_batch_size
 
-
-            return { 
+            ret_di = { 
                 'critic_loss': np.mean(critic_loss_list), 
                 'critic_eval': np.mean(critic_eval_list), 
                 'ds_critic_loss' : np.mean(ds_critic_loss_list), 
@@ -443,6 +443,13 @@ class TD3_BC(Agent):
                 'action_diff': np.mean(bc_loss_list),
                 'bc_action_diff' : np.mean(full_bc_loss_list)
             }
+
+            if save_dest != None:
+                save_text = ','.join(list(ret_di.keys())) + '\n' + ','.join([ str(ret_di[k]) for k in ret_di  ])
+                with open(save_dest, 'w') as f:
+                    f.write(save_text)
+
+            return ret_di
             
 
 class RewardPredictor:

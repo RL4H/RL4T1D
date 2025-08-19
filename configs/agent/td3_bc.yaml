@@ -33,7 +33,7 @@ n_interactions_lr_decay: 4000000
 
 # training parameters
 pi_lr: 0.001
-vf_lr: 1e-5
+vf_lr: 0.001 #2e-5
 
 batch_size : 8192
 mini_batch_size: 8192
@@ -92,4 +92,4 @@ beta_awac : 1
 vf_lambda : 0
 pi_lambda : 0
 
-pi_clip : 10
+pi_clip : 100

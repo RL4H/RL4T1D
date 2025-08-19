@@ -179,15 +179,15 @@ class Agent:
             
             if DEBUG_SHOW: print("Queue Started!")
 
-            self.training_agents = []#[OfflineSampler(args=self.args, env_args=self.env_args, mode='training', worker_id=i+args.training_agent_id_offset,importer_queue=queue) for i in range(self.args.n_training_workers)]
+            self.training_agents = []
             if DEBUG_SHOW: print("Training Agents Initialised")
 
             if args.data_type == "simulated": self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
-            else: self.testing_agents = [] #FIXME
+            else: self.testing_agents = [] 
             if DEBUG_SHOW: print("Testing Agents Initialised")
 
             if args.data_type == "simulated": self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
-            else: self.validation_agents = [] #FIXME
+            else: self.validation_agents = []
             if DEBUG_SHOW: print("Validation Agents Initialised")
 
             self.buffer = offpolicy_buffers.ReplayMemory(self.args)
@@ -269,7 +269,7 @@ class Agent:
         if self.using_OPE:
             print("Conducting Offline Evaluation")
 
-            res = self.evaluate_fqe()
+            res = self.evaluate_fqe(self.args.experiment_dir + '/ope_summary.csv')
             for k in res: print(k, '\t', res[k])
 
             #TODO save logs
