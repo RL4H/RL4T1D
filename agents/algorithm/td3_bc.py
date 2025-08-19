@@ -357,7 +357,7 @@ class TD3_BC(Agent):
         self.create_full_bc(val_queue, 10)
 
         print("Finetuning critics")
-        self.finetune_critics(None, 10, 10)
+        self.finetune_critics(None, 10, 1000)
         self.finetune_critics(val_queue, 10, 20)
 
         print("Running eval on validation set")
