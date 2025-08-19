@@ -338,7 +338,7 @@ class TD3_BC(Agent):
                 _, _, new_action, next_log_prob = self.bc_policy.forward(cur_state_batch, mode='batch', worker_mode='target')
                 next_values = self.bc_value_net(next_state_batch, new_action)
 
-                target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
+                target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach()
 
                 predicted_value = self.bc_value_net(cur_state_batch, actions_batch)
 
@@ -346,7 +346,6 @@ class TD3_BC(Agent):
 
                 self.bc_value_optimizer.zero_grad()
                 value_loss.backward()
-
                 self.bc_value_optimizer.step()
 
     def evaluate_fqe(self, save_dest=None):
@@ -354,12 +353,12 @@ class TD3_BC(Agent):
         val_queue.start_validation()
 
         print("Training BC Network")
-        self.create_full_bc()
+        self.create_full_bc(100)
         self.create_full_bc(val_queue, 10)
 
         print("Finetuning critics")
-        self.finetune_critics(None, 100, 500)
-        self.finetune_critics(val_queue, 10, 100)
+        self.finetune_critics(None, 10, 10)
+        self.finetune_critics(val_queue, 10, 20)
 
         print("Running eval on validation set")
 

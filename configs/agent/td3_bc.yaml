@@ -37,8 +37,8 @@ vf_lr: 0.001 #2e-5
 
 batch_size : 8192
 mini_batch_size: 8192
-n_pi_epochs: 2
-target_update_interval: 2
+n_pi_epochs: 5
+target_update_interval: 5
 
 # test
 n_testing_workers: 4
@@ -84,7 +84,7 @@ push_action_clip: false
 
 
 alpha : 1
-beta : 1.5
+beta : 3
 
 awc_enabled : false
 beta_awac : 1
