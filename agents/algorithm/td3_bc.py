@@ -282,8 +282,8 @@ class TD3_BC(Agent):
         self.bc_policy_optimizer = torch.optim.Adam(self.bc_policy.parameters(), lr=self.policy_lr, weight_decay=self.weight_decay_pi)
         for p in self.bc_policy.parameters(): p.requires_grad_(True)
 
-        if use_vld == None: sample_buffer = lambda bsize : take_trn_batch(self.buffer_queue, bsize)
-        else: sample_buffer = sample_buffer = lambda bsize : take_vld_batch(use_vld, bsize)
+        if use_vld == None: sample_buffer = lambda bsize : take_trn_batch(self.buffer_queue, bsize, self.args)
+        else: sample_buffer = sample_buffer = lambda bsize : take_vld_batch(use_vld, bsize, self.args)
 
         for _ in range(bc_epochs):
             cur_state_batch, actions_batch, _, _, _ = sample_buffer(self.mini_batch_size)
