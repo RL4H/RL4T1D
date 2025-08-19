@@ -353,7 +353,7 @@ class TD3_BC(Agent):
         val_queue.start_validation()
 
         print("Training BC Network")
-        self.create_full_bc(100)
+        self.create_full_bc(None, 100)
         self.create_full_bc(val_queue, 10)
 
         print("Finetuning critics")
