@@ -302,7 +302,7 @@ class TD3_BC(Agent):
     def finetune_critics(self, use_vld=None, base_critic_epochs=100, bc_critic_epochs=100):
         if self.bc_value_net == None:
             self.bc_value_net = QNetwork(self.args, self.device).to(self.device)
-            self.bc_value_optimizer = torch.optim.Adam(self.bc_value_net.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
+            self.bc_value_optimizer = torch.optim.Adam(self.bc_value_net.parameters(), lr=self.value_lr / 10, weight_decay=self.weight_decay_vf)
             for p in self.bc_value_net.parameters(): p.requires_grad = True
 
         if use_vld == None: sample_buffer = lambda bsize : take_trn_batch(self.buffer, bsize, self.args)
@@ -333,7 +333,7 @@ class TD3_BC(Agent):
                 self.value_optimizer2.step()
 
             if epoch < bc_critic_epochs:
-                _, _, new_action, next_log_prob = self.bc_policy.forward(cur_state_batch, mode='batch', worker_mode='no noise')
+                _, _, new_action, next_log_prob = self.bc_policy.forward(next_state_batch, mode='batch', worker_mode='no noise')
                 next_values = self.bc_value_net(next_state_batch, new_action)
 
                 target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach()
@@ -356,7 +356,7 @@ class TD3_BC(Agent):
 
         print("Finetuning critics")
         self.finetune_critics(None, 10, 50)
-        # self.finetune_critics(val_queue, 10, 20)
+        self.finetune_critics(val_queue, 10, 20)
 
         print("Running eval on validation set")
 
@@ -408,14 +408,14 @@ class TD3_BC(Agent):
                 critic_eval_list += list(critic_eval)
 
                 # estimate q value of dataset actions
-                _, _, dataset_action, _ = self.bc_policy.forward(cur_state_batch, mode='batch', worker_mode='no noise')
-                ds_critic_eval = (self.bc_value_net(cur_state_batch, dataset_action)).detach().cpu().numpy()
+                ds_critic_eval = (self.bc_value_net(cur_state_batch, actions_batch)).detach().cpu().numpy()
                 ds_critic_eval_list += list(ds_critic_eval)
 
                 #calculate action difference
                 diff = nn.functional.mse_loss(policy_action,actions_batch.detach()).item()
                 bc_loss_list += [diff]
 
+                _, _, dataset_action, _ = self.bc_policy.forward(cur_state_batch, mode='batch', worker_mode='no noise')
                 full_diff = nn.functional.mse_loss(dataset_action,actions_batch.detach()).item()
                 full_bc_loss_list += [full_diff]
 
@@ -432,7 +432,7 @@ class TD3_BC(Agent):
                 'ds_critic_loss' : np.mean(ds_critic_loss_list), 
                 'ds_critic_eval' : np.mean(ds_critic_eval_list), 
                 'action_diff': np.mean(bc_loss_list),
-                'bc_action_diff' : np.mean(full_bc_loss_list)
+                # 'bc_action_diff' : np.mean(full_bc_loss_list)
             }
 
             if save_dest != None:
