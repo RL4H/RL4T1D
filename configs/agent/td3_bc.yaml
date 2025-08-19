@@ -32,13 +32,13 @@ total_interactions: 4000000 # total number of interactions the agent will train 
 n_interactions_lr_decay: 4000000
 
 # training parameters
-pi_lr: 0.001
-vf_lr: 0.003
+pi_lr: 1e-4 #0.002
+vf_lr: 1e-5
 
 batch_size : 8192
 mini_batch_size: 8192
 n_pi_epochs: 2
-target_update_interval: 1
+target_update_interval: 2
 
 # test
 n_testing_workers: 4
@@ -74,17 +74,17 @@ noise_model: "normal_dist"
 # target_action_lim: 0.1
 # soft_tau: 0.005
 
-noise_std: 0.05
+noise_std: 0.4
 noise_application: 3
-target_action_std: 0.5
+target_action_std: 0.2
 target_action_lim: 0.5
-soft_tau: 0.007
+soft_tau: 0.006
 
 push_action_clip: false
 
 
 alpha : 1
-beta : 1
+beta : 0.25
 
 awc_enabled : false
 beta_awac : 1

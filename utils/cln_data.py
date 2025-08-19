@@ -808,5 +808,38 @@ if __name__ == "__main__":
 
                 data.save_compact_loader_object()
                 print(f"\tData saved for seed {seed}.")
+    
+    elif option == "generate types":
+        import gc
+        from utils.cln_data import ClnDataImporter
+        from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
+        from utils.sim_data import calculate_augmented_features
+
+        pump_nonempty = []
+        inj_nonempty = []
+        empty = []
+        other = []
+
+        for patient_id in range(SUBJECTS_N):
+            attrs = get_patient_attrs("clinical" + str(patient_id))
+            print("Importing for patient id",patient_id,"index",attrs["subj_id"])
+            injections_type = attrs["injections_type"]
+            
+            data_save_path_args = CLN_DATA_SAVE_DEST + '/' + f"temp_args_{patient_id}_{0}.pkl"
+
+            data = load_compact_loader_object(data_save_path_args)
+
+            data_le = len(data)
+
+            if data_le == 0:
+                empty.append(patient_id)
+            elif injections_type == "Pump":
+                pump_nonempty.append(patient_id)
+            elif injections_type == "Injections":
+                inj_nonempty.append(patient_id)
+            else:
+                other.append(patient_id)
+
+
 
     else: raise ValueError("Invalid input.")
