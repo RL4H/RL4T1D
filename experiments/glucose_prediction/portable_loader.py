@@ -282,16 +282,17 @@ class CompactLoader:
         self.validation_ind = 0
         self.vld_queue = []
     def start_validation(self):
+        self.load()
         self.reset_validation()
         self.sync_validation()
+    def end_validation(self):
+        self.clear_load()
     def sync_validation(self):
         if len(self.vld_queue) <= 0:
-            self.load()
             remaining_length = self.validation_length - len(self.vld_queue)
             for _ in range(remaining_length):
                 self.vld_queue.append(self[self.validation_indicies[self.validation_ind]])
                 self.validation_ind = (self.validation_ind + 1) % self.validation_length
-            self.clear_load()
             gc.collect()
     def pop_validation(self):
         out = self.vld_queue.pop(0)

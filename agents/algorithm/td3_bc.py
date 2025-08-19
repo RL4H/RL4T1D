@@ -304,8 +304,8 @@ class TD3_BC(Agent):
         self.bc_value_optimizer = torch.optim.Adam(self.bc_value_net.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
         for p in self.bc_value_net.parameters(): p.requires_grad = True
 
-        if use_vld == None: sample_buffer = lambda bsize : take_trn_batch(self.buffer, bsize)
-        else: sample_buffer = sample_buffer = lambda bsize : take_vld_batch(use_vld, bsize)
+        if use_vld == None: sample_buffer = lambda bsize : take_trn_batch(self.buffer, bsize, self.args)
+        else: sample_buffer = sample_buffer = lambda bsize : take_vld_batch(use_vld, bsize, self.args)
 
         for epoch in range(max(base_critic_epochs, bc_critic_epochs)):
 
@@ -425,6 +425,8 @@ class TD3_BC(Agent):
 
 
                 completed_iters += self.mini_batch_size
+
+            val_queue.end_validation()
 
             ret_di = { 
                 'critic_loss': np.mean(critic_loss_list), 

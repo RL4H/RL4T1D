@@ -32,8 +32,8 @@ total_interactions: 4000000 # total number of interactions the agent will train 
 n_interactions_lr_decay: 4000000
 
 # training parameters
-pi_lr: 0.0005
-vf_lr: 0.0005 #2e-5
+pi_lr: 0.001
+vf_lr: 0.001 #2e-5
 
 batch_size : 8192
 mini_batch_size: 8192
