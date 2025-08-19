@@ -310,8 +310,9 @@ class TD3_BC(Agent):
         else: sample_buffer = sample_buffer = lambda bsize : take_vld_batch(use_vld, bsize, self.args)
 
         for epoch in range(max(base_critic_epochs, bc_critic_epochs)):
-
             cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = sample_buffer(self.mini_batch_size)
+            print(reward_batch)
+
             
 
             # value network update
@@ -345,13 +346,9 @@ class TD3_BC(Agent):
 
                 value_loss = self.bc_value_criterion(target_value.squeeze(1), predicted_value.squeeze(1))
 
-                manual_mse_loss = ( torch.sum( (target_value.squeeze(1) - predicted_value.squeeze(1)) ** 2  ) ).item() * 1/self.mini_batch_size
-
                 self.bc_value_optimizer.zero_grad()
                 value_loss.backward()
                 self.bc_value_optimizer.step()
-
-                print(value_loss.item(),manual_mse_loss,  predicted_value[0][0].item(), target_value[0][0].item(), predicted_value.shape, target_value.shape, predicted_value.squeeze(1).shape, target_value.squeeze(1).shape)
 
     def evaluate_fqe(self, save_dest=None):
         val_queue = self.buffer_queue
