@@ -282,15 +282,11 @@ class TD3_BC(Agent):
         self.bc_policy_optimizer = torch.optim.Adam(self.bc_policy.parameters(), lr=self.policy_lr, weight_decay=self.weight_decay_pi)
         for p in self.bc_policy.parameters(): p.requires_grad_(True)
 
-        if use_vld == None: sample_buffer = self.buffer.sample
-        else: sample_buffer = use_vld.pop_validation_batch
+        if use_vld == None: sample_buffer = lambda bsize : take_trn_batch(self.buffer_queue, bsize)
+        else: sample_buffer = sample_buffer = lambda bsize : take_vld_batch(use_vld, bsize)
 
         for _ in range(bc_epochs):
-            transitions = sample_buffer(self.mini_batch_size)
-
-            batch = Transition(*zip(*transitions))
-            cur_state_batch = torch.cat(batch.state)
-            actions_batch = torch.cat(batch.action)
+            cur_state_batch, actions_batch, _, _, _ = sample_buffer(self.mini_batch_size)
 
             # evaluate action taken by policy, in a batch
             _, _, policy_action, _ = self.bc_policy.forward(cur_state_batch, mode='batch', worker_mode='target')
@@ -308,20 +304,13 @@ class TD3_BC(Agent):
         self.bc_value_optimizer = torch.optim.Adam(self.bc_value_net.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
         for p in self.bc_value_net.parameters(): p.requires_grad = True
 
-        if use_vld == None: sample_buffer = self.buffer.sample
-        else: sample_buffer = use_vld.pop_validation_batch
+        if use_vld == None: sample_buffer = lambda bsize : take_trn_batch(self.buffer_queue, bsize)
+        else: sample_buffer = sample_buffer = lambda bsize : take_vld_batch(use_vld, bsize)
 
         for epoch in range(max(base_critic_epochs, bc_critic_epochs)):
 
-            # cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = self.sample_buffer(self.mini_batch_size)
-            transitions = sample_buffer(self.mini_batch_size)
-
-            batch = Transition(*zip(*transitions))
-            cur_state_batch = torch.cat(batch.state)
-            actions_batch = torch.cat(batch.action)
-            reward_batch = torch.cat(batch.reward).unsqueeze(1)
-            next_state_batch = torch.cat(batch.next_state)
-            done_batch = torch.cat(batch.done).unsqueeze(1)
+            cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = sample_buffer(self.mini_batch_size)
+            
 
             # value network update
 
@@ -359,7 +348,6 @@ class TD3_BC(Agent):
 
                 self.bc_value_optimizer.step()
 
-    
     def evaluate_fqe(self, save_dest=None):
         val_queue = self.buffer_queue
         val_queue.start_validation()
@@ -455,6 +443,27 @@ class TD3_BC(Agent):
             return ret_di
             
 
+def take_vld_batch(vld_queue, batch_size, args):
+    transitions = vld_queue.pop_validation_batch(batch_size)
+
+    fields = list(zip(*transitions))
+    tensor_fields = [torch.as_tensor(field, dtype=torch.float32, device=args.device) for field in fields]
+
+    cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = tuple(tensor_fields)
+    return cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch
+
+def take_trn_batch(queue, batch_size, args):
+    transitions = queue.sample(batch_size)
+
+    batch = Transition(*zip(*transitions))
+    cur_state_batch = torch.cat(batch.state)
+    actions_batch = torch.cat(batch.action)
+    reward_batch = torch.cat(batch.reward).unsqueeze(1)
+    next_state_batch = torch.cat(batch.next_state)
+    done_batch = torch.cat(batch.done).unsqueeze(1)
+
+    return cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch
+
 class RewardPredictor:
     def __init__(self, args, queue):
         self.device = args.device
@@ -478,9 +487,6 @@ class RewardPredictor:
             reward_batch = torch.cat(batch.reward).unsqueeze(1)
             next_state_batch = torch.cat(batch.next_state)
             done_batch = torch.cat(batch.done).unsqueeze(1)
-
-
-
 
     def evaluate(self):
         pass
