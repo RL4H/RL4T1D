@@ -311,8 +311,6 @@ class TD3_BC(Agent):
         for epoch in range(max(base_critic_epochs, bc_critic_epochs)):
             cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = sample_buffer(self.mini_batch_size)
 
-            # value network update
-
             if epoch < base_critic_epochs:
                 new_action, next_log_prob = self.policy.evaluate_policy_no_noise(next_state_batch)
                 next_values = torch.min(self.policy.value_net_target1(next_state_batch, new_action),
@@ -357,7 +355,7 @@ class TD3_BC(Agent):
         self.create_full_bc(val_queue, 10)
 
         print("Finetuning critics")
-        self.finetune_critics(None, 10, 100)
+        self.finetune_critics(None, 10, 1000)
         self.finetune_critics(val_queue, 10, 20)
 
         print("Running eval on validation set")
