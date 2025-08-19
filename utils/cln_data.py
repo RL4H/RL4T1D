@@ -627,7 +627,7 @@ class ClnDataQueue:
 
 # Main 
 if __name__ == "__main__":
-    option = input("Select:\n| convert | summarise | display | convert 2 |\n: ").lower().strip()
+    option = input("Select:\n| convert | summarise | display | convert 2 | generate types |\n: ").lower().strip()
     if option == "convert":
 
         print("Converting Subject Data to .csv format.")
@@ -839,6 +839,11 @@ if __name__ == "__main__":
                 inj_nonempty.append(patient_id)
             else:
                 other.append(patient_id)
+
+            print("pump_nonempty = [" + ','.join(['"' + str(i) + '"' for i in pump_nonempty]) + "]")
+            print("inj_nonempty = [" + ','.join(['"' + str(i) + '"' for i in inj_nonempty]) + "]")
+            print("empty = [" + ','.join(['"' + str(i) + '"' for i in empty]) + "]")
+            print("other = [" + ','.join(['"' + str(i) + '"' for i in other]) + "]")
 
 
 
