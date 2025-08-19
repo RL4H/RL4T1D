@@ -339,6 +339,8 @@ class TD3_BC(Agent):
                 _, _, new_action, next_log_prob = self.bc_policy.forward(cur_state_batch, mode='batch', worker_mode='no noise')
                 next_values = self.bc_value_net(next_state_batch, new_action)
 
+                print()
+                print(done_batch.shape, reward_batch.shape, next_values.shape)
                 target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach()
 
                 predicted_value = self.bc_value_net(cur_state_batch, actions_batch)
@@ -346,6 +348,7 @@ class TD3_BC(Agent):
                 value_loss = self.bc_value_criterion(target_value, predicted_value)
                 print(target_value.shape, predicted_value.shape)
                 print(value_loss.item(), target_value[0][0].item(), predicted_value[0][0].item())
+                1/0
 
                 self.bc_value_optimizer.zero_grad()
                 value_loss.backward()
