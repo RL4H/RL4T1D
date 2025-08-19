@@ -323,7 +323,7 @@ class TD3_BC(Agent):
                 target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach()
 
                 predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
-                print("base",target_value.shape, predicted_value.shape)
+                print("base",target_value.shape, predicted_value1.shape)
                 value_loss1 = self.value_criterion1(target_value, predicted_value1)
                 self.value_optimizer1.zero_grad()
                 value_loss1.backward()
