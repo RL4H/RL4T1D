@@ -302,7 +302,7 @@ class TD3_BC(Agent):
     def finetune_critics(self, use_vld=None, base_critic_epochs=100, bc_critic_epochs=100):
         if self.bc_value_net == None:
             self.bc_value_net = QNetwork(self.args, self.device).to(self.device)
-            self.bc_value_optimizer = torch.optim.Adam(self.bc_value_net.parameters(), lr=self.value_lr / 10, weight_decay=self.weight_decay_vf)
+            self.bc_value_optimizer = torch.optim.Adam(self.bc_value_net.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
             for p in self.bc_value_net.parameters(): p.requires_grad = True
 
         if use_vld == None: sample_buffer = lambda bsize : take_trn_batch(self.buffer, bsize, self.args)
@@ -355,7 +355,7 @@ class TD3_BC(Agent):
         self.create_full_bc(val_queue, 10)
 
         print("Finetuning critics")
-        self.finetune_critics(None, 10, 50)
+        self.finetune_critics(None, 10, 100)
         self.finetune_critics(val_queue, 10, 20)
 
         print("Running eval on validation set")
