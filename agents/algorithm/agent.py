@@ -225,7 +225,7 @@ class Agent:
 
             # self.alpha = self.args.alpha * (1 - completed_interactions / self.args.total_interactions)
             logs = self.update()  # update the models
-            self.logger.save_rollout(logs)  # logging
+            if len(self.training_agents) > 0: self.logger.save_rollout(logs)  # logging
             self.policy.save(rollout)  # save model weights as checkpoints
 
             # testing: run testing workers on the validation scenario
