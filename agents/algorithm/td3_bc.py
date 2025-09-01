@@ -467,7 +467,7 @@ def take_trn_batch(queue, batch_size, args):
 
     return cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch
 
-class FQENetwork(nn.Module):
+class FQE:
     def __init__(self, args, pi, queue):
         self.device = args.device
         self.value_lr = args.vf_lr

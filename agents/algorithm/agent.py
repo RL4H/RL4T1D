@@ -269,9 +269,9 @@ class Agent:
         
         if self.using_OPE:
             print("Training FQE Model")
-            from agents.algorithm.td3_bc import FQENetwork
+            from agents.algorithm.td3_bc import FQE
 
-            fqe = FQENetwork(self.args, self.policy, self.buffer_queue)
+            fqe = FQE(self.args, self.policy, self.buffer_queue)
 
             completed_interactions = 0
             while completed_interactions < self.args.fqe_interactions:
