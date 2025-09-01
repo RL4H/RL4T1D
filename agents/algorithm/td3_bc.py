@@ -469,6 +469,7 @@ def take_trn_batch(queue, batch_size, args):
 
 class FQE:
     def __init__(self, args, pi, queue):
+        self.args = args
         self.device = args.device
         self.value_lr = args.vf_lr
         self.weight_decay_vf = args.vf_lambda
