@@ -532,7 +532,7 @@ class FQE:
                 diff = nn.functional.mse_loss(policy_action,actions_batch.detach()).item()
                 bc_loss_list += [diff]
 
-                completed_iters += self.mini_batch_size
+                completed_iters += self.batch_size
 
             self.queue.end_validation()
 
