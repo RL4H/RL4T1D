@@ -218,6 +218,7 @@ class Agent:
                     self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer, logger=self.logger.logWorker)
                 # elif self.agent_type == "Offline": 
                 #     self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer, logger=self.logger.logWorker)
+                #     self.buffer.save_rollout(training_agent_index=i)
 
             if self.agent_type == "Offline":
                 #store batch directly to avoid bottleneck
@@ -225,7 +226,7 @@ class Agent:
 
             # self.alpha = self.args.alpha * (1 - completed_interactions / self.args.total_interactions)
             logs = self.update()  # update the models
-            if len(self.training_agents) > 0: self.logger.save_rollout(logs)  # logging
+            self.logger.save_rollout(logs)  # logging
             self.policy.save(rollout)  # save model weights as checkpoints
 
             # testing: run testing workers on the validation scenario

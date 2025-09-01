@@ -26,7 +26,11 @@ experiment_summary:
   # - 'plan_pi_grad'
   # - 'plan_loss'
   # - 'RMSE'
-
+  
+  # specific for td3+bc
+  - 'td3_loss'
+  - 'bc_loss'
+  
 worker_episode:
   - 'episode'
   - 't'

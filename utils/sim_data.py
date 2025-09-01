@@ -987,15 +987,15 @@ if __name__ == "__main__":
         from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
         from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
         
-        for patient_id in list(range(1,10)) + list(range(20,30)):
+        for patient_id in list(range(0,10)) + list(range(20,30)):
             args = OmegaConf.create({
                 "patient_ind" : patient_id,
                 "patient_id" : patient_id,
                 "batch_size" : 8192,
                 "data_type" : "simulated", #simulated | clinical,
-                "data_protocols" : ["evaluation", "training"], #None defaults to all,
-                "data_algorithms" : ["AUXML", "G2P2C", "PPO"], #None defaults to all,
-                "obs_window" : 12,
+                "data_protocols" : ["testing"], #None defaults to all, #["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC", "TD3", "DDPG", "DPG"]
+                "data_algorithms" : ['AUXML', 'G2P2C', 'PPO'], #None defaults to all,
+                "obs_window" : 6,
                 "control_space_type" : 'exponential',
                 "insulin_min" : 0,
                 "insulin_max" : 5,

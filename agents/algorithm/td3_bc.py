@@ -232,7 +232,7 @@ class TD3_BC(Agent):
 
                 self.policy_optimizer.zero_grad()
                 policy_loss.backward() 
-                torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), self.args.pi_clip) #clip policy gradient #TODO: decide if 20 or 10
+                torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), self.args.pi_clip)
 
                 pi_grad += torch.norm(torch.stack([
                     p.grad.norm(2) for p in self.policy.policy_net.parameters() if p.grad is not None
@@ -275,7 +275,12 @@ class TD3_BC(Agent):
         print(f"################ updated value networks {vf_completed_iters} times and policy network {pi_completed_iters} times. Average abs q: {np.mean(q_abs_list)}, BC loss: {np.mean(bc_loss_list)}, TD3 loss: {np.mean(td3_loss_list)}" + (". Used BC default" if self.completed_interactions < self.args.bc_pretrain_iters else ""))
         # logging
         data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_grad=val_grad, val_loss=vf_loss)
-        return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}
+
+        cpu_dict = {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}
+        for k,v in dict(td3_loss=np.mean(td3_loss_list), bc_loss=np.mean(bc_loss_list)).items(): cpu_dict[k] = v
+        return cpu_dict
+    
+        # return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}
 
     def create_full_bc(self, use_vld=None, bc_epochs=200):
         if self.bc_policy == None:
