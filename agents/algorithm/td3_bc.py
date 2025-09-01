@@ -486,7 +486,7 @@ class FQE:
         for _ in range(epochs):
             cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = take_trn_batch(self.queue, self.batch_size, self.args)
 
-            new_action, _ = self.behaviour_policy.policy.evaluate_target_policy_no_noise(next_state_batch)
+            new_action, _ = self.behaviour_policy.evaluate_target_policy_no_noise(next_state_batch)
             next_values = self.value_net(next_state_batch, new_action)
 
             target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach()
