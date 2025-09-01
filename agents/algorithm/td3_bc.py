@@ -468,12 +468,13 @@ def take_trn_batch(queue, batch_size, args):
     return cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch
 
 class FQE:
-    def __init__(self, args, pi, queue):
+    def __init__(self, args, pi, buffer, queue):
         self.args = args
         self.device = args.device
         self.value_lr = args.vf_lr
         self.weight_decay_vf = args.vf_lambda
         self.queue = queue
+        self.buffer = buffer
         self.batch_size = args.mini_batch_size
         self.gamma = args.fqe_gamma
 
@@ -484,7 +485,7 @@ class FQE:
 
     def update(self, epochs=10):
         for _ in range(epochs):
-            cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = take_trn_batch(self.queue, self.batch_size, self.args)
+            cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = take_trn_batch(self.buffer, self.batch_size, self.args)
 
             new_action, _ = self.behaviour_policy.policy.evaluate_policy_no_noise(next_state_batch)
             next_values = self.value_net(next_state_batch, new_action)
