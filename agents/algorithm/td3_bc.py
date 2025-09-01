@@ -467,29 +467,85 @@ def take_trn_batch(queue, batch_size, args):
 
     return cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch
 
-class RewardPredictor:
-    def __init__(self, args, queue):
+class FQENetwork(nn.Module):
+    def __init__(self, args, pi, queue):
         self.device = args.device
         self.value_lr = args.vf_lr
         self.weight_decay_vf = args.vf_lambda
+        self.queue = queue
+        self.batch_size = args.mini_batch_size
+        self.gamma = args.fqe_gamma
 
-        self.value_net = QNetwork(args, self.device)
+        self.behaviour_policy = pi
+        self.value_net = QNetwork(args, self.device).to(self.device)
         self.value_optimizer = torch.optim.Adam(self.value_net.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
+        self.value_criterion = nn.MSELoss()
 
-    def update(self):
-        for pi_train_iter in range(self.train_pi_iters):
-            vf_completed_iters += 1
-            # cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = self.buffer.sample(self.mini_batch_size)
-            transitions = self.buffer.sample(self.mini_batch_size)
+    def update(self, epochs=10):
+        for _ in range(epochs):
+            cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = take_trn_batch(self.buffer, self.batch_size, self.args)
 
-            batch_size = self.mini_batch_size
+            new_action, _ = self.behaviour_policy.forward(next_state_batch, mode='batch', worker_mode='no noise')
+            next_values = self.value_net(next_state_batch, new_action)
 
-            batch = Transition(*zip(*transitions))
-            cur_state_batch = torch.cat(batch.state)
-            actions_batch = torch.cat(batch.action)
-            reward_batch = torch.cat(batch.reward).unsqueeze(1)
-            next_state_batch = torch.cat(batch.next_state)
-            done_batch = torch.cat(batch.done).unsqueeze(1)
+            target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach()
 
-    def evaluate(self):
-        pass
+            predicted_value = self.value_net(cur_state_batch, actions_batch)
+            value_loss = self.value_criterion(target_value.squeeze(1), predicted_value.squeeze(1))
+            self.value_optimizer.zero_grad()
+            value_loss.backward()
+            self.value_optimizer.step()
+
+
+    def evaluate(self, save_dest):
+        self.queue.start_validation()
+
+        with torch.no_grad():
+            critic_eval_list = []
+            critic_loss_list = []
+            bc_loss_list = []
+
+            completed_iters = 0
+            while completed_iters < self.queue.validation_length:
+                transitions = self.queue.pop_validation_batch(self.batch_size)
+
+                fields = list(zip(*transitions))
+                tensor_fields = [torch.as_tensor(field, dtype=torch.float32, device=self.args.device) for field in fields]
+                cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = tuple(tensor_fields)
+
+                # calculate critic loss
+                new_action, _ = self.behaviour_policy.forward(next_state_batch, mode='batch', worker_mode='no noise')
+                next_values = self.value_net(next_state_batch, new_action)
+                target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
+
+                predicted_value = self.value_net(cur_state_batch, actions_batch)
+                value_loss = self.value_criterion(predicted_value, target_value).item()
+                critic_loss_list += [value_loss]
+
+                # estimate q value of policy actions
+                policy_action, _ = self.behaviour_policy.forward(cur_state_batch, mode='batch', worker_mode='no noise')
+                critic_eval = self.value_net(cur_state_batch, policy_action).detach().cpu().numpy()
+                critic_eval_list += list(critic_eval)
+
+                #calculate action difference
+                diff = nn.functional.mse_loss(policy_action,actions_batch.detach()).item()
+                bc_loss_list += [diff]
+
+                completed_iters += self.mini_batch_size
+
+            self.queue.end_validation()
+
+            ret_di = { 
+                'critic_loss': np.mean(critic_loss_list), 
+                'critic_eval': np.mean(critic_eval_list), 
+                'action_diff': np.mean(bc_loss_list),
+            }
+
+            if save_dest != None:
+                save_text = ','.join(list(ret_di.keys())) + '\n' + ','.join([ str(ret_di[k]) for k in ret_di  ])
+                with open(save_dest, 'w') as f:
+                    f.write(save_text)
+
+            return ret_di
+
+

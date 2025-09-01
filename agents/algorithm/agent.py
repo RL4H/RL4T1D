@@ -268,14 +268,23 @@ class Agent:
                 self.validation_agents[i].rollout(policy=self.policy, buffer=None, logger=self.logger.logWorker)
         
         if self.using_OPE:
+            print("Training FQE Model")
+            from td3_bc import FQENetwork
+
+            fqe = FQENetwork(self.args, self.policy, self.buffer_queue)
+
+            completed_interactions = 0
+            while completed_interactions < self.args.fqe_interactions:
+                self.buffer.store_batch(self.buffer_queue.pop_batch(self.args.replay_buffer_step))
+                fqe.update()
+                completed_interactions += (self.args.n_step * self.args.n_training_workers)
+
             print("Conducting Offline Evaluation")
 
-            res = self.evaluate_fqe(self.args.experiment_dir + '/ope_summary.csv')
+            res = fqe.evaluate(self.args.experiment_dir + '/ope_summary.csv')
             for k in res: print(k, '\t', res[k])
 
-            #TODO save logs
-
-            print("OPE Completed")
+            print("Offline Policy Evaluation Completed")
             exit()
         else:
 

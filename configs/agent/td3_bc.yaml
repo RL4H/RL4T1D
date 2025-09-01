@@ -27,8 +27,8 @@ target_kl: 0.01
 # train
 n_step: 8192
 max_epi_length: 2880
-n_training_workers: 16
-total_interactions: 2000000 # total number of interactions the agent will train for #800000
+n_training_workers: 1
+total_interactions: 125000 # total number of interactions the agent will train for #2000000
 n_interactions_lr_decay: 4000000
 
 # training parameters
@@ -41,7 +41,7 @@ n_pi_epochs: 20
 target_update_interval: 1
 
 # test
-n_testing_workers: 4
+n_testing_workers: 1
 max_test_epi_len: 288  # testing conducted for 1 day: 12 steps/hr * 24 hours
 
 # validation
@@ -93,3 +93,6 @@ vf_lambda : 0
 pi_lambda : 0
 
 pi_clip : 100
+
+fqe_gamma : 0.70
+fqe_interactions : 12500
