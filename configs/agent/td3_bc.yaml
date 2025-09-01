@@ -95,4 +95,4 @@ pi_lambda : 0
 pi_clip : 100
 
 fqe_gamma : 0.70
-fqe_interactions : 12500
+fqe_interactions : 125000

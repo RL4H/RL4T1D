@@ -275,6 +275,7 @@ class Agent:
 
             completed_interactions = 0
             while completed_interactions < self.args.fqe_interactions:
+                print("=========== fqe iteration")
                 self.buffer.store_batch(self.buffer_queue.pop_batch(self.args.replay_buffer_step))
                 fqe.update()
                 completed_interactions += (self.args.n_step * self.args.n_training_workers)
