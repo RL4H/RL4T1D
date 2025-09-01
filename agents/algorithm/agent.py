@@ -269,7 +269,7 @@ class Agent:
         
         if self.using_OPE:
             print("Training FQE Model")
-            from td3_bc import FQENetwork
+            from agents.algorithm.td3_bc import FQENetwork
 
             fqe = FQENetwork(self.args, self.policy, self.buffer_queue)
 
