@@ -468,6 +468,23 @@ def take_trn_batch(queue, batch_size, args):
 
     return cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch
 
+def update_mean_std(prev_mean, prev_std, prev_n, new_n):
+
+    new_n = prev_n
+    mean = prev_mean
+    M2 = (prev_std ** 2) * prev_n  # sum of squared deviations
+    
+    for x in new_n:
+        new_n += 1
+        delta = x - mean
+        mean += delta / new_n
+        delta2 = x - mean
+        M2 += delta * delta2
+    
+    new_mean = mean
+    new_std = math.sqrt(M2 / new_n) if new_n > 0 else 0.0
+    return new_mean, new_std, new_n
+
 class FQE:
     def __init__(self, args, pi, buffer, queue):
         self.args = args
@@ -524,8 +541,8 @@ class FQE:
                 target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
 
                 predicted_value = self.value_net(cur_state_batch, actions_batch)
-                value_loss = self.value_criterion(predicted_value, target_value).item()
-                critic_loss_list += [value_loss]
+                value_loss = [ (pred - targ)**2 for pred,targ in zip(predicted_value, target_value) ]
+                critic_loss_list += value_loss
 
                 # estimate q value of policy actions
                 policy_action, _ = self.behaviour_policy.policy.evaluate_policy_no_noise(cur_state_batch)
@@ -533,31 +550,31 @@ class FQE:
                 critic_eval_list += list(critic_eval)
 
                 #calculate action difference
-                diff = nn.functional.mse_loss(policy_action,actions_batch.detach()).item()
-                bc_loss_list += [diff]
-
                 policy_action = policy_action.detach().cpu().numpy()
                 actions_batch = actions_batch.detach().cpu().numpy()
+
+                diff = [ (act1 - act2)**2 for act1,act2 in zip(policy_action, actions_batch) ]
+                bc_loss_list += diff
 
                 policy_action_ins = [ self.control_space.map(act) for act in policy_action ]
                 actions_batch_ins = [ self.control_space.map(act) for act in actions_batch ]
 
-                ins_diff = sum([ (act1 - act2)**2 for act1,act2 in zip(policy_action_ins, actions_batch_ins) ]) / self.batch_size
-                bc_ins_loss_list += [ins_diff]
+                ins_diff = [ (act1 - act2)**2 for act1,act2 in zip(policy_action_ins, actions_batch_ins) ]
+                bc_ins_loss_list += ins_diff
 
                 completed_iters += self.batch_size
 
             self.queue.end_validation()
 
             ret_di = { 
-                'critic_loss': np.mean(critic_loss_list), 
-                'critic_eval': np.mean(critic_eval_list), 
-                'action_diff': np.mean(bc_loss_list),
-                'action_diff_ins' : np.mean(bc_ins_loss_list)
+                'critic_loss':      (np.mean(critic_loss_list), np.std(critic_loss_list), len(critic_loss_list)), 
+                'critic_eval':      (np.mean(critic_eval_list), np.std(critic_eval_list), len(critic_eval_list)), 
+                'action_diff':      (np.mean(bc_loss_list),     np.std(bc_loss_list),     len(bc_loss_list)), 
+                'action_diff_ins' : (np.mean(bc_ins_loss_list), np.std(bc_ins_loss_list), len(bc_ins_loss_list))
             }
 
             if save_dest != None:
-                save_text = ','.join(list(ret_di.keys())) + '\n' + ','.join([ str(ret_di[k]) for k in ret_di  ])
+                save_text = ','.join(list(ret_di.keys())) + '\n' + ','.join([ ';'.join([ str(t_i) for t_i in ret_di[k]]) for k in ret_di  ])
                 with open(save_dest, 'w') as f:
                     f.write(save_text)
 
