@@ -486,7 +486,7 @@ class FQE:
         for _ in range(epochs):
             cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = take_trn_batch(self.queue, self.batch_size, self.args)
 
-            new_action, _ = self.behaviour_policy.forward(next_state_batch, mode='batch', worker_mode='no noise')
+            new_action, _ = self.behaviour_policy.policy.evaluate_target_policy_no_noise(next_state_batch)
             next_values = self.value_net(next_state_batch, new_action)
 
             target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach()
@@ -496,7 +496,6 @@ class FQE:
             self.value_optimizer.zero_grad()
             value_loss.backward()
             self.value_optimizer.step()
-
 
     def evaluate(self, save_dest):
         self.queue.start_validation()
@@ -515,7 +514,7 @@ class FQE:
                 cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = tuple(tensor_fields)
 
                 # calculate critic loss
-                new_action, _ = self.behaviour_policy.forward(next_state_batch, mode='batch', worker_mode='no noise')
+                new_action, _ = self.behaviour_policy.policy.evaluate_target_policy_no_noise(next_state_batch)
                 next_values = self.value_net(next_state_batch, new_action)
                 target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
 
@@ -524,7 +523,7 @@ class FQE:
                 critic_loss_list += [value_loss]
 
                 # estimate q value of policy actions
-                policy_action, _ = self.behaviour_policy.forward(cur_state_batch, mode='batch', worker_mode='no noise')
+                policy_action, _ = self.behaviour_policy.policy.evaluate_target_policy_no_noise(cur_state_batch)
                 critic_eval = self.value_net(cur_state_batch, policy_action).detach().cpu().numpy()
                 critic_eval_list += list(critic_eval)
 
