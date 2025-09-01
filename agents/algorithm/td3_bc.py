@@ -6,6 +6,7 @@ import math
 
 from agents.algorithm.agent import Agent
 from agents.models.actor_critic_td3_bc import ActorCritic, QNetwork, PolicyNetwork
+from utils.control_space import ControlSpace
 
 from decouple import config
 import sys
@@ -478,6 +479,8 @@ class FQE:
         self.batch_size = args.mini_batch_size
         self.gamma = args.fqe_gamma
 
+        self.control_space = ControlSpace(args.control_space_type, args.insulin_min, args.insulin_max)
+
         self.behaviour_policy = pi
         self.value_net = QNetwork(args, self.device).to(self.device)
         self.value_optimizer = torch.optim.Adam(self.value_net.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
@@ -505,6 +508,7 @@ class FQE:
             critic_eval_list = []
             critic_loss_list = []
             bc_loss_list = []
+            bc_ins_loss_list = []
 
             completed_iters = 0
             while completed_iters < self.queue.validation_length:
@@ -532,6 +536,15 @@ class FQE:
                 diff = nn.functional.mse_loss(policy_action,actions_batch.detach()).item()
                 bc_loss_list += [diff]
 
+                policy_action = policy_action.detach().cpu().numpy()
+                actions_batch = actions_batch.detach().cpu().numpy()
+
+                policy_action_ins = [ self.control_space.map(act) for act in policy_action ]
+                actions_batch_ins = [ self.control_space.map(act) for act in actions_batch ]
+
+                ins_diff = sum([ (act1 - act2)**2 for act1,act2 in zip(policy_action_ins, actions_batch_ins) ]) / self.batch_size
+                bc_ins_loss_list += [ins_diff]
+
                 completed_iters += self.batch_size
 
             self.queue.end_validation()
@@ -540,6 +553,7 @@ class FQE:
                 'critic_loss': np.mean(critic_loss_list), 
                 'critic_eval': np.mean(critic_eval_list), 
                 'action_diff': np.mean(bc_loss_list),
+                'action_diff_ins' : np.mean(bc_ins_loss_list)
             }
 
             if save_dest != None:
