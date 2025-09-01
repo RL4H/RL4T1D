@@ -483,7 +483,7 @@ class FQE:
         self.value_optimizer = torch.optim.Adam(self.value_net.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
         self.value_criterion = nn.MSELoss()
 
-    def update(self, epochs=10):
+    def update(self, epochs=100):
         for _ in range(epochs):
             cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = take_trn_batch(self.buffer, self.batch_size, self.args)
 
