@@ -538,9 +538,9 @@ class FQE:
                 # calculate critic loss
                 new_action, _ = self.behaviour_policy.policy.evaluate_policy_no_noise(next_state_batch)
                 next_values = self.value_net(next_state_batch, new_action)
-                target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
+                target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values)).detach().cpu().numpy()
 
-                predicted_value = self.value_net(cur_state_batch, actions_batch)
+                predicted_value = self.value_net(cur_state_batch, actions_batch).detach().cpu().numpy()
                 value_loss = [ (pred - targ)**2 for pred,targ in zip(predicted_value, target_value) ]
                 critic_loss_list += value_loss
 
@@ -565,6 +565,7 @@ class FQE:
                 completed_iters += self.batch_size
 
             self.queue.end_validation()
+
 
             ret_di = { 
                 'critic_loss':      (np.mean(critic_loss_list), np.std(critic_loss_list), len(critic_loss_list)), 
