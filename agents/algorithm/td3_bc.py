@@ -503,7 +503,7 @@ class FQE:
         self.value_optimizer = torch.optim.Adam(self.value_net.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
         self.value_criterion = nn.MSELoss()
 
-    def update(self, epochs=100):
+    def update(self, epochs=100, save_dest=None):
         for _ in range(epochs):
             cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = take_trn_batch(self.buffer, self.batch_size, self.args)
 
@@ -518,7 +518,8 @@ class FQE:
             value_loss.backward()
             self.value_optimizer.step()
 
-    def evaluate(self, save_dest):
+
+    def evaluate(self, save_dest_file=None, save_dest_network=None):
         self.queue.start_validation()
 
         with torch.no_grad():
@@ -574,10 +575,14 @@ class FQE:
                 'action_diff_ins' : (np.mean(bc_ins_loss_list), np.std(bc_ins_loss_list), len(bc_ins_loss_list))
             }
 
-            if save_dest != None:
+            if save_dest_file != None:
                 save_text = ','.join(list(ret_di.keys())) + '\n' + ','.join([ ';'.join([ str(t_i) for t_i in ret_di[k]]) for k in ret_di  ])
-                with open(save_dest, 'w') as f:
+                with open(save_dest_file, 'w') as f:
                     f.write(save_text)
+            
+            
+            if save_dest_network != None:
+                torch.save(self.value_net, save_dest_network)
 
             return ret_di
 
