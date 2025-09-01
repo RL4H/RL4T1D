@@ -21,8 +21,8 @@ preserve_trajectories : False
 # train
 n_step: 8192
 max_epi_length: 2880
-n_training_workers: 16
-total_interactions: 5000000 # total number of interactions the agent will train for #800000
+n_training_workers: 1
+total_interactions: 312500 # total number of interactions the agent will train for #800000
 n_interactions_lr_decay: 4000000
 
 batch_size : 8192
@@ -60,3 +60,7 @@ cr_lr: 1e-3
 n_handcrafted_features: -10 #FIXME
 n_features: 32
 use_handcraft: 0
+
+vf_lambda : 0
+fqe_gamma : 0.70
+fqe_interactions : 312500
