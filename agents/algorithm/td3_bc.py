@@ -483,7 +483,7 @@ class FQE:
 
     def update(self, epochs=10):
         for _ in range(epochs):
-            cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = take_trn_batch(self.buffer, self.batch_size, self.args)
+            cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = take_trn_batch(self.queue, self.batch_size, self.args)
 
             new_action, _ = self.behaviour_policy.forward(next_state_batch, mode='batch', worker_mode='no noise')
             next_values = self.value_net(next_state_batch, new_action)
