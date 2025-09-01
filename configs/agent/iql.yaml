@@ -26,6 +26,7 @@ total_interactions: 312500 # total number of interactions the agent will train f
 n_interactions_lr_decay: 4000000
 
 batch_size : 8192
+mini_batch_size : 8192
 n_pi_epochs: 100
 
 # test
