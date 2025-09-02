@@ -565,7 +565,6 @@ class FQE:
 
                 completed_iters += self.batch_size
 
-            self.queue.end_validation()
 
 
             ret_di = { 
@@ -583,6 +582,9 @@ class FQE:
             
             if save_dest_network != None:
                 torch.save(self.value_net, save_dest_network)
+            print("file and network saved")
+            
+            self.queue.end_validation()
 
             return ret_di
 
