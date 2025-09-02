@@ -583,8 +583,8 @@ class FQE:
             if save_dest_network != None:
                 torch.save(self.value_net, save_dest_network)
             print("file and network saved")
-            
-            self.queue.end_validation()
+
+            # self.queue.end_validation()
 
             return ret_di
 
