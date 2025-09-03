@@ -2,6 +2,7 @@ import gc
 import abc
 import time
 import torch
+torch.multiprocessing.set_start_method("spawn", force=True)
 
 from utils.worker import OnPolicyWorker, OffPolicyWorker, OfflineSampler
 from utils.buffers import onpolicy_buffers, offpolicy_buffers
