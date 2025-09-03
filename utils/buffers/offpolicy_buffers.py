@@ -25,11 +25,12 @@ class ReplayMemory(object):
 
         #send list of each field to the gpu
         fields = list(zip(*datapoints))
+        num_data = len(fields[0])
         tensor_fields = [torch.as_tensor(field, dtype=torch.float32, device=self.args.device) for field in fields]
-
+        
         #store each transition as a single item, linking back to the overall list
-        for i in range(tensor_fields[0].shape[0]):
-            self.memory.append(Transition(*[field[i].unsqueeze(0) for field in tensor_fields]))
+        for i in range(num_data):
+            self.memory.append(Transition(*[field[i].unsqueeze(0).clone() for field in tensor_fields]))
 
     def sample(self, batch_size):
         random.seed(self.current_seed)
