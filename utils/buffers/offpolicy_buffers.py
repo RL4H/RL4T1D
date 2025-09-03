@@ -1,6 +1,7 @@
 from collections import namedtuple, deque
 import random
 import torch
+import numpy as np
 
 Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'done'))
 
@@ -24,7 +25,7 @@ class ReplayMemory(object):
 
         #send list of each field to the gpu
         fields = list(zip(*datapoints))
-        tensor_fields = [torch.as_tensor(field, dtype=torch.float32, device=self.args.device) for field in fields]
+        tensor_fields = np.array([torch.as_tensor(field, dtype=torch.float32, device=self.args.device) for field in fields])
 
         #store each transition as a single item, linking back to the overall list
         for i in range(tensor_fields[0].shape[0]):

@@ -993,9 +993,9 @@ if __name__ == "__main__":
                 "patient_id" : patient_id,
                 "batch_size" : 8192,
                 "data_type" : "simulated", #simulated | clinical,
-                "data_protocols" : ["testing"], #None defaults to all, #["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC", "TD3", "DDPG", "DPG"]
-                "data_algorithms" : ['AUXML', 'G2P2C', 'PPO'], #None defaults to all,
-                "obs_window" : 6,
+                "data_protocols" : ["evaluation"], #None defaults to all, 
+                "data_algorithms" : ['G2P2C', 'PPO'], #None defaults to all, #["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC", "TD3", "DDPG", "DPG"]
+                "obs_window" : 12, #FIXME, this was 6, check if it affected hp5 runs.
                 "control_space_type" : 'exponential',
                 "insulin_min" : 0,
                 "insulin_max" : 5,
@@ -1030,7 +1030,7 @@ if __name__ == "__main__":
                 data.save_compact_loader_object()
                 print(f"\tData saved for seed {seed}.")
 
-    elif main_function == "special":
+    elif main_function == "special": 
         #take patient from seed 0 and recalculate for other seeds, for patients 0-9
 
         # from utils.sim_data import DataImporter, calculate_augmented_features

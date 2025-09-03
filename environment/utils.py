@@ -18,8 +18,8 @@ def get_env(args, worker_id=None, env_type=None):
 
     patients, env_ids = get_patient_env()
     patient_name = patients[args.patient_id]
-    env_id = str(worker_id + args.experiment.seed * 100000) + '_' + env_ids[args.patient_id]
-    # env_id = str(worker_id) + '_' + env_ids[args.patient_id]
+    # env_id = str(worker_id + args.experiment.seed * 100000) + '_' + env_ids[args.patient_id]
+    env_id = str(worker_id) + '_' + env_ids[args.patient_id]
     seed = worker_id + 100
 
     register(
