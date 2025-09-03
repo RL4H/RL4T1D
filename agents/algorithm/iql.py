@@ -101,10 +101,15 @@ class IQL(Agent):
             value_batch = self.value_network(cur_state_batch)
             value_loss = F.mse_loss(value_batch, torch.clamp_max(q_min, value_batch))
 
+
             self.value_optim.zero_grad()
             value_loss.backward()
             self.value_optim.step()
 
+            vf_loss += (value_loss).detach() / self.train_pi_iters
+            for param in self.value_network.parameters():
+                if param.grad is not None:
+                    val_grad += param.grad.sum() / self.train_pi_iters
 
             # update actor/policy network
             with torch.no_grad():
@@ -118,6 +123,9 @@ class IQL(Agent):
             actor_loss.backward()
             self.policy_optim.step()
 
+            pi_grad += torch.norm(torch.stack([
+                p.grad.norm(2) for p in self.policy.policy_net.parameters() if p.grad is not None
+            ]))
 
             # gentle updates 
             with torch.no_grad():

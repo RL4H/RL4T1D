@@ -41,7 +41,7 @@ n_pi_epochs: 20
 target_update_interval: 1
 
 # test
-n_testing_workers: 1
+n_testing_workers: 4
 max_test_epi_len: 288  # testing conducted for 1 day: 12 steps/hr * 24 hours
 
 # validation
@@ -94,5 +94,5 @@ pi_lambda : 0
 
 pi_clip : 100
 
-fqe_gamma : 0.70
+fqe_gamma : 0.99
 fqe_interactions : 125000
