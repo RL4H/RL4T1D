@@ -530,7 +530,8 @@ class FQE:
 
             completed_iters = 0
             while completed_iters < self.queue.validation_length:
-                transitions = self.queue.pop_validation_batch(self.batch_size)
+                iter_transitions = min(max(0, self.queue.validation_length- completed_iters) ,self.batch_size)
+                transitions = self.queue.pop_validation_batch(iter_transitions)
 
                 fields = list(zip(*transitions))
                 tensor_fields = [torch.as_tensor(field, dtype=torch.float32, device=self.args.device) for field in fields]
