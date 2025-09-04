@@ -993,7 +993,7 @@ if __name__ == "__main__":
                 "patient_id" : patient_id,
                 "batch_size" : 8192,
                 "data_type" : "simulated", #simulated | clinical,
-                "data_protocols" : ["evaluation"], #None defaults to all, 
+                "data_protocols" : ["training"], #None defaults to all, 
                 "data_algorithms" : ['G2P2C', 'PPO'], #None defaults to all, #["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC", "TD3", "DDPG", "DPG"]
                 "obs_window" : 12, #FIXME, this was 6, check if it affected hp5 runs.
                 "control_space_type" : 'exponential',

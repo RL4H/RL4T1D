@@ -24,14 +24,13 @@ class ReplayMemory(object):
         """ Save a transition, convert to tensors, as a batch"""
 
         #send list of each field to the gpu
-        with torch.no_grad():
-            fields = list(zip(*datapoints))
-            num_data = len(fields[0])
-            tensor_fields = [torch.as_tensor(field, dtype=torch.float32, device=self.args.device) for field in fields]
-            
-            #store each transition as a single item, linking back to the overall list
-            for i in range(num_data):
-                self.memory.append(Transition(*[field[i].unsqueeze(0).clone() for field in tensor_fields])) #use .clone() to avoid memory defragmentation issues
+        fields = list(zip(*datapoints))
+        num_data = len(fields[0])
+        tensor_fields = [torch.tensor(np.array(field, copy=True, dtype=np.float32), dtype=torch.float32, device=self.args.device, copy=True) for field in fields]
+        
+        #store each transition as a single item, linking back to the overall list
+        for i in range(num_data):
+            self.memory.append(Transition(*[field[i].unsqueeze(0).clone() for field in tensor_fields])) #use .clone() to avoid memory defragmentation issues
 
     def sample(self, batch_size):
         random.seed(self.current_seed)
