@@ -463,17 +463,17 @@ def retrieval_augmented_feature_trial(aug_states, row_n, window_size):
     # rewards = aug_states[:, -2]
     # done = aug_states[:, -1]
 
-    state = np.array(states[row_n: row_n+window_size])
-    action = np.array([aug_states[row_n+window_size-1, -3]])
-    reward = np.array([aug_states[row_n+window_size-1, -2]])
-    next_state = np.array(states[row_n+1: row_n+window_size+1])
-    done = np.array([aug_states[min(row_n + window_size, rows - 1), -1]])
+    # state = np.array(states[row_n: row_n+window_size])
+    # action = np.array([aug_states[row_n+window_size-1, -3]])
+    # reward = np.array([aug_states[row_n+window_size-1, -2]])
+    # next_state = np.array(states[row_n+1: row_n+window_size+1])
+    # done = np.array([aug_states[min(row_n + window_size, rows - 1), -1]])
 
-    # state = states[row_n: row_n + window_size]
-    # action = [aug_states[row_n + window_size - 1][-3]]
-    # reward = [aug_states[row_n + window_size - 1][-2]]
-    # next_state = states[row_n + 1: row_n + window_size + 1]
-    # done = [aug_states[min(row_n + window_size, rows - 1)][-1]]
+    state = np.array(states[row_n: row_n + window_size])
+    action = np.array([aug_states[row_n + window_size - 1][-3]])
+    reward = np.array([aug_states[row_n + window_size - 1][-2]])
+    next_state = np.array(states[row_n + 1: row_n + window_size + 1])
+    done = np.array([aug_states[min(row_n + window_size, rows - 1)][-1]])
 
     
     return Transition(state, action, reward, next_state, done)
