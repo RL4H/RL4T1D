@@ -25,9 +25,14 @@ class ReplayMemory(object):
 
         #send list of each field to the gpu
         fields = list(zip(*datapoints))
+
+        for idx, field in enumerate(fields): #detects incorrectly shaped data and errors before gpu memory allocation
+            if len({x.shape for x in field}) > 1:
+                raise ValueError(f"Inconsistent shapes in field {idx}: {[x.shape for x in field]}")
+            
         num_data = len(fields[0])
         tensor_fields = [torch.tensor(np.array(field, copy=True, dtype=np.float32), dtype=torch.float32, device=self.args.device) for field in fields]
-        
+
         #store each transition as a single item, linking back to the overall list
         for i in range(num_data):
             self.memory.append(Transition(*[field[i].unsqueeze(0).clone() for field in tensor_fields])) #use .clone() to avoid memory defragmentation issues
