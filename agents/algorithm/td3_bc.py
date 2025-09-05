@@ -39,7 +39,7 @@ class TD3_BC(Agent):
         self.beta = args.beta
         self.pi_lambda = args.pi_lambda
 
-        ### TD3 Params
+        ### TD3 + BC  Params
         self.n_step = args.n_step
         self.feature_history = args.feature_history
         self.n_handcrafted_features = args.n_handcrafted_features
@@ -70,7 +70,7 @@ class TD3_BC(Agent):
         self.weight_decay_pi = args.pi_lambda
 
 
-        ### TD3 networks:
+        ### TD3 + BC networks:
         self.policy = ActorCritic(args, load_model, actor_path, critic_path, self.device).to(self.device)
 
         self.value_criterion1 = nn.MSELoss()

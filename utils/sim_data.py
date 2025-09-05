@@ -1025,7 +1025,7 @@ if __name__ == "__main__":
             del handler
             del importer
             data = CompactLoader(
-                args, args.batch_size*10, args.batch_size*101, 
+                args, args.batch_size*2, args.batch_size*4, 
                 flat_trials,
                 lambda trial : calculate_augmented_features(trial, args, args),
                 1,

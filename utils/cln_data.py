@@ -773,7 +773,6 @@ if __name__ == "__main__":
     
 
         for patient_id in range(SUBJECTS_N):
-            gc.collect()
             print("Importing for patient id",patient_id,"index",get_patient_attrs("clinical" + str(patient_id))["subj_id"])
             args = OmegaConf.create({
                 "patient_ind" : patient_id,

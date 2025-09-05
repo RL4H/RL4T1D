@@ -110,7 +110,6 @@ class CompactLoader:
 
             print("clearing excess memory")
             del trials_list
-            gc.collect()
             print("memory cleared")
             
             del self.cum_n
@@ -247,7 +246,6 @@ class CompactLoader:
     def clear_load(self):
         del self.trials_list
         self.loaded = False
-        gc.collect()
     def get_trial_inds(self, ind): #also assumes loaded, for self.cum_n
         trial_ind = bisect_right(self.cum_n, ind)
         before_ind = int(trial_ind != 0) * self.cum_n[trial_ind-1] #default to starting at index 0 if this is first trial, avoiding if statment for faster retrieval
@@ -270,7 +268,6 @@ class CompactLoader:
                 self.queue.append(self[self.training_indicies[self.training_ind]])
                 self.training_ind = (self.training_ind + 1) % tr_length
             self.clear_load()
-            gc.collect()
     def pop(self):
         new_item = self.queue.pop(0)
         self.sync_queue()
@@ -294,7 +291,6 @@ class CompactLoader:
             for _ in range(remaining_length):
                 self.vld_queue.append(self[self.validation_indicies[self.validation_ind]])
                 self.validation_ind = (self.validation_ind + 1) % self.validation_length
-            gc.collect()
     def pop_validation(self):
         out = self.vld_queue.pop(0)
         self.sync_validation()
