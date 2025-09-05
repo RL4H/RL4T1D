@@ -46,7 +46,7 @@ def load_compact_loader_object(file_dest):
 
 retrieval_funcs = [
     lambda conv_trial, trial_ind, args : conv_trial[trial_ind: trial_ind+args.obs_window],
-    lambda conv_trial, trial_ind, args : retrieval_augmented_feature_trial(np.array(conv_trial), trial_ind, args.obs_window)
+    lambda conv_trial, trial_ind, args : retrieval_augmented_feature_trial(conv_trial, trial_ind, args.obs_window)
 ]
 
 class CompactLoader:
