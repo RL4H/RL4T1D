@@ -265,7 +265,8 @@ class CompactLoader:
             self.load()
             remaining_length = self.maximum_length - len(self.queue)
             tr_length = len(self.training_indicies)
-            for _ in range(remaining_length):
+            for n in range(remaining_length):
+                print("Adding data",remaining_length - n - 1)
                 self.queue.append(self[self.training_indicies[self.training_ind]])
                 self.training_ind = (self.training_ind + 1) % tr_length
             self.clear_load()
@@ -291,7 +292,6 @@ class CompactLoader:
         if len(self.vld_queue) <= 0:
             remaining_length = self.validation_length - len(self.vld_queue)
             for _ in range(remaining_length):
-                print("Adding data",randrange(0,100))
                 self.vld_queue.append(self[self.validation_indicies[self.validation_ind]])
                 self.validation_ind = (self.validation_ind + 1) % self.validation_length
             gc.collect()
