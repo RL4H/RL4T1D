@@ -278,9 +278,9 @@ class ActorCritic(nn.Module):
         self.value_net2 = QNetwork(args, device)
 
         if load:
-            self.policy_net = torch.load(actor_path, map_location=device)
-            self.value_net1 = torch.load(critic_path, map_location=device)
-            self.value_net2 = torch.load(critic_path, map_location=device)
+            self.policy_net = torch.load(actor_path, map_location=device, weights_only=False) #FIXME disable option, can lead to bad things
+            self.value_net1 = torch.load(critic_path, map_location=device, weights_only=False)
+            self.value_net2 = torch.load(critic_path, map_location=device, weights_only=False)
 
         # Copy for target networks
         self.policy_net_target = deepcopy(self.policy_net)  # PolicyNetwork(args, device)
