@@ -439,15 +439,15 @@ def extend_slice(li, start, end):
 reward_horizon=6
 reward_shift = 3
 def calculate_augmented_features(data_obj, args, env_args, reward_func=DEFAULT_REWARD_FUNC):
-    rows, _ = data_obj.shape
+    rows = len(data_obj)
 
-    actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
-    rewards = [reward_func( [data_obj[:, 0][min(row_n + 1, rows - 1)] ])for row_n in range(rows)] 
+    actions = [pump_to_rl_action(row[2], args, env_args) for row in data_obj]
+    rewards = [ reward_func([data_obj[min(row_n + 1, rows - 1)][0]]) for row_n in range(rows) ]
     # rewards = [reward_func( extend_slice(data_obj[:, 0], row_n+reward_shift-reward_horizon, row_n+reward_shift) ) for row_n in range(rows)] 
 
     aug_states = [
-        list(calculate_features(data_row, args, env_args)) + [actions[n], rewards[n], (n >= rows - 2)]
-            for n, data_row in enumerate(data_obj)
+        list(calculate_features(data_row, args, env_args)) + [actions[n], rewards[n], (n >= rows - 2)] 
+        for n, data_row in enumerate(data_obj)
     ]
 
     return aug_states
