@@ -453,11 +453,11 @@ def calculate_augmented_features(data_obj, args, env_args, reward_func=DEFAULT_R
     return aug_states
 
 def retrieval_augmented_feature_trial(aug_states, row_n, window_size):
-    states = aug_states[:, :-3]
-    rows, _ = aug_states.shape
+    # states = aug_states[:, :-3]
+    # rows, _ = aug_states.shape
 
-    # rows = len(aug_states)
-    # states = [row[:-3] for row in aug_states]
+    rows = len(aug_states)
+    states = [row[:-3] for row in aug_states]
 
     # actions = aug_states[:, -3]
     # rewards = aug_states[:, -2]
