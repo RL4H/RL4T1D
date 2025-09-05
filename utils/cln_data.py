@@ -796,7 +796,7 @@ if __name__ == "__main__":
             del importer
 
             data = CompactLoader(
-                args, args.batch_size*10, args.batch_size*101, 
+                args, args.batch_size*1, args.batch_size*4, 
                 flat_trials,
                 lambda trial : calculate_augmented_features(convert_df_to_arr(trial), args, args),
                 1,
