@@ -14,7 +14,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import pickle
 torch.cuda.empty_cache()
-from random import seed, shuffle
+from random import seed, shuffle, randrange
 
 from bisect import bisect_right
 
@@ -291,6 +291,7 @@ class CompactLoader:
         if len(self.vld_queue) <= 0:
             remaining_length = self.validation_length - len(self.vld_queue)
             for _ in range(remaining_length):
+                print("Adding data",randrange(0,100))
                 self.vld_queue.append(self[self.validation_indicies[self.validation_ind]])
                 self.validation_ind = (self.validation_ind + 1) % self.validation_length
             gc.collect()
