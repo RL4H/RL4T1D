@@ -538,10 +538,10 @@ class FQE:
                 iter_transitions = min(max(0, self.queue.validation_length- completed_iters) ,self.batch_size)
                 transitions = self.queue.pop_validation_batch(iter_transitions)
 
-                fields = list(zip(*transitions))
+                fields = np.array(list(zip(*transitions)))
                 tensor_fields = [torch.as_tensor(field, dtype=torch.float32, device=self.args.device) for field in fields]
                 cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = tuple(tensor_fields)
-                
+
 
                 # calculate critic loss
                 new_action, _ = self.behaviour_policy.policy.evaluate_policy_no_noise(next_state_batch)
