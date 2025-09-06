@@ -486,7 +486,7 @@ def update_mean_std(prev_mean, prev_std, prev_n, new_n):
     return new_mean, new_std, new_n
 
 class FQE:
-    def __init__(self, args, pi, buffer, queue):
+    def __init__(self, args, pi, buffer, queue, policy_path = None):
         self.args = args
         self.device = args.device
         self.value_lr = args.vf_lr
@@ -499,7 +499,13 @@ class FQE:
         self.control_space = ControlSpace(args.control_space_type, args.insulin_min, args.insulin_max)
 
         self.behaviour_policy = pi
-        self.value_net = QNetwork(args, self.device).to(self.device)
+
+        if policy_path != None:
+            self.value_net = torch.load(policy_path, map_location=self.device, weights_only=False) #FIXME disable option, can lead to bad things
+        else:
+            self.value_net = QNetwork(args, self.device).to(self.device)
+
+
         self.value_optimizer = torch.optim.Adam(self.value_net.parameters(), lr=self.value_lr, weight_decay=self.weight_decay_vf)
         self.value_criterion = nn.MSELoss()
 
@@ -518,7 +524,6 @@ class FQE:
             value_loss.backward()
             self.value_optimizer.step()
 
-
     def evaluate(self, save_dest_file=None, save_dest_network=None):
         self.queue.start_validation()
 
@@ -536,6 +541,7 @@ class FQE:
                 fields = list(zip(*transitions))
                 tensor_fields = [torch.as_tensor(field, dtype=torch.float32, device=self.args.device) for field in fields]
                 cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = tuple(tensor_fields)
+                
 
                 # calculate critic loss
                 new_action, _ = self.behaviour_policy.policy.evaluate_policy_no_noise(next_state_batch)
