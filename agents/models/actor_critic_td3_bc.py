@@ -21,6 +21,7 @@ class FeatureExtractor(nn.Module):
         self.n_layers = args.n_rnn_layers
         self.bidirectional = args.bidirectional
         self.directions = args.rnn_directions
+        print(self.n_features, self.n_handcrafted_features, self.n_hidden, self.n_layers, self.bidirectional, self.directions)
         self.LSTM = nn.LSTM(input_size=self.n_features, hidden_size=self.n_hidden, num_layers=self.n_layers, batch_first=True, bidirectional=self.bidirectional)  # (seq_len, batch, input_size)
 
     def forward(self, s, mode):
