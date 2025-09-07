@@ -63,5 +63,5 @@ n_features: 32
 use_handcraft: 0
 
 vf_lambda : 0
-fqe_gamma : 0.70
-fqe_interactions : 312500
+fqe_gamma : 0.99
+fqe_interactions : 125000
