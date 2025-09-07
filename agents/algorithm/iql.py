@@ -125,10 +125,10 @@ class IQL(Agent):
                 for param, target_param in zip(self.policy.value_net.parameters(), self.policy.value_net_target.parameters()):
                     target_param.data.copy_(self.soft_tau * param.data + (1 - self.soft_tau) * target_param.data)
 
-                for param, target_param in zip(self.policy.critic_net1.parameters(), self.policy.value_net_target1.parameters()):
+                for param, target_param in zip(self.policy.critic_net1.parameters(), self.policy.critic_net_target1.parameters()):
                     target_param.data.mul_((1 - self.soft_tau))
                     target_param.data.add_(self.soft_tau * param.data)
-                for param, target_param in zip(self.policy.critic_net2.parameters(), self.policy.value_net_target2.parameters()):
+                for param, target_param in zip(self.policy.critic_net2.parameters(), self.policy.critic_net_target2.parameters()):
                     target_param.data.mul_((1 - self.soft_tau))
                     target_param.data.add_(self.soft_tau * param.data)
 
