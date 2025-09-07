@@ -50,7 +50,7 @@ def set_agent_parameters(cfg):
         agent = TD3_BC(args=cfg.agent, env_args=cfg.env, logger=logger, load_model=False, actor_path='', critic_path='')
     elif cfg.agent.agent == 'iql':
         from agents.algorithm.iql import IQL
-        agent = IQL(args=cfg.agent, env_args=cfg.env, logger=logger, load_model=False, actor_path='', critic_path='')
+        agent = IQL(args=cfg.agent, env_args=cfg.env, logger=logger, load_model=False, actor_path='', critic_path='', value_path='')
     else:
         print('Please select an agent for the experiment. Hint: a2c, sac, ppo, g2p2c, offline, td3_bc')
     return agent
