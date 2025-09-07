@@ -241,14 +241,14 @@ class PolicyNetwork(nn.Module):
         policy_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net.pth'
         policy_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net_target.pth'
         
-        value_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_value_net.pth'
-        value_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_value_net_target.pth'
+        critic_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_critic_net.pth'
+        critic_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_critic_net_target.pth'
 
         torch.save(self.policy_net, policy_net_path)
         torch.save(self.policy_net_target, policy_net_target_path)
         
-        torch.save(self.value_net1, value_net_path)
-        torch.save(self.value_net_target1, value_net_target_path)
+        torch.save(self.critic_net1, critic_net_path)
+        torch.save(self.critic_net_target1, critic_net_target_path)
 
 
 
@@ -306,26 +306,28 @@ class ExploratoryNoise:
         self.noise = torch.distributions.Normal(0, self.sigma).rsample()
 
 class ActorCritic(nn.Module):
-    def __init__(self, args, load, actor_path, critic_path, device):
+    def __init__(self, args, load, actor_path, critic_path, value_path, device):
         super(ActorCritic, self).__init__()
         self.device = device
         self.experiment_dir = args.experiment_dir
         self.is_testing_worker = False
-        # self.sac_v2 = args.sac_v2
-        self.policy_net = PolicyNetwork(args, device)
 
-        self.value_net1 = QNetwork(args, device)
-        self.value_net2 = QNetwork(args, device)
+        self.policy_net = PolicyNetwork(args, device)
+        self.critic_net1 = QNetwork(args, device)
+        self.critic_net2 = QNetwork(args, device)
+        self.value_net = ValueNetwork(args, self.device)
 
         if load:
             self.policy_net = torch.load(actor_path, map_location=device)
-            self.value_net1 = torch.load(critic_path, map_location=device)
-            self.value_net2 = torch.load(critic_path, map_location=device)
+            self.critic_net1 = torch.load(critic_path, map_location=device)
+            self.critic_net2 = torch.load(critic_path, map_location=device)
+            self.value_net = torch.load(value_path, map_location=self.device)
 
         # Copy for target networks
         self.policy_net_target = deepcopy(self.policy_net)  # PolicyNetwork(args, device)
-        self.value_net_target1 = deepcopy(self.value_net1)#QNetwork(args, device)
-        self.value_net_target2 = deepcopy(self.value_net2)  # QNetwork(args, device)
+        self.critic_net_target1 = deepcopy(self.critic_net1) #QNetwork(args, device)
+        self.critic_net_target2 = deepcopy(self.critic_net2)  # QNetwork(args, device)
+        self.value_net_target = deepcopy(self.value_net)
 
     def get_action(self, s, mode='forward', worker_mode='training'):
         s = torch.as_tensor(s, dtype=torch.float32, device=self.device)
@@ -363,11 +365,11 @@ class ActorCritic(nn.Module):
         policy_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net.pth'
         policy_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net_target.pth'
         
-        value_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_value_net.pth'
-        value_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_value_net_target.pth'
+        critic_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_critic_net.pth'
+        critic_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_critic_net_target.pth'
 
         torch.save(self.policy_net, policy_net_path)
         torch.save(self.policy_net_target, policy_net_target_path)
         
-        torch.save(self.value_net1, value_net_path)
-        torch.save(self.value_net_target1, value_net_target_path)
+        torch.save(self.critic_net1, critic_net_path)
+        torch.save(self.critic_net_target1, critic_net_target_path)

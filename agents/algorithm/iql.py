@@ -19,7 +19,7 @@ Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state'
 
 
 class IQL(Agent):
-    def __init__(self, args, env_args, logger, load_model, actor_path, critic_path):
+    def __init__(self, args, env_args, logger, load_model, actor_path, critic_path, value_path):
         super(IQL, self).__init__(args, env_args=env_args, logger=logger, type="Offline")
         self.device = args.device
         self.completed_interactions = 0
@@ -39,19 +39,11 @@ class IQL(Agent):
         self.actor_lr = args.pi_lr
 
         # component networks
-        self.policy = ActorCritic(args, load_model, actor_path, critic_path, self.device).to(self.device)
-        # self.critic_network_1 = QNetwork(args, self.device)
-        # self.critic_network_2 = QNetwork(args, self.device)
-        self.value_network = ValueNetwork(args, self.device)
-        # self.policy = PolicyNetwork(args, self.device)
-
-        # self.critic_network_1_target = deepcopy(self.critic_network_1)
-        # self.critic_network_2_target = deepcopy(self.critic_network_2)
-        self.value_network_target = deepcopy(self.value_network)
+        self.policy = ActorCritic(args, load_model, actor_path, critic_path, value_path, self.device).to(self.device)
 
         self.critic_optim_1 = torch.optim.Adam(self.policy.value_net1.parameters() , lr=self.critic_lr, weight_decay=0)
         self.critic_optim_2 = torch.optim.Adam(self.policy.value_net1.parameters() , lr=self.critic_lr, weight_decay=0)
-        self.value_optim = torch.optim.Adam(self.value_network.parameters() , lr=self.value_lr, weight_decay=0)
+        self.value_optim = torch.optim.Adam(self.policy.value_net.parameters() , lr=self.value_lr, weight_decay=0)
         self.policy_optim = torch.optim.Adam(self.policy.parameters() , lr=self.actor_lr, weight_decay=0)
 
 
@@ -78,7 +70,7 @@ class IQL(Agent):
 
             # update critic networks
             with torch.no_grad():
-                next_value_batch = self.value_network(next_state_batch) #use stabilised value network instead
+                next_value_batch = self.policy.value_net(next_state_batch) #use stabilised value network instead
                 target_q_batch = reward_batch + self.discount * (1 - done_batch) * next_value_batch #FIXME check elementwise
 
             q1_batch = self.policy.value_net1(cur_state_batch, actions_batch)
@@ -98,7 +90,7 @@ class IQL(Agent):
             with torch.no_grad():
                 q_min = torch.min(q1_batch.detach(), q2_batch.detach())
             
-            value_batch = self.value_network(cur_state_batch)
+            value_batch = self.policy.value_net(cur_state_batch)
             value_loss = F.mse_loss(value_batch, torch.clamp_max(q_min, value_batch))
 
 
@@ -107,13 +99,13 @@ class IQL(Agent):
             self.value_optim.step()
 
             vf_loss += (value_loss).detach() / self.train_pi_iters
-            for param in self.value_network.parameters():
+            for param in self.policy.value_net.parameters():
                 if param.grad is not None:
                     val_grad += param.grad.sum() / self.train_pi_iters
 
             # update actor/policy network
             with torch.no_grad():
-                advantage = q_min - self.value_network(cur_state_batch)
+                advantage = q_min - self.policy.value_net(cur_state_batch)
                 weights = torch.exp(self.beta * advantage).clamp(max=1e2)
             
             log_prob_batch = self.policy.policy_net.log_prob(cur_state_batch, actions_batch)
@@ -129,7 +121,7 @@ class IQL(Agent):
 
             # gentle updates 
             with torch.no_grad():
-                for param, target_param in zip(self.value_network.parameters(), self.value_network_target.parameters()):
+                for param, target_param in zip(self.policy.value_net.parameters(), self.policy.value_net_target.parameters()):
                     target_param.data.copy_(self.soft_tau * param.data + (1 - self.soft_tau) * target_param.data)
 
                 for param, target_param in zip(self.policy.value_net1.parameters(), self.policy.value_net_target1.parameters()):
