@@ -41,8 +41,9 @@ class IQL(Agent):
         # component networks
         self.policy = ActorCritic(args, load_model, actor_path, critic_path, value_path, self.device).to(self.device)
 
-        self.critic_optim_1 = torch.optim.Adam(self.policy.value_net1.parameters() , lr=self.critic_lr, weight_decay=0)
-        self.critic_optim_2 = torch.optim.Adam(self.policy.value_net1.parameters() , lr=self.critic_lr, weight_decay=0)
+
+        self.critic_optim_1 = torch.optim.Adam(self.policy.critic_net1.parameters() , lr=self.critic_lr, weight_decay=0)
+        self.critic_optim_2 = torch.optim.Adam(self.policy.critic_net2.parameters() , lr=self.critic_lr, weight_decay=0)
         self.value_optim = torch.optim.Adam(self.policy.value_net.parameters() , lr=self.value_lr, weight_decay=0)
         self.policy_optim = torch.optim.Adam(self.policy.parameters() , lr=self.actor_lr, weight_decay=0)
 
@@ -73,13 +74,13 @@ class IQL(Agent):
                 next_value_batch = self.policy.value_net(next_state_batch) #use stabilised value network instead
                 target_q_batch = reward_batch + self.discount * (1 - done_batch) * next_value_batch #FIXME check elementwise
 
-            q1_batch = self.policy.value_net1(cur_state_batch, actions_batch)
+            q1_batch = self.policy.critic_net1(cur_state_batch, actions_batch)
             critic_loss_1 = F.mse_loss(q1_batch, target_q_batch)
             self.critic_optim_1.zero_grad()
             critic_loss_1.backward()
             self.critic_optim_1.step()
 
-            q2_batch = self.policy.value_net2(cur_state_batch, actions_batch)
+            q2_batch = self.policy.critic_net2(cur_state_batch, actions_batch)
             critic_loss_2 = F.mse_loss(q2_batch, target_q_batch)
             self.critic_optim_2.zero_grad()
             critic_loss_2.backward()
@@ -124,10 +125,10 @@ class IQL(Agent):
                 for param, target_param in zip(self.policy.value_net.parameters(), self.policy.value_net_target.parameters()):
                     target_param.data.copy_(self.soft_tau * param.data + (1 - self.soft_tau) * target_param.data)
 
-                for param, target_param in zip(self.policy.value_net1.parameters(), self.policy.value_net_target1.parameters()):
+                for param, target_param in zip(self.policy.critic_net1.parameters(), self.policy.value_net_target1.parameters()):
                     target_param.data.mul_((1 - self.soft_tau))
                     target_param.data.add_(self.soft_tau * param.data)
-                for param, target_param in zip(self.policy.value_net2.parameters(), self.policy.value_net_target2.parameters()):
+                for param, target_param in zip(self.policy.critic_net2.parameters(), self.policy.value_net_target2.parameters()):
                     target_param.data.mul_((1 - self.soft_tau))
                     target_param.data.add_(self.soft_tau * param.data)
 
