@@ -120,22 +120,6 @@ class IQL(Agent):
                 p.grad.norm(2) for p in self.policy.policy_net.parameters() if p.grad is not None
             ]))
 
-            # gentle updates 
-            with torch.no_grad():
-                for param, target_param in zip(self.policy.value_net.parameters(), self.policy.value_net_target.parameters()):
-                    target_param.data.copy_(self.soft_tau * param.data + (1 - self.soft_tau) * target_param.data)
-
-                for param, target_param in zip(self.policy.critic_net1.parameters(), self.policy.critic_net_target1.parameters()):
-                    target_param.data.mul_((1 - self.soft_tau))
-                    target_param.data.add_(self.soft_tau * param.data)
-                for param, target_param in zip(self.policy.critic_net2.parameters(), self.policy.critic_net_target2.parameters()):
-                    target_param.data.mul_((1 - self.soft_tau))
-                    target_param.data.add_(self.soft_tau * param.data)
-
-                for param, target_param in zip(self.policy.policy_net.parameters(), self.policy.policy_net_target.parameters()):
-                    target_param.data.mul_((1 - self.soft_tau))
-                    target_param.data.add_(self.soft_tau * param.data)
-
         print(f"################ updated target networks {self.train_pi_iters} times")
 
 

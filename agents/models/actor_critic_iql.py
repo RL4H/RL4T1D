@@ -239,16 +239,12 @@ class PolicyNetwork(nn.Module):
     
     def save(self, episode):
         policy_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net.pth'
-        policy_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net_target.pth'
         
         critic_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_critic_net.pth'
-        critic_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_critic_net_target.pth'
 
         torch.save(self.policy_net, policy_net_path)
-        torch.save(self.policy_net_target, policy_net_target_path)
         
         torch.save(self.critic_net1, critic_net_path)
-        torch.save(self.critic_net_target1, critic_net_target_path)
 
 
 
@@ -323,12 +319,6 @@ class ActorCritic(nn.Module):
             self.critic_net2 = torch.load(critic_path, map_location=device)
             self.value_net = torch.load(value_path, map_location=self.device)
 
-        # Copy for target networks
-        self.policy_net_target = deepcopy(self.policy_net)  # PolicyNetwork(args, device)
-        self.critic_net_target1 = deepcopy(self.critic_net1) #QNetwork(args, device)
-        self.critic_net_target2 = deepcopy(self.critic_net2)  # QNetwork(args, device)
-        self.value_net_target = deepcopy(self.value_net)
-
     def get_action(self, s, mode='forward', worker_mode='training'):
         s = torch.as_tensor(s, dtype=torch.float32, device=self.device)
         mu, sigma, action, log_prob = self.policy_net.forward(s, mode=mode, worker_mode=worker_mode)
@@ -357,19 +347,11 @@ class ActorCritic(nn.Module):
         mu, sigma, action, log_prob = self.policy_net.forward(state, mode='batch', worker_mode='no noise')
         return action, log_prob
 
-    def evaluate_target_policy_noise(self, state):  # evaluate batch
-        mu, sigma, action, log_prob = self.policy_net_target.forward(state, mode='batch', worker_mode='target')
-        return action, log_prob
-
     def save(self, episode):
         policy_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net.pth'
-        policy_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_policy_net_target.pth'
         
         critic_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_critic_net.pth'
-        critic_net_target_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_critic_net_target.pth'
 
         torch.save(self.policy_net, policy_net_path)
-        torch.save(self.policy_net_target, policy_net_target_path)
         
         torch.save(self.critic_net1, critic_net_path)
-        torch.save(self.critic_net_target1, critic_net_target_path)
