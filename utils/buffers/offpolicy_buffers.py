@@ -21,21 +21,28 @@ class ReplayMemory(object):
         self.memory.append(Transition(*tensor_args))
 
     def store_batch(self, datapoints):
-        """ Save a transition, convert to tensors, as a batch"""
+        """Save a batch of transitions individually, efficiently."""
 
-        #send list of each field to the gpu
+        # Transpose list of datapoints into fields
         fields = list(zip(*datapoints))
 
-        for idx, field in enumerate(fields): #detects incorrectly shaped data and errors before gpu memory allocation
-            if len({x.shape for x in field}) > 1:
+        # Check shapes once up front
+        for idx, field in enumerate(fields):
+            shapes = {tuple(x.shape) for x in field}
+            if len(shapes) > 1:
                 raise ValueError(f"Inconsistent shapes in field {idx}: {[x.shape for x in field]}")
-            
-        num_data = len(fields[0])
-        tensor_fields = [torch.tensor(np.array(field, copy=True, dtype=np.float32), dtype=torch.float32, device=self.args.device) for field in fields]
 
-        #store each transition as a single item, linking back to the overall list
+        num_data = len(fields[0])
+
+        # Convert each field into a single batched tensor (contiguous on GPU)
+        tensor_fields = [
+            torch.stack([torch.as_tensor(x, dtype=torch.float32) for x in field], dim=0).to(self.args.device)
+            for field in fields
+        ]
+
+        # Slice without clone (cheap, avoids fragmentation)
         for i in range(num_data):
-            self.memory.append(Transition(*[field[i].unsqueeze(0).clone() for field in tensor_fields])) #use .clone() to avoid memory defragmentation issues
+            self.memory.append(Transition(*[field[i:i+1] for field in tensor_fields]))
 
     def sample(self, batch_size):
         random.seed(self.current_seed)
