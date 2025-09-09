@@ -389,7 +389,8 @@ def convert_df_to_arr(df):
     
     # return arr
 
-    return df[COL_ORDERING].values.tolist()
+    # return df[COL_ORDERING].values.tolist()
+    return df[COL_ORDERING].to_numpy(copy=True)
 
 
 
