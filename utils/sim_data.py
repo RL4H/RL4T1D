@@ -22,7 +22,7 @@ MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
 from environment.reward_func import composite_reward, composite_reward_2, composite_reward_3, composite_reward_4
-from utils.core import linear_scaling, calculate_features, pump_to_rl_action, pump_to_rl_action_vec
+from utils.core import linear_scaling, calculate_features, pump_to_rl_action
 Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'done'))
 
 
@@ -438,46 +438,17 @@ def extend_slice(li, start, end):
 
 reward_horizon=6
 reward_shift = 3
-# def calculate_augmented_features(data_obj, args, env_args, reward_func=DEFAULT_REWARD_FUNC):
-#     rows = len(data_obj)
-#     data_obj[['days', 'hours', 'mins']] = data_obj['t'].str.split(':', expand=True).astype(int)
-
-
-#     # actions = [pump_to_rl_action(row[2], args, env_args) for row in data_obj]
-#     actions = pump_to_rl_action_vec(data_obj[:, 2], args, env_args)
-#     rewards = [ reward_func([data_obj[min(row_n + 1, rows - 1)][0]]) for row_n in range(rows) ]
-#     # rewards = [reward_func( extend_slice(data_obj[:, 0], row_n+reward_shift-reward_horizon, row_n+reward_shift) ) for row_n in range(rows)] 
-
-#     aug_states = [
-#         list(calculate_features(data_row, args, env_args)) + [actions[n], rewards[n], (n >= rows - 2)] 
-#         for n, data_row in enumerate(data_obj)
-#     ]
-
-#     return aug_states
-
 def calculate_augmented_features(data_obj, args, env_args, reward_func=DEFAULT_REWARD_FUNC):
     rows = len(data_obj)
 
-    # Precompute next indices for reward
-    next_idx = np.arange(1, rows + 1)
-    next_idx[-1] = rows - 1
+    actions = [pump_to_rl_action(row[2], args, env_args) for row in data_obj]
+    rewards = [ reward_func([data_obj[min(row_n + 1, rows - 1)][0]]) for row_n in range(rows) ]
+    # rewards = [reward_func( extend_slice(data_obj[:, 0], row_n+reward_shift-reward_horizon, row_n+reward_shift) ) for row_n in range(rows)] 
 
-    # Vectorized actions
-    actions = pump_to_rl_action_vec(data_obj[:, 2], args, env_args)
-
-    # Rewards (vectorized if reward_func allows it)
-    rewards = [reward_func([data_obj[i, 0]]) for i in next_idx]
-
-    # Preallocate
-    feature_dim = len(env_args.obs_features)
-    aug_states = np.empty((rows, feature_dim + 3), dtype=np.float32)
-
-    # Fill features
-    for n in range(rows):
-        aug_states[n, :-3] = calculate_features(data_obj[n], args, env_args)
-        aug_states[n, -3] = actions[n]
-        aug_states[n, -2] = rewards[n]
-        aug_states[n, -1] = (n >= rows - 2)
+    aug_states = [
+        list(calculate_features(data_row, args, env_args)) + [actions[n], rewards[n], (n >= rows - 2)] 
+        for n, data_row in enumerate(data_obj)
+    ]
 
     return aug_states
 

@@ -100,43 +100,29 @@ MEAL_MAX = 100 #FIXME paramaterise
 EXP_FACT_PS_SUM = math.exp(EXP_SCALING_FACT) - math.exp(-EXP_SCALING_FACT)
 EXP_S_FACT = math.exp(-EXP_SCALING_FACT)
 
-# def calculate_features(data_row, args, env_args):
-#     cgm, meal, ins, t, meta_data = tuple(data_row)
-#     days,hours,mins = tuple([int(i) for i in t.split(':')])
-
-#     info = dict()
-
-#     # if ins > args.insulin_max: #FIXME remove
-#     #     print(data_row, ins, args.insulin_max)
-#     #     raise ValueError
-#     # info["insulin"] = linear_scaling(x=ins, x_min=args.insulin_min, x_max=args.insulin_max)
-#     info["insulin"] = pump_to_rl_action(ins, args, env_args) #TODO decide if to use this or not
-
-
-#     info["cgm"] = linear_scaling(x=cgm, x_min=args.glucose_min, x_max=args.glucose_max)
-    
-#     info['future_carb'] = 0 #FIXME implement
-#     info['remaining_time'] = 0 #FIXME implement
-#     info['day_hour'] = linear_scaling(x=hours, x_min=0, x_max=23)
-#     info['day_min'] = linear_scaling(x=mins, x_min=0, x_max=59)
-#     info['meal_type'] = 0 #FIXME implement
-#     info['meal'] = linear_scaling(meal, 0, MEAL_MAX)
-
-#     return [ info[feat] for feat in env_args.obs_features]
-
 def calculate_features(data_row, args, env_args):
-    cgm, meal, ins, days, hours, mins, meta_data = data_row
+    cgm, meal, ins, t, meta_data = tuple(data_row)
+    days,hours,mins = tuple([int(i) for i in t.split(':')])
 
-    return np.array([
-        pump_to_rl_action_vec(ins, args, env_args),  # insulin
-        linear_scaling(cgm, args.glucose_min, args.glucose_max),
-        0,  # future_carb
-        0,  # remaining_time
-        linear_scaling(hours, 0, 23),
-        linear_scaling(mins, 0, 59),
-        0,  # meal_type
-        linear_scaling(meal, 0, MEAL_MAX)
-    ], dtype=np.float32)
+    info = dict()
+
+    if ins > args.insulin_max: #FIXME remove
+        print(data_row, ins, args.insulin_max)
+        raise ValueError
+    # info["insulin"] = linear_scaling(x=ins, x_min=args.insulin_min, x_max=args.insulin_max)
+    info["insulin"] = pump_to_rl_action(ins, args, env_args) #TODO decide if to use this or not
+
+
+    info["cgm"] = linear_scaling(x=cgm, x_min=args.glucose_min, x_max=args.glucose_max)
+    
+    info['future_carb'] = 0 #FIXME implement
+    info['remaining_time'] = 0 #FIXME implement
+    info['day_hour'] = linear_scaling(x=hours, x_min=0, x_max=23)
+    info['day_min'] = linear_scaling(x=mins, x_min=0, x_max=59)
+    info['meal_type'] = 0 #FIXME implement
+    info['meal'] = linear_scaling(meal, 0, MEAL_MAX)
+
+    return [ info[feat] for feat in env_args.obs_features]
 
 
 def limit(n, t, b): return max(min(n, t), b)
@@ -184,14 +170,4 @@ def pump_to_rl_action(pump_action, args, env_args):
 
         raise NotImplementedError
 
-    return rl_action
-
-def pump_to_rl_action_vec(pump_action, args, env_args):
-    pump_max = args.insulin_max
-    if args.control_space_type == 'exponential':
-        rl_action = np.log(pump_action / pump_max) / 4 + 1
-    elif args.control_space_type == 'exponential_alt':
-        rl_action = (1 / EXP_SCALING_FACT) * np.log((pump_action / pump_max) * EXP_FACT_PS_SUM + EXP_S_FACT)
-    else:
-        raise ValueError(f"Unknown control_space_type {args.control_space_type}")
     return rl_action
