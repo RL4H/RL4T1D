@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from torch.optim.lr_scheduler import StepLR
 import numpy as np
 
 from agents.algorithm.agent import Agent
@@ -46,6 +46,14 @@ class IQL(Agent):
         self.critic_optim_2 = torch.optim.Adam(self.policy.critic_net2.parameters() , lr=self.critic_lr, weight_decay=0)
         self.value_optim = torch.optim.Adam(self.policy.value_net.parameters() , lr=self.value_lr, weight_decay=0)
         self.policy_optim = torch.optim.Adam(self.policy.parameters() , lr=self.actor_lr, weight_decay=0)
+
+        SCHEDULE_GAMMA = 0.98
+        self.lr_schedulers = [
+            StepLR(self.critic_optim_1, step_size=1, gamma=SCHEDULE_GAMMA),
+            StepLR(self.critic_optim_2, step_size=1, gamma=SCHEDULE_GAMMA),
+            StepLR(self.value_optim, step_size=1, gamma=SCHEDULE_GAMMA),
+            StepLR(self.policy_optim, step_size=1, gamma=SCHEDULE_GAMMA),
+        ]
 
 
         # readout
@@ -123,7 +131,8 @@ class IQL(Agent):
         print(f"################ updated target networks {self.train_pi_iters} times")
 
 
-
+        for scheduler in self.lr_schedulers:
+            scheduler.step()
 
         # logging
         data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_grad=val_grad, val_loss=vf_loss)

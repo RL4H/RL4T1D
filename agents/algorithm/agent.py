@@ -44,7 +44,7 @@ class Agent:
 
             self.args.feature_history = env_args.obs_window  # TODO: refactor G2P2C to use obs_window
 
-        self.using_OPE = self.agent_type == "Offline" and self.args.data_type == "clinical"
+        self.using_OPE = self.agent_type == "Offline" and (self.args.data_type == "clinical")
         if self.using_OPE: self.args.n_val_trials = 0
 
         # initialise workers and buffers
@@ -262,9 +262,6 @@ class Agent:
         print('\n---------------------------------------------------------')
         print('===> Starting Validation Trials ....')
         
-        with torch.no_grad():
-            for i in range(self.args.n_val_trials):
-                self.validation_agents[i].rollout(policy=self.policy, buffer=None, logger=self.logger.logWorker)
         
         if self.using_OPE:
             print("Training FQE Model")
@@ -287,6 +284,10 @@ class Agent:
             print("Offline Policy Evaluation Completed")
             exit()
         else:
+            
+            with torch.no_grad():
+                for i in range(self.args.n_val_trials):
+                    self.validation_agents[i].rollout(policy=self.policy, buffer=None, logger=self.logger.logWorker)
 
             # calculate the final metrics.
             cohort_res, summary_stats = [], []

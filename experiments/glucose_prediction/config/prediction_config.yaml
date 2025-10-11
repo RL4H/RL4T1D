@@ -1,4 +1,4 @@
-run_name: "test_22_action_scaling"
+run_name: "test_23_fixed_actions"
 save_path: "/experiments/glucose_prediction/saves/"
 split_seed: 1
 device: 'cuda'

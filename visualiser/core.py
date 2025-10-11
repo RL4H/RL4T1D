@@ -454,7 +454,7 @@ def plot_episode(experiment, tester, episode):
     ax2 = fig.add_subplot(111)
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     ax2.set_yscale('log')
-    ax2.set_ylim((1e-3, 5))
+    ax2.set_ylim((1e-3, 1)) #FIXME change back to 1e-3 to 5
     divider = make_axes_locatable(ax2)
     ax = divider.append_axes("top", size=3.0, pad=0.02, sharex=ax2)
     #ax.set_ylim((5, 600))
@@ -495,10 +495,12 @@ def plot_episode(experiment, tester, episode):
     if experiment.plot_version == 1:
         start_time = df['time'].iloc[0]  # end_time = df['time'].iloc[-1]
         ax2.set_xlim([start_time, start_time + timedelta(hours=24)]) # start_time + timedelta(hours=3)]
-        ax2.xaxis.set_minor_locator(mdates.AutoDateLocator())
+        ax2.xaxis.set_minor_locator(mdates.AutoDateLocator()) 
         ax2.xaxis.set_minor_formatter(mdates.DateFormatter('%H:%M\n'))
-        ax2.xaxis.set_major_locator(mdates.DayLocator())
-        ax2.xaxis.set_major_formatter(mdates.DateFormatter('\n%b %d'))
+        ax2.xaxis.set_major_locator(mdates.DayLocator()) 
+
+        # ax2.xaxis.set_major_formatter(mdates.DateFormatter('\n%b %d')) #FIXME uncomment
+        ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda *args, **kwargs: ''))
 
     ax.set_ylim(5, max_cgm)
     var_ins_max = max_ins * (max_cgm / 50)

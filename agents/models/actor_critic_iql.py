@@ -308,16 +308,29 @@ class ActorCritic(nn.Module):
         self.experiment_dir = args.experiment_dir
         self.is_testing_worker = False
 
-        self.policy_net = PolicyNetwork(args, device)
-        self.critic_net1 = QNetwork(args, device)
-        self.critic_net2 = QNetwork(args, device)
-        self.value_net = ValueNetwork(args, self.device)
 
         if load:
             self.policy_net = torch.load(actor_path, map_location=device)
-            self.critic_net1 = torch.load(critic_path, map_location=device)
-            self.critic_net2 = torch.load(critic_path, map_location=device)
-            self.value_net = torch.load(value_path, map_location=self.device)
+            
+            try:
+                self.critic_net1 = torch.load(critic_path, map_location=device)
+                self.critic_net2 = torch.load(critic_path, map_location=device)
+            except:
+                print("Failed to import critic net. Defaulting.")
+                self.critic_net1 = QNetwork(args, device)
+                self.critic_net2 = QNetwork(args, device)
+
+            try:
+                self.value_net = torch.load(value_path, map_location=self.device)
+            except:
+                print("Failed to import value net. Defaulting.")
+                self.value_net = ValueNetwork(args, self.device)
+        else:
+            self.policy_net = PolicyNetwork(args, device)
+            self.critic_net1 = QNetwork(args, device)
+            self.critic_net2 = QNetwork(args, device)
+            self.value_net = ValueNetwork(args, self.device)
+
 
     def get_action(self, s, mode='forward', worker_mode='training'):
         s = torch.as_tensor(s, dtype=torch.float32, device=self.device)
@@ -352,6 +365,10 @@ class ActorCritic(nn.Module):
         
         critic_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_critic_net.pth'
 
+        value_net_path = self.experiment_dir + '/checkpoints/episode_' + str(episode) + '_value_net.pth'
+
         torch.save(self.policy_net, policy_net_path)
         
         torch.save(self.critic_net1, critic_net_path)
+
+        torch.save(self.value_net, value_net_path)
