@@ -190,12 +190,6 @@ class ActionModule(nn.Module):
         # calc log_prob
         # openai implementation
         logp_pi = 0#dst.log_prob(gaussian_action[0])  # .sum(axis=-1)
-        # logp_pi -= (2 * (np.log(2) - gaussian_action[0] - F.softplus(-2 * gaussian_action[0])))  # .sum(axis=1)
-        # SAC paper implementation
-        # log_prob = dst.log_prob(gaussian_action[0]) - torch.log(1 - action[0] ** 2 + 1e-6)
-
-        # action = (action + 1) / 2 #change range of action from [-1,1] to [-1,1]
-        if self.args.push_action_clip: action = 0.75 * action + 0.25 #scale action to [-0.5, 1]
 
         return mu, action_std, action, logp_pi
 

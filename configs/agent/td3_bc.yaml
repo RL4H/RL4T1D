@@ -16,7 +16,6 @@ normalize_reward: True  # reward received is normalised
 shuffle_rollout: True  # rollout trajectory data is shuffled
 replay_buffer_size: 8192
 replay_buffer_step: 8192
-preserve_trajectories : False
 
 # ppo parameters
 entropy_coef: 0.001
@@ -48,19 +47,12 @@ max_test_epi_len: 288  # testing conducted for 1 day: 12 steps/hr * 24 hours
 n_val_trials: 10
 
 #data source
-data_preload: true,
+data_preload: true # if preloading, args will be overriden
 data_type: "simulated" #simulated | clinical
 data_protocols: [] #None defaults to all
 data_algorithms : [] #None defaults to all
 use_all_interactions : false
-
-use_cirriculum : false
-cirriculum_horizon : 6400000 #DISABLED
-post_horizon_data_protocols: ["evaluation"]
-post_horizon_data_algorithms: ["G2P2C","AUXML", "PPO","TD3"]
-
-vf_pretrain_iters : 0
-bc_pretrain_iters : 0 #160000
+force_ope: false
 
 n_handcrafted_features: -10 #FIXME
 n_features: 32
@@ -68,11 +60,6 @@ use_handcraft: 0
 
 n_hidden: 16
 noise_model: "normal_dist"
-# noise_std: 0.02
-# noise_application: 3
-# target_action_std: 0.03
-# target_action_lim: 0.1
-# soft_tau: 0.005
 
 noise_std: 0.3 #0.4
 noise_application: 2
@@ -80,14 +67,9 @@ target_action_std: 0.2
 target_action_lim: 0.5
 soft_tau: 0.005
 
-push_action_clip: false
-
 
 alpha : 1
 beta : 2.5
-
-awc_enabled : false
-beta_awac : 1
 
 vf_lambda : 0
 pi_lambda : 0

@@ -16,14 +16,15 @@ from omegaconf import OmegaConf, DictConfig, open_dict
 from decouple import config
 MAIN_PATH = config('MAIN_PATH')
 SIM_DATA_PATH = config('SIM_DATA_PATH')
-CLN_DATA_SAVE_DEST = "/home/users/u7482502/data/cln_pickled_data" #FIXME make into env variable 
+
+try: CLN_DATA_SAVE_DEST = config('CLN_DATA_SAVE_DEST')
+except: 
+    CLN_DATA_SAVE_DEST = None
+    print("'CLN_DATA_SAVE_DEST' environment variable not defined. Ensure to define it if using offline algorithms and a clinical data source." )
 
 from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
-from utils.sim_data import patient_id_to_label
 
-from copy import deepcopy
 
-DEBUG_SHOW = True #FIXME remove
 class Agent:
     def __init__(self, args, env_args, logger, type="None"):
         self.args = args
@@ -44,7 +45,7 @@ class Agent:
 
             self.args.feature_history = env_args.obs_window  # TODO: refactor G2P2C to use obs_window
 
-        self.using_OPE = self.agent_type == "Offline" and (self.args.data_type == "clinical")
+        self.using_OPE = (self.agent_type == "Offline" and (self.args.data_type == "clinical") or (self.agent_type == "Offline" and self.args.force_ope))
         if self.using_OPE: self.args.n_val_trials = 0
 
         # initialise workers and buffers
@@ -68,10 +69,8 @@ class Agent:
 
         elif type == "Offline":
             if args.data_type == "simulated":
-
                 if args.data_preload:
                     folder = SIM_DATA_PATH + "/object_save/"
-                    data_save_path = folder + f"temp_data_patient_{args.patient_id}_{args.seed}.pkl"
                     data_save_path_args = folder + f"temp_args_{args.patient_id}_{args.seed}.pkl"
                     print("Loading prebuilt data from",data_save_path_args)
                     
@@ -80,7 +79,6 @@ class Agent:
                     gc.collect()
                 else:
                     from utils.sim_data import DataImporter, calculate_augmented_features
-                    from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
 
                     importer = DataImporter(args=args,env_args=env_args)
 
@@ -102,33 +100,21 @@ class Agent:
                     gc.collect()
                     queue.start()
                     gc.collect()
-
-
                 if args.use_all_interactions: #override total_interactions, use 98% of total transitions to avoid spilling over
                     print("overriding total interactions from",args.total_interactions,"to",queue.total_transitions)
                     self.args.total_interactions = int(queue.total_transitions*0.98)
                     args.total_interactions = int(queue.total_transitions*0.98)
                 elif args.total_interactions > queue.total_transitions:
-                    print("WARNING: total interactions set (",args.total_interactions,") is greater than available data (",queue.total_transitions,"). ")
-
-                # self.training_agents = []
-                # self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
-                # if DEBUG_SHOW: print("Testing Agents Initialised")
-                # self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
-                # if DEBUG_SHOW: print("Validation Agents Initialised")
-                
+                    print("WARNING: total interactions set (",args.total_interactions,") is greater than available data (",queue.total_transitions,"). ")           
             elif args.data_type == "clinical":
-
                 if args.data_preload:
 
                     folder = CLN_DATA_SAVE_DEST + '/'
-                    data_save_path = folder + f"temp_data_patient_{args.patient_id}_{args.seed}.pkl"
                     data_save_path_args = folder + f"temp_args_{args.patient_id}_{args.seed}.pkl"
                     
                     print("Loading prebuilt data from", data_save_path_args)
                     queue = load_compact_loader_object(data_save_path_args)
                     queue.start()
-                
                 else:
                     from utils.cln_data import ClnDataImporter, get_patient_attrs, convert_df_to_arr
 
@@ -171,27 +157,16 @@ class Agent:
 
                     if len(queue) == 0:
                         raise ValueError("Queue length is 0.")
-                    
-
             else:
                 raise KeyError("Invlid data_type parameter.")
             
-            if DEBUG_SHOW: print("Queue Started!")
-
             self.training_agents = []
-            if DEBUG_SHOW: print("Training Agents Initialised")
-
             if args.data_type == "simulated": self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
             else: self.testing_agents = [] 
-            if DEBUG_SHOW: print("Testing Agents Initialised")
-
             if args.data_type == "simulated": self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
             else: self.validation_agents = []
-            if DEBUG_SHOW: print("Validation Agents Initialised")
-
             self.buffer = offpolicy_buffers.ReplayMemory(self.args)
             self.buffer_queue = queue
-            if DEBUG_SHOW: print("Agent setup completed")
 
         self.logger = logger
 
@@ -215,15 +190,11 @@ class Agent:
                     self.buffer.save_rollout(training_agent_index=i)
                 elif self.agent_type == "OffPolicy":
                     self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer, logger=self.logger.logWorker)
-                # elif self.agent_type == "Offline": 
-                #     self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer, logger=self.logger.logWorker)
-                #     self.buffer.save_rollout(training_agent_index=i)
+
 
             if self.agent_type == "Offline":
-                #store batch directly to avoid bottleneck
-                self.buffer.store_batch(self.buffer_queue.pop_batch(self.args.replay_buffer_step))
+                self.buffer.store_batch(self.buffer_queue.pop_batch(self.args.replay_buffer_step)) #store batch directly to avoid bottleneck
 
-            # self.alpha = self.args.alpha * (1 - completed_interactions / self.args.total_interactions)
             logs = self.update()  # update the models
             self.logger.save_rollout(logs)  # logging
             self.policy.save(rollout)  # save model weights as checkpoints
@@ -283,7 +254,7 @@ class Agent:
 
             print("Offline Policy Evaluation Completed")
             exit()
-        else:
+        elif (not self.agent_type == "Offline") or (self.agent_type == "Offline" and self.args.data_type != "clinical"):
             
             with torch.no_grad():
                 for i in range(self.args.n_val_trials):

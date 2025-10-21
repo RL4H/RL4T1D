@@ -47,12 +47,12 @@ class IQL(Agent):
         self.value_optim = torch.optim.Adam(self.policy.value_net.parameters() , lr=self.value_lr, weight_decay=0)
         self.policy_optim = torch.optim.Adam(self.policy.parameters() , lr=self.actor_lr, weight_decay=0)
 
-        SCHEDULE_GAMMA = 0.98
+        self.schedule_gamma = args.schedule_gamma
         self.lr_schedulers = [
-            StepLR(self.critic_optim_1, step_size=1, gamma=SCHEDULE_GAMMA),
-            StepLR(self.critic_optim_2, step_size=1, gamma=SCHEDULE_GAMMA),
-            StepLR(self.value_optim, step_size=1, gamma=SCHEDULE_GAMMA),
-            StepLR(self.policy_optim, step_size=1, gamma=SCHEDULE_GAMMA),
+            StepLR(self.critic_optim_1, step_size=1, gamma=self.schedule_gamma),
+            StepLR(self.critic_optim_2, step_size=1, gamma=self.schedule_gamma),
+            StepLR(self.value_optim, step_size=1, gamma=self.schedule_gamma),
+            StepLR(self.policy_optim, step_size=1, gamma=self.schedule_gamma),
         ]
 
 
@@ -137,5 +137,3 @@ class IQL(Agent):
         # logging
         data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_grad=val_grad, val_loss=vf_loss)
         return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}
-
-

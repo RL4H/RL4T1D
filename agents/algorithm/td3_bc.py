@@ -11,8 +11,7 @@ from utils.control_space import ControlSpace
 from decouple import config
 import sys
 
-import csv
-from collections import namedtuple, deque
+from collections import namedtuple
 
 
 MAIN_PATH = config('MAIN_PATH')
@@ -60,15 +59,12 @@ class TD3_BC(Agent):
 
         self.soft_tau = args.soft_tau
         self.shuffle_rollout = args.shuffle_rollout
-        self.preserve_trajectories = args.preserve_trajectories
         self.value_lr = args.vf_lr
         self.policy_lr = args.pi_lr
         self.grad_clip = args.grad_clip
 
-
         self.weight_decay_vf = args.vf_lambda
         self.weight_decay_pi = args.pi_lambda
-
 
         ### TD3 + BC networks:
         self.policy = ActorCritic(args, load_model, actor_path, critic_path, self.device).to(self.device)
@@ -142,7 +138,6 @@ class TD3_BC(Agent):
         vf_completed_iters = pi_completed_iters = 0
         for pi_train_iter in range(self.train_pi_iters):
             vf_completed_iters += 1
-            # cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = self.buffer.sample(self.mini_batch_size)
             transitions = self.buffer.sample(self.mini_batch_size)
 
             batch = Transition(*zip(*transitions))
@@ -160,8 +155,6 @@ class TD3_BC(Agent):
                                         self.policy.value_net_target2(next_state_batch, new_action))
 
                 target_value = (reward_batch + (self.gamma * (1 - done_batch) * next_values))
-
-            # print(reward_batch[:5], target_value[:5], done_batch[:5],"\n")
 
             # critic 1 optimisation
             predicted_value1 = self.policy.value_net1(cur_state_batch, actions_batch)
@@ -189,10 +182,8 @@ class TD3_BC(Agent):
                 if param.grad is not None:
                     val_grad += param.grad.sum() / self.train_pi_iters
 
-
             # actor update
-
-            if pi_train_iter % self.target_update_interval == 0 and self.completed_interactions >= self.args.vf_pretrain_iters:
+            if pi_train_iter % self.target_update_interval == 0:
                 pi_completed_iters += 1
                 # freeze value networks save compute: ref: openai:
                 for p in self.policy.value_net1.parameters():
@@ -204,9 +195,6 @@ class TD3_BC(Agent):
                     p.requires_grad = False
                 for p in self.policy.value_net_target2.parameters():
                     p.requires_grad = False
-
-
-
 
                 # evaluate action taken by policy, in a batch
                 policy_action, _ = self.policy.evaluate_policy_no_noise(cur_state_batch)
@@ -221,27 +209,16 @@ class TD3_BC(Agent):
                 q_mean = critic_eval.mean() 
 
                 # assign lambda constant to scale correctly
-
-                # calculate policy loss, ref: Fujimoto and Gu (2021)
-                # reg_term = sum(torch.norm(param, p=2)**2 for param in self.policy.policy_net.parameters() if param.requires_grad)
-
-                # alpha_adj = (self.alpha / critic_eval.abs().mean().clamp(min=0.1, max=10.0)).detach()
-                alpha, beta = (self.alpha, self.beta) if self.completed_interactions >= self.args.bc_pretrain_iters else (0, 1)
+                alpha, beta = (self.alpha, self.beta)
                 lmbda = (beta / critic_eval.abs().mean().clamp(min=0.1, max=10.0)).detach()
-
                 policy_loss = -alpha * q_mean + lmbda * nn.functional.mse_loss(policy_action, actions_batch.detach())
 
+                # update policy
                 self.policy_optimizer.zero_grad()
                 policy_loss.backward() 
                 torch.nn.utils.clip_grad_norm_(self.policy.policy_net.parameters(), self.args.pi_clip)
-
-                pi_grad += torch.norm(torch.stack([
-                    p.grad.norm(2) for p in self.policy.policy_net.parameters() if p.grad is not None
-                ]))
-
+                pi_grad += torch.norm(torch.stack([ p.grad.norm(2) for p in self.policy.policy_net.parameters() if p.grad is not None ]))
                 self.policy_optimizer.step()
-
-                # perform optimisation for actor
                 pl += policy_loss.item() 
                 q_abs_list.append( critic_eval.abs().mean().item() )
                 bc_loss_list.append((lmbda * nn.functional.mse_loss(policy_action,actions_batch.detach())).item())
@@ -271,9 +248,8 @@ class TD3_BC(Agent):
                     for param, target_param in zip(self.policy.policy_net.parameters(), self.policy.policy_net_target.parameters()):
                         target_param.data.mul_((1 - self.soft_tau))
                         target_param.data.add_(self.soft_tau * param.data)
-            #     print("\t############ Policy Network Updated")
-            # print("################ updated target networks")
-        print(f"################ updated value networks {vf_completed_iters} times and policy network {pi_completed_iters} times. Average abs q: {np.mean(q_abs_list)}, BC loss: {np.mean(bc_loss_list)}, TD3 loss: {np.mean(td3_loss_list)}" + (". Used BC default" if self.completed_interactions < self.args.bc_pretrain_iters else ""))
+                        
+        print(f"################ updated value networks {vf_completed_iters} times and policy network {pi_completed_iters} times. Average abs q: {np.mean(q_abs_list)}, BC loss: {np.mean(bc_loss_list)}, TD3 loss: {np.mean(td3_loss_list)}")
         # logging
         data = dict(policy_grad=pi_grad, policy_loss=pl, coeff_loss=cl, value_grad=val_grad, val_loss=vf_loss)
 
@@ -281,8 +257,6 @@ class TD3_BC(Agent):
         for k,v in dict(td3_loss=np.mean(td3_loss_list), bc_loss=np.mean(bc_loss_list)).items(): cpu_dict[k] = v
         return cpu_dict
     
-        # return {k: v.detach().cpu().flatten().numpy()[0] for k, v in data.items()}
-
     def create_full_bc(self, use_vld=None, bc_epochs=200):
         if self.bc_policy == None:
             self.bc_policy = PolicyNetwork(self.args, self.device).to(self.device)
@@ -446,7 +420,6 @@ class TD3_BC(Agent):
 
             return ret_di
             
-
 def take_vld_batch(vld_queue, batch_size, args):
     transitions = vld_queue.pop_validation_batch(batch_size)
 
@@ -542,7 +515,6 @@ class FQE:
                 tensor_fields = [torch.as_tensor(np.array(field), dtype=torch.float32, device=self.args.device) for field in fields]
                 cur_state_batch, actions_batch, reward_batch, next_state_batch, done_batch = tuple(tensor_fields)
 
-
                 # calculate critic loss
                 new_action, _ = self.behaviour_policy.policy.evaluate_policy_no_noise(next_state_batch)
                 next_values = self.value_net(next_state_batch, new_action)
@@ -572,8 +544,6 @@ class FQE:
 
                 completed_iters += self.batch_size
 
-
-
             ret_di = { 
                 'critic_loss':      (np.mean(critic_loss_list), np.std(critic_loss_list), len(critic_loss_list)), 
                 'critic_eval':      (np.mean(critic_eval_list), np.std(critic_eval_list), len(critic_eval_list)), 
@@ -590,8 +560,6 @@ class FQE:
             if save_dest_network != None:
                 torch.save(self.value_net, save_dest_network)
             print("file and network saved")
-
-            # self.queue.end_validation()
 
             return ret_di
 

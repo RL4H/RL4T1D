@@ -18,7 +18,6 @@ t_future: 48
 obs_window: 148
 window_size : 148
 
-preserve_trajectories : false
 #NOTE: ensure input_window + t_future = obs_window
 
 # available features=> 'cgm', 'insulin', 'time_to_meal', 'future_carb', 'meal_type', 'day_hour', 'day_min'

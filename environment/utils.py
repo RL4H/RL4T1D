@@ -18,7 +18,6 @@ def get_env(args, worker_id=None, env_type=None):
 
     patients, env_ids = get_patient_env()
     patient_name = patients[args.patient_id]
-    # env_id = str(worker_id + args.experiment.seed * 100000) + '_' + env_ids[args.patient_id]
     env_id = str(worker_id) + '_' + env_ids[args.patient_id]
     seed = worker_id + 100
 
@@ -78,32 +77,8 @@ def risk_index(BG, horizon):
     return LBGI, HBGI, RI
 
 
-def risk_index_alt(BG, horizon):
-    # BG is in mg/dL, horizon in samples
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        BG_to_compute = np.array(BG[-horizon:])
-        BG_to_compute[BG_to_compute < 1] = 1
-        fBG = 1.509 * (np.log(BG_to_compute)**1.084 - 5.381)
-        rl = 10 * fBG[fBG < 0]**2
-        rh = 10 * fBG[fBG > 0]**2
-        LBGI = np.nan_to_num(np.mean(rl))
-        HBGI = np.nan_to_num(np.mean(rh))
-        RI = LBGI + HBGI
-    return LBGI, HBGI, RI
-
 def custom_reward(bg_hist, **kwargs):
     return -risk_index([bg_hist[-1]], 1)[-1]
-
-def custom_reward_2(bg_hist, **kwargs):
-    lgbi, hbgi, ri = risk_index([bg_hist[-1]], 1)
-    return -(hbgi)
-
-horizion_size=3
-def custom_reward_3(bg_hist, **kwargs):
-    lgbi, hbgi, ri = risk_index([bg_hist[-1]], horizion_size)
-    # return -(0.7*lgbi + 1.3*hbgi)
-    return -(lgbi + hbgi)
 
 
 def get_basal(patient_name='none'):
