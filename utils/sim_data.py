@@ -21,8 +21,8 @@ from torch.utils.data import Dataset
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-from environment.reward_func import composite_reward, composite_reward_2, composite_reward_3, composite_reward_4
-from utils.core import linear_scaling, calculate_features, pump_to_rl_action
+from environment.reward_func import composite_reward
+from utils.core import calculate_features, pump_to_rl_action
 Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'done'))
 
 
