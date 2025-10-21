@@ -336,9 +336,6 @@ class ActorCritic(nn.Module):
         s = torch.as_tensor(s, dtype=torch.float32, device=self.device)
         mu, sigma, action, log_prob = self.policy_net.forward(s, mode=mode, worker_mode=worker_mode)
     
-        
-        # data = dict(mu=mu[0], std=sigma[0], action=action[0], log_prob=log_prob[0], state_value=mu[0]) #FIXME give actual state_value
-        # return {k: v.detach().cpu().numpy() for k, v in data.items()}
         return dict (
             mu = mu.detach().cpu().numpy(),
             std = sigma.detach().cpu().numpy(),

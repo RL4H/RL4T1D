@@ -31,7 +31,7 @@ class AutoregressiveDecoder(nn.Module):
 
         # positional encodings for context+future
         self.pos_emb = nn.Parameter(torch.zeros(1, T_context+T_future, d_model, device=self.device))
-        nn.init.trunc_normal_(self.pos_emb, std=0.02) #FIXME paramaterise
+        nn.init.trunc_normal_(self.pos_emb, std=0.02)
 
         # GPT‐style decoder layers
         layer = nn.TransformerDecoderLayer(
@@ -143,7 +143,7 @@ class AutoregressiveDecoder(nn.Module):
         """
         logs = dict()
 
-        y_pred = self.forward(ctx, tgt_future, training=False).squeeze(-1) #(B, Tf) #FIXME training=True
+        y_pred = self.forward(ctx, tgt_future, training=True).squeeze(-1) #(B, Tf)
         y_actual = tgt_future[:, :, 0] #(B, Tf)
         if y_map != None:
             y_pred.apply_(y_map)
@@ -171,7 +171,7 @@ class AutoregressiveDecoder(nn.Module):
             ctx = data[:, :self.Tc, :]
             tgt_future = data[:, self.Tc:, :]
 
-            y_pred = self.forward(ctx, tgt_future, training=True).squeeze(-1) #(B, Tf) #FIXME training=True
+            y_pred = self.forward(ctx, tgt_future, training=True).squeeze(-1) #(B, Tf)
             y_actual = tgt_future[:, :, 0] #(B, Tf)
 
             if y_map != None:

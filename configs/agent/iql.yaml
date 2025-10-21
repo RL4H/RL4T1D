@@ -14,7 +14,7 @@ lambda_: 0.95
 # parameters for the RL rollout
 normalize_reward: True  # reward received is normalised
 shuffle_rollout: True  # rollout trajectory data is shuffled
-replay_buffer_size: 65536 #FIXME remove random sampling
+replay_buffer_size: 65536
 replay_buffer_step: 8192
 
 # train
@@ -58,7 +58,7 @@ vf_lr: 0.001
 cr_lr: 1e-3
 
 
-n_handcrafted_features: -10 #FIXME
+n_handcrafted_features: -10 #NOTE: placeholder param, used to avoid errors
 n_features: 32
 use_handcraft: 0
 

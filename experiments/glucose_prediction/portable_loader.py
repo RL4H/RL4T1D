@@ -96,7 +96,7 @@ class CompactLoader:
             if self.validation_items > self.length / 2:
                 self.validation_items = 0
 
-            self.n_list = n_list #FIXME remove
+            # self.n_list = n_list #NOTE: uncomment this if running code that uses portable loader in non-standard ways, requiring n_list to stay in memory
             
             self.cum_n = cum_n
             print("Length!",self.length)

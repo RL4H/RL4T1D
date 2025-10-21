@@ -474,7 +474,7 @@ class FQE:
         self.behaviour_policy = pi
 
         if policy_path != None:
-            self.value_net = torch.load(policy_path, map_location=self.device, weights_only=False) #FIXME disable option, can lead to bad things
+            self.value_net = torch.load(policy_path, map_location=self.device, weights_only=False)
         else:
             self.value_net = QNetwork(args, self.device).to(self.device)
 

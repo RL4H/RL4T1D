@@ -196,9 +196,6 @@ def import_raw_files(file_dest_folder=DATA_DEST+"/object_save/", file_name_start
         total_importing_time += duration.total_seconds()
         print(f"Data for {subject} agent imported in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s")
 
-        obj_size = sys.getsizeof(data) #get size of object #FIXME doesn't seem to work correctly
-        obj_size_mb = obj_size / (1024 ** 2)
-        print("Returned object is",round(obj_size_mb,10),"MB")
 
         print("===Data Breakdown:===")
         for subject in data:
@@ -396,19 +393,15 @@ def convert_trial_into_windows(data_obj, args, env_args, reward_func=DEFAULT_REW
     for row_n in range(window_size, rows-1):
         window_states.append(np.array(states[row_n-window_size: row_n]))
 
-    return window_states #FIXME check if this should be transposed
+    return window_states
 
 def convert_trial_into_transitions(data_obj, args, env_args, reward_func=DEFAULT_REWARD_FUNC):
     #data_obj is a 2D numpy array , rows x columns. Columns are :  cgm, meal, ins, t, meta_data
     window_size = args.obs_window
-
     rows, _ = data_obj.shape
-
     states = np.array([calculate_features(data_row, args, env_args) for data_row in data_obj])
-
     actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
 
-    # rewards = [reward_func(cgm, args.glucose_min, args.glucose_max) for cgm in data_obj[:, 0]] #FIXME check if applied reward func changes things
     rewards = [reward_func( data_obj[:, 0][max(0, row_n+1-reward_horizon):row_n+1] ) for row_n in range(rows)]
 
     transitions = []
@@ -417,7 +410,7 @@ def convert_trial_into_transitions(data_obj, args, env_args, reward_func=DEFAULT
         action = np.array([actions[row_n]])
         reward = np.array([rewards[row_n]])
         next_state = np.array(states[row_n-window_size+2: row_n+2])
-        done = np.array([int(row_n == rows - 2)]) #FIXME change condition
+        done = np.array([int(row_n == rows - 1)])
         transitions.append(Transition(state, action, reward, next_state, done))
 
     return transitions
@@ -995,8 +988,7 @@ if __name__ == "__main__":
     
     elif main_function == "convert 2":
 
-        # from utils.sim_data import DataImporter, calculate_augmented_features
-        from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
+        from utils.core import calculate_features
         from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
         
         for patient_id in list(range(0,10)) + list(range(20,30)):
@@ -1007,7 +999,7 @@ if __name__ == "__main__":
                 "data_type" : "simulated", #simulated | clinical,
                 "data_protocols" : ['evaluation'], #None defaults to all, 
                 "data_algorithms" : ["G2P2C"], #None defaults to all, #["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC", "TD3", "DDPG", "DPG"]
-                "obs_window" : 12, #FIXME, this was 6, check if it affected hp5 runs.
+                "obs_window" : 12,
                 "control_space_type" : 'exponential',
                 "insulin_min" : 0,
                 "insulin_max" : 5,

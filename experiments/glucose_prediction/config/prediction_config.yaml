@@ -13,7 +13,7 @@ data_preload: true
 patient_id: 0
 
 
-input_window : 100 #288 #FIXME check on this
+input_window : 100
 t_future: 48
 obs_window: 148
 window_size : 148
@@ -32,7 +32,7 @@ glucose_max: 600
 glucose_min: 39
 
 pump: 'Insulet'
-insulin_max: 5 # 5 Units, max dose given / step #FIXME return to
+insulin_max: 5 # 5 Units, max dose given / step
 insulin_min: 0
 
 meal_max: 100 #g

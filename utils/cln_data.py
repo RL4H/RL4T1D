@@ -22,8 +22,7 @@ if SIM_DATA_PATH == '':
     raise ImportError("Environment variable 'SIM_DATA_PATH' not defined.")
 
 CLN_DATA_DEST = config('CLN_DATA_PATH')
-
-CLN_DATA_SAVE_DEST = "/home/users/u7482502/data/cln_pickled_data" #FIXME make into env variable 
+CLN_DATA_SAVE_DEST = config("CLN_DATA_SAVE_DEST") 
 
 SHUFFLE_QUEUE_IMPORTS = False
 IMPORT_SEED = 0
@@ -126,7 +125,7 @@ def seperate_df_epis(p_df):
  
 def find_windows(df_epi,window_size= ((24*60)//5) ):
     le = len(df_epi)
-    current_index = 0 #FIXME decide if buffer from start is appropiate
+    current_index = 0
     days = []
     while current_index < le-window_size:
         next_index = current_index + window_size
@@ -265,7 +264,7 @@ def read_individual(subj_id,debug_show=True):
                 next_insulin_datapoint = subj_FACM["FASTRESN"].loc[ins_ind]
                 next_insulin_datapoint = (next_insulin_datapoint if not (math.isnan(next_insulin_datapoint)) else 0.0) 
                 if subj_FACM["FATEST"].loc[ins_ind] == "BASAL FLOW RATE":
-                    current_insulin_rate = next_insulin_datapoint#FIXME account for proportions of active time instead
+                    current_insulin_rate = next_insulin_datapoint #FIXME account for proportions of active time instead. Current dataset never fails with this because of structure, but future datasets may.
                 elif subj_FACM["FATEST"].loc[ins_ind] in ["BASAL INSULIN", "BOLUS INSULIN"]:
                     ins_reading += next_insulin_datapoint
                 ins_ind += 1
@@ -482,7 +481,7 @@ class ClnDataImporter:
         if vld_split_indicies != None:
             target_epi = self.df_list.pop(vld_split_indicies[0])
             split_epi_vld = target_epi.loc[:vld_split_indicies[1]]
-            split_epi_vld['epi'] = '0' #FIXME check if this should be a string
+            split_epi_vld['epi'] = '0'
 
             split_epi_trn = target_epi.loc[vld_split_indicies[1]:].reset_index(drop=True)
             self.df_list.insert(vld_split_indicies[0], split_epi_trn)
@@ -700,16 +699,11 @@ if __name__ == "__main__":
             if len(df) != 0:
                 subj_meta = df["meta"].loc[0]
                 subj_id_alt = int(subj_meta.split('_')[2])
-                assert subj_id_alt == int(subj_id) #FIXME remove later
 
                 
                 tdi = calculate_average_tdi(ind_n)
-                isf = round(100 / tdi,2) #FIXME dont use 100 rule
-                """
-                www.diabetesqualified.com.au/insulin-sensitivity-factor-explained
-                maybe use a combination of IOB, and meal gaps to measure the isf.
-                """
-                icr = round(500 / tdi,2) #FIXME don't use 500 rule
+                isf = round(100 / tdi,2) #NOTE: only an approximation
+                icr = round(500 / tdi,2) #NOTE: only an approximation
                 """
                 Consider taking a suitable time in simulation where a single large meal is taken, and observe rise in insulin. Have to account for isf first to use it as a correction factor.
                 """

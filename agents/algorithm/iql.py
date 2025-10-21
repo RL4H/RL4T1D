@@ -80,7 +80,7 @@ class IQL(Agent):
             # update critic networks
             with torch.no_grad():
                 next_value_batch = self.policy.value_net(next_state_batch) #use stabilised value network instead
-                target_q_batch = reward_batch + self.discount * (1 - done_batch) * next_value_batch #FIXME check elementwise
+                target_q_batch = reward_batch + self.discount * (1 - done_batch) * next_value_batch
 
             q1_batch = self.policy.critic_net1(cur_state_batch, actions_batch)
             critic_loss_1 = F.mse_loss(q1_batch, target_q_batch)

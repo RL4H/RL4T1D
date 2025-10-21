@@ -84,7 +84,7 @@ class ActionModule(nn.Module):
                                  (self.n_handcrafted_features * self.use_handcraft)
         self.last_hidden = self.feature_extractor * 2
         self.fc_layer1 = nn.Linear(self.feature_extractor, self.last_hidden)
-        nn.init.kaiming_uniform_(self.fc_layer1.weight) #FIXME make not random
+        nn.init.kaiming_uniform_(self.fc_layer1.weight) #NOTE: not seeded
         nn.init.zeros_(self.fc_layer1.bias)
 
         self.fc_layer2 = nn.Linear(self.last_hidden, self.last_hidden)
@@ -98,8 +98,6 @@ class ActionModule(nn.Module):
         self.mu = nn.Linear(self.last_hidden, self.output)
         nn.init.kaiming_uniform_(self.mu.weight)
         nn.init.zeros_(self.mu.bias)
-
-        # self.mu = NormedLinear(self.last_hidden, self.output, scale=0.1)
 
         self.sigma = nn.Linear(self.last_hidden, self.output)
         nn.init.kaiming_uniform_(self.sigma.weight)
@@ -272,7 +270,7 @@ class ActorCritic(nn.Module):
         self.value_net2 = QNetwork(args, device)
 
         if load:
-            self.policy_net = torch.load(actor_path, map_location=device, weights_only=False) #FIXME disable option, can lead to bad things
+            self.policy_net = torch.load(actor_path, map_location=device, weights_only=False)
             self.value_net1 = torch.load(critic_path, map_location=device, weights_only=False)
             self.value_net2 = torch.load(critic_path, map_location=device, weights_only=False)
 
@@ -286,8 +284,6 @@ class ActorCritic(nn.Module):
         mu, sigma, action, log_prob = self.policy_net.forward(s, mode=mode, worker_mode=worker_mode)
     
         
-        # data = dict(mu=mu[0], std=sigma[0], action=action[0], log_prob=log_prob[0], state_value=mu[0]) #FIXME give actual state_value
-        # return {k: v.detach().cpu().numpy() for k, v in data.items()}
         return dict (
             mu = mu.detach().cpu().numpy(),
             std = sigma.detach().cpu().numpy(),

@@ -16,7 +16,8 @@ torch.cuda.empty_cache()
 
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
-CLN_DATA_SAVE_DEST = "/home/users/u7482502/data/cln_pickled_data" #FIXME make into env variable 
+CLN_DATA_SAVE_DEST = config('CLN_DATA_SAVE_DEST')
+
 
 from utils.sim_data import convert_trial_into_windows
 from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
@@ -109,7 +110,7 @@ def compose_episode_data(y_pred, data_fut, args, env_args):
             'cgm_pred' : glucose_predicted,
             'ins' : insulin,
             'day_hour' : hours,
-            'day_min' : [0] * Tf, #FIXME
+            'day_min' : [0] * Tf, 
             't' : t_list,
             'meal' : meals
         })
@@ -126,7 +127,7 @@ def pop_subset(subset):
     try:
         item = next(iter(subset))
     except StopIteration:
-        raise NotImplementedError("#FIXME implement looping")
+        raise NotImplementedError("Looping not inplemented")
     return item
 def pop_subset_batch(subset,n):
     return [pop_subset(subset) for _ in range(n)]
@@ -144,9 +145,8 @@ class DataSampler:
         self.reset()
     def reset(self):
         self.data_iter = iter(self.data_loader)
-        # print(len(self.data_iter))
         self.in_trial_ind = self.trial_ind = 0
-        self.current_trial = next(self.data_iter) #FIXME check if this is the 0th entry or the 1st
+        self.current_trial = next(self.data_iter)
     def pop(self):
         data = self.current_trial[self.in_trial_ind]
 
@@ -193,9 +193,7 @@ def main(args: DictConfig):
             else:
                 from utils.sim_data import DataImporter
 
-                importer = DataImporter(args=args,env_args=args) #FIXME probably don't handle the args this way
-                # dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*101, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions)
-                # dataset_queue.start()
+                importer = DataImporter(args=args,env_args=args)
 
                 handler = importer.get_trials()
                 handler.flatten()
@@ -219,11 +217,6 @@ def main(args: DictConfig):
             
 
         elif args.data_type == "clinical":
-            # from utils.cln_data import ClnDataImporter
-
-            # importer = ClnDataImporter(args=args,env_args=args) #FIXME probably don't handle the args this way
-            # dataset_queue = importer.create_queue(minimum_length=batch_size*10, maximum_length=batch_size*51, mapping=convert_trial_into_windows, reserve_validation=args.vld_interactions*2)
-            # dataset_queue.start()
             from utils.cln_data import ClnDataImporter, get_patient_attrs, convert_df_to_arr
 
             gc.collect()
@@ -306,7 +299,7 @@ def main(args: DictConfig):
 
             previous_dur_per = (durations[-1][1]) if durations != [] else 0
             durations.append( (dur, percent_complete - previous_dur_per) )
-            time_remaining = max(0, ((100 - percent_complete) * np.mean([ i_dur / i_per for i_dur,i_per in durations]))) #calculate expected time remaining #FIXME account for batches bigger than the logging interval
+            time_remaining = max(0, ((100 - percent_complete) * np.mean([ i_dur / i_per for i_dur,i_per in durations]))) #calculate expected time remaining
 
             print(f"================= Training {percent_complete:.2f}% complete, interval took {pretty_seconds(dur)}. Expected time remaining for training is {pretty_seconds(time_remaining)}. Loss={new_log['loss']:.2f}")
             while next_interval < percent_complete: next_interval += logging_interval

@@ -54,7 +54,7 @@ data_algorithms : [] #None defaults to all
 use_all_interactions : false
 force_ope: false
 
-n_handcrafted_features: -10 #FIXME
+n_handcrafted_features: -10 #NOTE: placeholder param, used to avoid errors
 n_features: 32
 use_handcraft: 0
 
