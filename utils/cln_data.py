@@ -154,9 +154,14 @@ def calculate_average_tdi(p_df):
 
 # Subject Data Imports and Exports   
 
-with open(SUMMARY_FILE_DEST,'r') as f:
-    lines = [line.split(',') for line in f.read().splitlines()]
+try:
+    with open(SUMMARY_FILE_DEST,'r') as f:
+        lines = [line.split(',') for line in f.read().splitlines()]
+except:
+    lines = [["name"," age"," bw"," tdi"," icr"," isf"," height"," sex"," system_name"," injections_type"," epi_n"," total_time"," ind"," subj_id"]]
+    raise Warning("Clinical data summary not yet constructed. Run with 'summarise' to fix. ")
 
+# import patient attrs from file with 
 #name, age, bw, tdi, icr, isf, height, sex, system_name, injections_type, epi_n, total_time, ind, subj_id
 patient_attr_names = lines[0]
 patient_attr_dict = dict()
@@ -169,6 +174,16 @@ for line in lines[1:]:
 def get_patient_attrs(subject): return patient_attr_dict[subject.lower()]
 
 def read_individual(subj_id,debug_show=True):
+    """
+    Reads the data for a single individual, either returning 
+
+    Args:
+        subj_id: The study subject ID
+        debug_show (bool, optional): Controls if text description of importing is printed when importing. Defaults to True.
+
+    Returns:
+        BLANK_RESULT if excluded, or a dictionary with meta data and trial data, with rows of glucose, insulin, time, and meal data.
+    """
     # read relevant data
     subj_LB = filter_for_subject(LB, subj_id) #cgm data
     subj_LB_len = len(subj_LB)
@@ -337,6 +352,16 @@ def read_individual(subj_id,debug_show=True):
     }
 
 def save_subj_file(subj_info, filepath, filename):
+    """Takes a subject info dictionary and saves it to a given file.
+
+    Args:
+        subj_info: Subject info dictionary, from read_individual()
+        filepath: path of the folder where the info will be saved
+        filename: name of the file where the info will be saved
+
+    Returns:
+        Success
+    """
     meta_content = "subject_id_" + str(subj_info["meta"]["subject id"]) + "_" + str(subj_info["meta"]["treatment type"])
     for line in subj_info["data"]: 
         line[-1] = meta_content
@@ -346,6 +371,16 @@ def save_subj_file(subj_info, filepath, filename):
     return 1
 
 def read_subj_file(file_num,generate_as_epi_list=True,show_warnings=True):
+    """ Reads subject file into a dataframe(s) of trial data.
+
+    Args:
+        file_num: File subject index
+        generate_as_epi_list (bool, optional): Decides if output will be split by episode
+        show_warnings (bool, optional): Decides if warnings for empty data will be shown
+
+    Returns:
+        _type_: _description_
+    """
     file_name = "subj_ind_" + str(file_num) + ".csv"
     file_dest = CLN_DATA_SAVE_DEST + '/' +  file_name
 
@@ -379,15 +414,6 @@ def read_subj_file(file_num,generate_as_epi_list=True,show_warnings=True):
         return df
 
 def convert_df_to_arr(df):
-    # rows = len(df)
-    # cols = len(COL_ORDERING)
-
-    # arr = np.zeros( (rows, cols) )
-    # for col, header in enumerate(COL_ORDERING):
-    #     arr[:, col] = list(df[header])
-    
-    # return arr
-
     return df[COL_ORDERING].values.tolist()
 
 
@@ -396,6 +422,13 @@ def convert_df_to_arr(df):
 
 # Graphing
 def display_subj_epi_graph(file_num,epi=0):
+    """Display glucose-insulin trace for a subject and episode, at the start of the episode.
+
+    Args:
+        file_num: Subject file index.
+        epi (int): Episode to look at for the subject. 
+
+    """
     file_name = "subj_ind_" + str(file_num) + ".csv"
     file_dest = CLN_DATA_SAVE_DEST + '/' +  file_name
 
@@ -403,15 +436,13 @@ def display_subj_epi_graph(file_num,epi=0):
 
     df = df.rename(columns={"epi" : "episode", "carbs" : "meal"})
     if not epi in df["episode"]: raise IndexError(f"Episode {epi} does not exist.")
-    # df = df[df['episode'] == epi].reset_index()
+    df = df[df['episode'] == epi].reset_index()
 
     base_t = datetime(2020, 1, 1, 0, 0)
 
     df["time"] = df["t"].apply(lambda t : base_t + timedelta(minutes=convert_string_to_mins(t)))
     df["day_hour"] = df["t"].apply(lambda t : int(t.split(':')[1]))
     df["day_min"] = df["t"].apply(lambda t : int(t.split(':')[2]))
-    
-    # df["t"] = df["t"].apply(lambda t : convert_string_to_mins(t) // 5)
     
     new_t_col = []
     current_t = 0
@@ -433,6 +464,12 @@ def display_subj_epi_graph(file_num,epi=0):
     plot_episode(dummy, tester, episode=epi)
 
 def display_all_subj_epi_graph(file_num,cap=3):
+    """Calls display_subj_epi_graph for every episode allowed
+
+    Args:
+        file_num: Subject file index.
+        cap(int): Maximum number of episodes to examine.
+    """
     file_name = "subj_ind_" + str(file_num) + ".csv"
     file_dest = CLN_DATA_SAVE_DEST + '/' +  file_name
 
@@ -452,6 +489,8 @@ class DummyClass:
         return self.df[self.df['episode'] == epi]
 
 class ClnDataImporter:
+    """Handles the importing of Clinical Subject Data. Splitting is done by each window, and are not isolated.
+    """
     def __init__(self, args, env_args):
         self.args, self.env_args = args, env_args
         self.subj_ind = args.patient_id
@@ -500,6 +539,8 @@ class ClnDataImporter:
         return self.queue 
         
 class ClnDataQueue: 
+    """Handles the use of clinical data in a simple queue
+    """
     def __init__(self, importer, minimum_length=1024, maximum_length = 8192, mapping = convert_trial_into_transitions, reserve_validation=0):
         self.importer, self.minimum_length, self.maximum_length, self.mapping = importer, minimum_length, maximum_length, mapping
         self.queue = []
@@ -632,7 +673,7 @@ class ClnDataQueue:
 # Main 
 if __name__ == "__main__":
     option = input("Select:\n| convert | summarise | display | convert 2 | generate types |\n: ").lower().strip()
-    if option == "convert":
+    if option == "convert": # Convert raw subject data to a .csv format
 
         print("Converting Subject Data to .csv format.")
         
@@ -666,15 +707,15 @@ if __name__ == "__main__":
                 with open(CLN_DATA_SAVE_DEST + '/' + file_name, 'w') as f:
                     f.write(','.join(COLUMN_NAMES))
     
-    elif option == "display":
+    elif option == "display": # Generate example graphic for a random subject
         from random import randrange
 
-        print("Generating graphic for random patient.")
+        print("Generating graphic for random subject.")
 
         ind_n = randrange(0, SUBJECTS_N)
         display_all_subj_epi_graph(ind_n,cap=3)
 
-    elif option == "summarise":
+    elif option == "summarise": # Generate subject summary file
 
         print("Creating data summary table.")
         DM = import_xpt_file(CLN_DATA_DEST,'DM') #demographics
@@ -756,7 +797,7 @@ if __name__ == "__main__":
             f.write(txt)
         print(f"Summary file saved to {SUMMARY_FILE_DEST}.")
     
-    elif option == "convert 2":
+    elif option == "convert 2": # Convert .csv subject data into a compressed format for the PortableLoader class
         import gc
         from utils.cln_data import ClnDataImporter
         from experiments.glucose_prediction.portable_loader import CompactLoader
@@ -807,7 +848,7 @@ if __name__ == "__main__":
                 data.save_compact_loader_object()
                 print(f"\tData saved for seed {seed}.")
     
-    elif option == "generate types":
+    elif option == "generate types": #  Show the counts of different exclusion groups for subjects. Summaries must be generated before this
         import gc
         from utils.cln_data import ClnDataImporter
         from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
@@ -842,7 +883,5 @@ if __name__ == "__main__":
             print("inj_nonempty = [" + ','.join(['"' + str(i) + '"' for i in inj_nonempty]) + "]")
             print("empty = [" + ','.join(['"' + str(i) + '"' for i in empty]) + "]")
             print("other = [" + ','.join(['"' + str(i) + '"' for i in other]) + "]")
-
-
 
     else: raise ValueError("Invalid input.")
