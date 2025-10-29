@@ -36,18 +36,11 @@ def set_agent_parameters(cfg):
     elif cfg.agent.agent == 'g2p2c':
         from agents.algorithm.g2p2c import G2P2C
         agent = G2P2C(args=cfg.agent, env_args=cfg.env, logger=logger, load_model=False, actor_path='', critic_path='')
-
-    elif cfg.agent.agent == 'offline':
-        from agents.algorithm.offline import Offline
-        agent = Offline(args=cfg.agent, env_args=cfg.env, logger=logger, load_model=False, actor_path='', critic_path='')
     
     elif cfg.agent.agent == 'td3_bc':
         from agents.algorithm.td3_bc import TD3_BC
         agent = TD3_BC(args=cfg.agent, env_args=cfg.env, logger=logger, load_model=False, actor_path='', critic_path='')
 
-    elif cfg.agent.agent == 'td3_bc_simple':
-        from agents.algorithm.td3_bc_simple import TD3_BC
-        agent = TD3_BC(args=cfg.agent, env_args=cfg.env, logger=logger, load_model=False, actor_path='', critic_path='')
     elif cfg.agent.agent == 'iql':
         from agents.algorithm.iql import IQL
         agent = IQL(args=cfg.agent, env_args=cfg.env, logger=logger, load_model=False, actor_path='', critic_path='', value_path='')
