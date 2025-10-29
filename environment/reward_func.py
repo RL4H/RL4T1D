@@ -2,7 +2,6 @@ import math
 import torch
 import numpy as np
 from collections import deque
-from random import randrange
 
 from environment.utils import custom_reward
 
@@ -20,5 +19,3 @@ def composite_reward(args, state=None, reward=None):
     else:
         reward = reward
     return reward
-
-
