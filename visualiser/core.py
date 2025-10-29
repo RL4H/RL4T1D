@@ -46,7 +46,7 @@ def experiment_error_check(cohort, algorithm, algoAbbreviation,
     print('Error checking is complete. No errors detected!')
 
 def display_commands_v2(arr):
-    n_disp_experiments = 50
+    n_disp_experiments = 40
     disp_arr = np.array([True] * n_disp_experiments)
     if len(arr) != 0:
         for cmd in arr:
@@ -103,7 +103,7 @@ def display_commands(arr):
     return disp_arr
 
 
-class  ExperimentVisualise:
+class ExperimentVisualise:
     def __init__(self, id, version=1.0, plot_version=0, test_seeds=None):
         self.MAIN_PATH = '../../results/' + id + '/'
         self.id = id
@@ -173,11 +173,10 @@ class  ExperimentVisualise:
 
     def get_test_episode(self, tester, episode):
         if self.version == 1.0:
-            df = pd.read_csv(self.MAIN_PATH + '/testing/worker_episode_' + str(self.testing_seeds[tester]) +'.csv')
+            df = pd.read_csv(self.MAIN_PATH + '/testing/data/logs_test_worker_' + str(self.testing_seeds[tester]) +'.csv')
         elif self.version == 1.1:
-            df = pd.read_csv(self.MAIN_PATH + '/testing/worker_episode_' + str(self.testing_seeds[tester]) + '.csv')
-        print('/testing/worker_episode_' + str(self.testing_seeds[tester]) + '.csv')
-        df = df.loc[df['episode'] == episode]
+            df = pd.read_csv(self.MAIN_PATH + '/testing/data/logs_worker_' + str(self.testing_seeds[tester]) + '.csv')
+        df = df.loc[df['epi'] == episode]
         if self.plot_version == 1.0:
             df['day_hour'] = df['day_hour'].astype(int)
             df['day_min'] = df['day_min'].astype(int)
@@ -205,14 +204,6 @@ class  ExperimentVisualise:
             if df['epi'].iloc[-1] < latest_epi:
                 latest_epi = df['epi'].iloc[-1]
         return latest_epi
-    
-    def get_summary_dict(self):
-        di_list = []
-        for tester in self.testing_seeds:
-            df = pd.read_csv(self.MAIN_PATH + '/testing/worker_episode_summary_' + str(tester) +'.csv')
-            di_list.append(df.tail(1).to_dict())
-
-        return di_list
 
     def get_testing_summary(self):
         arr = []
@@ -475,6 +466,7 @@ def plot_episode(experiment, tester, episode):
 
     ax.axhline(y=54, color='r', linestyle='--')
     ax.axhspan(70, 180, alpha=0.2, color='limegreen', lw=0)
+
     x = True
     for t in range(0, len(df)):
         if df.iloc[t]['meal']:
@@ -495,12 +487,10 @@ def plot_episode(experiment, tester, episode):
     if experiment.plot_version == 1:
         start_time = df['time'].iloc[0]  # end_time = df['time'].iloc[-1]
         ax2.set_xlim([start_time, start_time + timedelta(hours=24)]) # start_time + timedelta(hours=3)]
-        ax2.xaxis.set_minor_locator(mdates.AutoDateLocator()) 
+        ax2.xaxis.set_minor_locator(mdates.AutoDateLocator())
         ax2.xaxis.set_minor_formatter(mdates.DateFormatter('%H:%M\n'))
-        ax2.xaxis.set_major_locator(mdates.DayLocator()) 
-
+        ax2.xaxis.set_major_locator(mdates.DayLocator())
         ax2.xaxis.set_major_formatter(mdates.DateFormatter('\n%b %d'))
-        ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda *args, **kwargs: ''))
 
     ax.set_ylim(5, max_cgm)
     var_ins_max = max_ins * (max_cgm / 50)
@@ -916,6 +906,3 @@ def get_concat_recent(path, seeds, filename, column, horizon):
         full_arr.append(d[column][-horizon:])
     data = pd.concat(full_arr, axis=0)
     return data
-
-
-

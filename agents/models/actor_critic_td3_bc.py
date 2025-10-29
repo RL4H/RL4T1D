@@ -14,6 +14,8 @@ LOG_STD_MIN = -20
 class FeatureExtractor(nn.Module):
     def __init__(self, args):
         super(FeatureExtractor, self).__init__()
+        print(args.n_features)
+        
         self.n_features = args.n_features
         self.n_handcrafted_features = args.n_handcrafted_features
         self.use_handcraft = args.use_handcraft

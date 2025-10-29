@@ -20,7 +20,7 @@ class Worker(T1DEnv):
     def _reset(self):
         self.episode += 1
         self.counter = 0
-        self.state, self.info = self.reset()
+        self.state = self.reset()
 
 
 class OnPolicyWorker(Worker):
@@ -51,7 +51,6 @@ class OnPolicyWorker(Worker):
             logger.update(self.counter, self.episode, info['cgm'], rl_action, pump_action, 0, reward, info)
 
             self.state = state  # update -> state.
-            self.info = info
 
             self.counter += 1
             if is_done or self.counter > self.stop_factor:  # episode termination criteria.
