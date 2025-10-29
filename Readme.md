@@ -29,6 +29,7 @@ Using the project
 * Go to the project folder (RL4T1D): <code>cd RL4T1D</code>
 * Install the required Python libraries <code>requirements.txt</code>. 
 * Create an environment file <code>.env</code> at the root of the project folder with <code>MAIN_PATH=path-to-this-project</code> (<code>echo "MAIN_PATH=$(pwd)">.env</code>).<br>
+* If using an offline setup, add additional environment variable(s) for the data location, as detailed in ``visualisor/notebooks/ORL_toolscriptgen.ipynb`` and ``visualisor/notebooks/ORL_cln_toolscriptgen.ipynb``.
 
 <h4>Prerequsites</h4>
 * Install [Simglucosev0.2.2](https://github.com/jxx123/simglucose) which is an open source version of the UVA/PADOVA 2008 model approved by the FDA. <br>
