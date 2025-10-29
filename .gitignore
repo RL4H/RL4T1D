@@ -11,8 +11,6 @@ data/object_save/
 data/csv_saves/
 data/raw_csv/
 data/summaries/
-tool_scripts/data_cleaning/
-tool_scripts/misc
 experiments/offline_prediction_eval/saves
 outputs/
 experiments/offline_prediction_eval/temp_data.pkl
