@@ -28,8 +28,8 @@ experiment_summary:
   # - 'RMSE'
   
   # specific for td3+bc
-  - 'td3_loss'
-  - 'bc_loss'
+  # - 'td3_loss'
+  # - 'bc_loss'
   
 worker_episode:
   - 'episode'
