@@ -1,5 +1,5 @@
 """ 
-This code is written as an example usage of the data importing code attached to the D4RL paper.
+This code is written as an example usage of the data importing code attached to the D4RLT1D paper.
 
 This script counts the total simulated time for the recorded trials.
 """
@@ -10,7 +10,7 @@ import sys
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-from utils.sim_data import DataImporter
+from d4rlt1d.synthetic.sim_data import DataImporter
 
 DATA_DEST = "../SimulatedData" #FIXME change data destination for your script
 all_data = DataImporter(verbose=True, data_folder=DATA_DEST)
@@ -18,7 +18,7 @@ all_data = DataImporter(verbose=True, data_folder=DATA_DEST)
 total_simulated_minutes = 0
 
 for individual_data in all_data:
-    print("Imported data for", all_data.current_individual)
+    print("Imported data for", all_data.current_subject)
     individual_data.flatten()
 
     individual_minutes = 0
@@ -27,7 +27,7 @@ for individual_data in all_data:
         if rows > 0:
             individual_minutes += 5 * (rows - 1) #each row is 5 minutes of data, except first row
     
-    print("Counted", individual_minutes, "minutes of data for", all_data.current_individual)
+    print("Counted", individual_minutes, "minutes of data for", all_data.current_subject)
     total_simulated_minutes += individual_minutes
     del individual_data
 

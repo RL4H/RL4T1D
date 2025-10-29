@@ -1,5 +1,5 @@
 """ 
-This code is written as an example usage of the data importing code attached to the D4RL paper.
+This code is written as an example usage of the data importing code attached to the D4RLT1D paper.
 
 This script generates a csv file giving meal and time length data.
 """
@@ -12,17 +12,17 @@ import gc
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-from utils.sim_data import DataImporter, MODEL_TYPES, INDIVIDUALS
+from d4rlt1d.synthetic.sim_data import DataImporter, AGENT_TYPES, SUBJECTS
 
 
 
 MEAL_COLUMN = 1
 
-USE_ALGORITHMS = MODEL_TYPES[:]
+USE_ALGORITHMS = AGENT_TYPES[:]
 USE_ALGORITHMS.remove("DPG") 
 USE_ALGORITHMS.remove("DDPG")
 
-USE_INDIVIDUALS = INDIVIDUALS
+USE_INDIVIDUALS = SUBJECTS
 
 DATA_DEST = "../SimulatedData" #FIXME change data destination for your script
 
@@ -30,7 +30,7 @@ SAVE_PATH = DATA_DEST + "/summaries/"
 SAVE_FILE_NAME = "sample_table"
 
 
-all_data = DataImporter(verbose=True, models=USE_ALGORITHMS, data_folder=DATA_DEST)
+all_data = DataImporter(verbose=True, agents=USE_ALGORITHMS, data_folder=DATA_DEST)
 
 
 individual_minutes_row_tst = []
@@ -42,11 +42,11 @@ individual_meals_row_trn = []
 individual_trials_row_tst = []
 individual_trials_row_trn = []
 
-TRAINING_EXPERTS = ["training"]
-TESTING_EXPERTS = ["testing","evaluation","clinical"]
+TRAINING_PROTOCOLS = ["training"]
+TESTING_PROTOCOLS = ["testing","evaluation","clinical"]
 
 for individual_data in all_data:
-    individual_name = all_data.current_individual
+    individual_name = all_data.current_subject
     #initialize row data
     individual_minutes_tst = 0
     individual_minutes_trn = 0
@@ -58,7 +58,7 @@ for individual_data in all_data:
     individual_trials_trn = 0
 
     for model in USE_ALGORITHMS:
-        for expert in individual_data.experts: #take all data belonging to this model
+        for expert in individual_data.protocols: #take all data belonging to this model
             if model in individual_data.data_dict[individual_name][expert]:
                 trials = individual_data.data_dict[individual_name][expert][model]
                 for trial in trials:
@@ -67,11 +67,11 @@ for individual_data in all_data:
                     meal_data = trial[:, MEAL_COLUMN]
                     meal_num = np.count_nonzero(meal_data)
                     
-                    if expert in TESTING_EXPERTS:
+                    if expert in TESTING_PROTOCOLS:
                         individual_minutes_tst += minutes
                         individual_meals_tst += meal_num
                         individual_trials_tst += 1
-                    elif expert in TRAINING_EXPERTS:
+                    elif expert in TRAINING_PROTOCOLS:
                         individual_minutes_trn += minutes
                         individual_meals_trn += meal_num
                         individual_trials_trn += 1
@@ -115,6 +115,8 @@ lines = [
 
 with open(SAVE_PATH + SAVE_FILE_NAME + "_stats_training.csv",'w') as f:
     f.write('\n'.join(lines))
+
+print("CSV file saved.")
 
 
 

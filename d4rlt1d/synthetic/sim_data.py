@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import pandas as pd
-import random
 from datetime import datetime
 import sys
 import pickle
@@ -10,24 +9,11 @@ from omegaconf import OmegaConf
 import gc
 from random import randrange
 from decouple import config
-from collections import namedtuple, deque
-from random import randrange
-
-import torch
-from torch.utils.data import Dataset
-# from torchvision import datasets
-# from torchvision.transforms import ToTensor
 
 MAIN_PATH = config('MAIN_PATH')
 sys.path.insert(1, MAIN_PATH)
 
-from environment.reward_func import composite_reward
-from utils.core import calculate_features, pump_to_rl_action
-Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'done'))
-
-
 SIM_DATA_PATH = config("SIM_DATA_PATH")
-# CLN_DATA_PATH = config("CLN_DATA_PATH")
 
 DATA_DEST = SIM_DATA_PATH
 
@@ -82,14 +68,11 @@ BIG_CSV_COLUMN_TYPES ={
     "t" : CSV_COLUMN_TYPES["t"],
 }
 
-SHUFFLE_QUEUE_IMPORTS = True
-IMPORT_SEED = 0
-
 #designate file naming conventions to read from
 PICKLE_FILE_NAME_END = "_data"
 PICKLE_FILE_NAME_START = "data_dictionary_"
 
-#import subject attributes
+#import patient attributes
 with open(MAIN_PATH + "/utils/subject_attrs.csv",'r') as f:
     lines = [line.split(',') for line in f.read().splitlines()]
 
@@ -101,9 +84,6 @@ for line in lines[1:]:
         subject_attr_dict[line[0].lower()][var] = line[c]
 
 def get_subject_attrs(subject): return subject_attr_dict[subject.lower()]
-
-DEFAULT_REWARD_FUNC = lambda cgm : composite_reward(None, cgm[-1])
-
     
 
 ### Helpers
@@ -116,7 +96,7 @@ def convert_mins_to_string(raw_mins):
     return f"{days}:{hours:02}:{mins:02}"
 
 def convert_string_to_mins(time_string):
-    days,hours,mins = tuple([int(i) for i in time_string.split(':')])
+    days,hours,mins,seconds = tuple([int(i) for i in time_string.split(':')])
     return days*60*24 + hours*60 + mins
 
 def import_from_csv_as_rows(file_dest, headers=CSV_HEADERS, meta_col=""):
@@ -175,13 +155,6 @@ def open_arg_file(file_dest):
     return OmegaConf.create(args_dict)
 
 def import_raw_files(file_dest_folder=DATA_DEST+"/object_save/", file_name_start="data_dictionary_", file_name_end="_data"):
-    """ Imports all of the converted simulation data into a single dictionary object.
-
-    Args:
-        file_dest_folder: The folder where raw files are stored
-        file_name_start: The start of the file name, before the subject index
-        file_name_end: The end of the file name, after the subject index
-    """
     overall_start_time = datetime.now()
 
     total_importing_time = 0
@@ -193,13 +166,16 @@ def import_raw_files(file_dest_folder=DATA_DEST+"/object_save/", file_name_start
         file_dest = file_dest_folder + file_name_start + subject + file_name_end + ".pkl"
         
         data = import_all_data(DATA_DEST, show_progress=True, subject_range=[subject]) #import data from files
-        print("Succesfully imported.")
+        print("\nSuccesfully imported.")
 
         end_time = datetime.now() #end the read timer
         duration = end_time - start_time
         total_importing_time += duration.total_seconds()
         print(f"Data for {subject} agent imported in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s")
 
+        obj_size = sys.getsizeof(data) #get size of object #FIXME doesn't seem to work correctly
+        obj_size_mb = obj_size / (1024 ** 2)
+        print("Returned object is",round(obj_size_mb,10),"MB")
 
         print("===Data Breakdown:===")
         for subject in data:
@@ -241,7 +217,7 @@ def import_all_data(
         folder_type_list = FOLDER_TYPE_AGENTS,
         show_progress = False
         ):
-    """ Imports raw simulation data from a given folder.
+    """ Imports simulation data from a given folder.
 
     Args:
         dest (str, optional): The folder to search through. Defaults to "../data".
@@ -355,18 +331,8 @@ def import_all_data(
 
     return data_dict
 
-def convert_to_frames(data_obj, window_size=12, default_starting_window=True, default_starting_value=0):
-    """Convert data from a single trial into windows.
-
-    Args:
-        data_obj: The dataframe for a single trial
-        window_size: Size of windows, defaults to 12
-        default_starting_window: _description_. Defaults to True.
-        default_starting_value: _description_. Defaults to 0.
-
-    Returns:
-        _type_: _description_
-    """
+def convert_to_frames(data_obj, window_size=16, default_starting_window=True, default_starting_value=0):
+    #data_obj is a 2D numpy array , rows x columns. Columns are :  cgm, meal, ins, t, meta_data
     rows, _ = data_obj.shape
     ins_column = data_obj[:, 2]
     cgm_column = data_obj[:, 0]
@@ -387,114 +353,6 @@ def convert_to_frames(data_obj, window_size=12, default_starting_window=True, de
     
     return data_frames
 
-def patient_id_to_label(patient_id):
-    if patient_id < 0 or patient_id >= 30: raise ValueError("Invalid patient id")
-    return ["adolescent","child", "adult"][patient_id//10] + str(patient_id % 10)
-
-def convert_trial_into_windows(data_obj, args, env_args, reward_func=DEFAULT_REWARD_FUNC):
-    window_size = args.obs_window
-
-    rows, _ = data_obj.shape
-
-    states = np.array([calculate_features(data_row, args, env_args) for data_row in data_obj])
-    print()
-    print(data_obj)
-    print("converted States:",states)
-
-    actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
-
-    window_states = []
-    for row_n in range(window_size, rows-1):
-        window_states.append(np.array(states[row_n-window_size: row_n]))
-
-    return window_states
-
-
-reward_horizon = 1
-def convert_trial_into_transitions(data_obj, args, env_args, reward_func=DEFAULT_REWARD_FUNC):
-    """ Converts a single trial into transitions for use by RL algorithms
-
-    Args:
-        data_obj: A single trial as a 2D numpy array, columns are :  cgm, meal, ins, t, meta_data
-        args: args for agent, as generated by main agent runtime
-        env_args: args for environment, as generated by main runtime
-        reward_func: Function to generate reward, defaults to DEFAULT_REWARD_FUNC
-
-    Returns:
-        A list of transitions
-    """
-    #data_obj is a 
-    window_size = args.obs_window
-    rows, _ = data_obj.shape
-    states = np.array([calculate_features(data_row, args, env_args) for data_row in data_obj])
-    actions = [pump_to_rl_action(ins, args, env_args) for ins in data_obj[:, 2]]
-
-    rewards = [reward_func( data_obj[:, 0][max(0, row_n+1-reward_horizon):row_n+1] ) for row_n in range(rows)]
-
-    transitions = []
-    for row_n in range(window_size, rows-1):
-        state = np.array(states[row_n-window_size+1: row_n+1])
-        action = np.array([actions[row_n]])
-        reward = np.array([rewards[row_n]])
-        next_state = np.array(states[row_n-window_size+2: row_n+2])
-        done = np.array([int(row_n == rows - 1)])
-        transitions.append(Transition(state, action, reward, next_state, done))
-
-    return transitions
-
-def extend_slice(li, start, end):
-    if start < 0:
-        prefix = [li[0]] * (abs(start))
-        start = 0
-    else: prefix = []
-
-    len_li = len(li)
-    if end > len_li:
-        suffix = [li[-1]] * (end - len_li)
-        end = len_li
-    else: suffix = []
-
-    return np.concatenate( (prefix, li[start:end], suffix) )
-
-def calculate_augmented_features(data_obj, args, env_args, reward_func=DEFAULT_REWARD_FUNC):
-    """ Calculate features for each row of a given trial
-
-    Args:
-        data_obj (_type_): A single trial as a 2D numpy array, columns are :  cgm, meal, ins, t, meta_data
-        args: args for agent, as generated by main agent runtime
-        env_args: args for environment, as generated by main runtime
-        reward_func: Function to generate reward, defaults to DEFAULT_REWARD_FUNC
-
-    Returns:
-        A 2D array of features for each row
-    """
-    rows = len(data_obj)
-
-    actions = [pump_to_rl_action(row[2], args, env_args) for row in data_obj]
-    rewards = [ reward_func([data_obj[min(row_n + 1, rows - 1)][0]]) for row_n in range(rows) ]
-
-    aug_states = [
-        list(calculate_features(data_row, args, env_args)) + [actions[n], rewards[n], (n >= rows - 2)] 
-        for n, data_row in enumerate(data_obj)
-    ]
-
-    return aug_states
-
-def retrieval_augmented_feature_trial(aug_states, row_n, window_size):
-
-    rows = len(aug_states)
-    states = [row[:-3] for row in aug_states]
-
-    state = np.array(states[row_n: row_n + window_size])
-    action = np.array([aug_states[row_n + window_size - 1][-3]])
-    reward = np.array([aug_states[row_n + window_size - 1][-2]])
-    next_state = np.array(states[row_n + 1: row_n + window_size + 1])
-    done = np.array([aug_states[min(row_n + window_size, rows - 1)][-1]])
-
-    
-    return Transition(state, action, reward, next_state, done)
-
-
 ### Classes
 
 class DataImporter:
@@ -505,33 +363,16 @@ class DataImporter:
             data_folder=DATA_DEST,
             verbose = True,
             subjects = SUBJECTS, 
+            cohorts=COHORT_VALUES, 
             agents = AGENT_TYPES, 
             protocols=PROTOCOLS,
-            args=None,
-            env_args=None
         ):
-        self.args = args
-
-        #ARGS overrides passed subjects and cohorts
-        if args != None:
-            print("Overwriting DataImporter Values from args.")
-            self.subjects = [patient_id_to_label(self.args.patient_id)]
-            self.agents = (AGENT_TYPES if args.data_algorithms == [] else args.data_algorithms)
-            print(self.agents)
-            self.protocols = (PROTOCOLS if args.data_protocols == [] else args.data_protocols)
-        else:
-            self.subjects, self.agents, self.protocols = subjects, agents, protocols
-
-        self.cohorts = list(set([subj[:-1] for subj in self.subjects]))
-        if len(self.subjects) == 1: self.subject = self.subjects[0]
-        else: self.subject = None
-
-        self.env_args = env_args
+        self.subjects, self.cohorts, self.agents, self.protocols = subjects, cohorts, agents, protocols
         self.verbose = verbose
         self.source_folder = data_folder + "/object_save/"
         self.current_data = None
         self.current_index = 0
-        self.current_subject = self.subjects[0]       
+        self.current_subject = self.subjects[0]  
     def start(self):
         self.current_index = -1
     def __iter__(self):
@@ -546,7 +387,7 @@ class DataImporter:
         else:
             self.current_subject = None
             self.delete_current()
-            raise StopIteration  
+            raise StopIteration
     def delete_current(self):
         if self.current_data != None:
             self.current_data.delete()
@@ -563,8 +404,9 @@ class DataImporter:
         if self.verbose:
             end_time = datetime.now() #end the read timer
             duration = end_time - start_time
+            print(f"Read object in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s\n")
             file_size = os.path.getsize(file_dest) #obtain file size of read file
-            print(f"\tRead object in {int(duration.total_seconds() // 60)}m {duration.total_seconds() % 60 :.1f}s, with size {file_size / (1024 * 1024):.2f}MB")
+            print(f"\t{file_dest} has size {file_size / (1024 * 1024):.2f}MB")
 
         #strip irrelevant parts of imported object based on defined parameter ranges 
         if self.verbose: print("\tStripping Irrelevant Sections")
@@ -577,18 +419,17 @@ class DataImporter:
                     if not (agent in self.agents):
                         print("\t\tDeleted agent",agent)
                         del raw_data[self.current_subject][protocol][agent]
-            gc.collect()
         if self.verbose: print("\tFinished stripping sections.")
 
         handled_data = DataHandler(raw_data)
         raw_data = None
-        return handled_data  
+        return handled_data
     def import_current(self):
         if self.verbose: print("\tDeleting previous data.")
         self.delete_current()
         if self.verbose: print("\tFinished deleting previous data.")
 
-        handled_data = self.import_current(self.current_subject)
+        handled_data = self.import_subject(self.current_subject)
         self.current_data = handled_data
     def check_finished(self):
         return self.current_subject == None
@@ -599,19 +440,20 @@ class DataImporter:
         protocols = self.protocols if protocols_override == None else protocols_override
 
         #TODO: add a layer to filter out subjects if cohorts, agents, or protocols limit them, since reading the files is the main bottleneck.
+
         trial_data = dict()
-        for subject in list(subjects):
+        for subject in subjects:
             file_dest = self.source_folder + PICKLE_FILE_NAME_START + self.subject + PICKLE_FILE_NAME_END + ".pkl"
             
             current_data = import_from_obj(file_dest) #import data from pickle object
 
             if self.verbose: print("\tStripping Irrelevant Sections")
 
-            for protocol in list(current_data[subject]):
+            for protocol in current_data[subject]:
                 if not (protocol in protocols):
                     del current_data[subject][protocol]
                 else:
-                    for agent in list(current_data[subject][protocol]):
+                    for agent in current_data[subject][protocol]:
                         if not (agent in agents):
                             del current_data[subject][protocol][agent]
             if self.verbose: print("\tFinished stripping sections.")
@@ -622,12 +464,8 @@ class DataImporter:
         return DataHandler(trial_data)
     def get_current_subject_attrs(self):
         return get_subject_attrs(self.current_subject)
-    def create_queue(self, minimum_length=100, maximum_length=2000, mapping=convert_trial_into_transitions, reserve_validation=0):
-        self.queue = DataQueue(self, minimum_length, maximum_length, mapping, reserve_validation)
-        return self.queue
-    def create_torch_dataset(self, mapping=convert_trial_into_transitions, index_by_trial=False): #holds full object in memory
-        self.torch_dataset = SimTorchDataset(self, False, index_by_trial, mapping)
-        return self.torch_dataset
+    def create_queue(self, minimum_length=100, maximum_length=2000, mapping=convert_to_frames):
+        self.queue = DataQueue(self, minimum_length, maximum_length, mapping)
 
 class DataHandler:
     """
@@ -665,7 +503,7 @@ class DataHandler:
         if self.flat:
             return self.flat_trials
         else:
-            return self.data_dict      
+            return self.data_dict     
     def gen_summaries(self):
         if self.flat: raise NotImplementedError("gen_summaries() only implemented for unflattened data.")
         self.trials_count = 0
@@ -696,7 +534,7 @@ class DataHandler:
                     del self.data_dict[subject][protocol][agent]
         del self.data_dict
         self.flat_trials = output_list
-        print("\tmade flat", len(self.flat_trials))
+        print("made flat", len(self.flat_trials))
         self.flat = True
         if self.verbose: print("Flattening Complete")
     def save_as_csv(self, name, dest_folder=DATA_DEST + "/csv_saves/",seperate_flat_files = False):
@@ -726,7 +564,7 @@ class DataHandler:
     def delete(self):
         print("deleting time!")
         self.flat_trials = None
-        self.data_dict = None  
+        self.data_dict = None
     def print_structure(self):
         print("Structure")
         if not self.flat:
@@ -743,76 +581,16 @@ class DataHandler:
         return [get_subject_attrs(subject) for subject in self.subjects]
 
 class DataQueue: 
-    """
-    Manages queued use of simulated data, to avoid holding all data in memory constantly
-    """
-    def __init__(self, importer, minimum_length=1024, maximum_length = 8192, mapping = convert_trial_into_transitions, reserve_validation=0):
+    def __init__(self, importer, minimum_length=100, maximum_length = 2000, mapping = convert_to_frames):
         self.importer, self.minimum_length, self.maximum_length, self.mapping = importer, minimum_length, maximum_length, mapping
         self.queue = []
         self.queue_revolutions = 0
         self.subjects_n = len(self.importer.subjects)
-        assert maximum_length >= minimum_length
-
-        self.reserve_validation = reserve_validation
-        self.reserve_validation_trials = 0 #gets reassigned in start()
-        self.reset_validation()
-    def start(self,count_transitions=True):
+    def start(self):
         self.current_subject_ind = 0
         self.current_subject = self.importer.subjects[self.current_subject_ind]
-        self.current_subject_trial_ind = self.reserve_validation_trials #start index after validation trials
-
-
-        if count_transitions and len(self.importer.subjects) == 1: #run an altered first sync to minimise needed imports and count maximum transitions
-            
-            # import data
-            remaining_length = self.maximum_length - len(self.queue)
-            handled_data = self.importer.import_subject(self.current_subject)
-            handled_data.flatten()
-
-            #count transitions
-            window_size = self.importer.env_args.obs_window
-            transitions = 0
-            n = 0
-            self.reserve_validation_trials = 0
-            reserve_validation_trial_count = 0
-            for trial in handled_data.flat_trials:
-                trial_transitions = max(0, len(trial) - window_size - 1)
-                transitions += trial_transitions
-                if reserve_validation_trial_count < self.reserve_validation:
-                    reserve_validation_trial_count += trial_transitions
-                    self.reserve_validation_trials += 1
-                # actual_transitions = len(self.mapping(trial, self.importer.args, self.importer.env_args))
-                # assert transitions == actual_transitions
-                n += 1
-            
-            print(transitions, "transitions counted,", self.reserve_validation_trials, "trials reserved for validation.")
-            self.total_transitions = transitions
-            self.current_subject_trial_ind = self.reserve_validation_trials #start index after validation trials
-
-            #add to queue
-
-            handled_len = len(handled_data.flat_trials)
-            gc.collect()
-
-            while remaining_length > 0 and self.current_subject_trial_ind < handled_len:
-                trial_mapping = self.mapping(handled_data.flat_trials[self.current_subject_trial_ind], self.importer.args, self.importer.env_args)
-                mapping_len = len(trial_mapping)
-
-                self.queue += trial_mapping
-                remaining_length -= mapping_len
-                self.current_subject_trial_ind += 1
-            
-            if self.current_subject_trial_ind >= handled_len:
-                self.current_subject_trial_ind = self.reserve_validation_trials
-
-            del handled_data.flat_trials
-            del handled_data
-            gc.collect()
-
-        elif count_transitions:
-            raise NotImplementedError
-        else:
-            self.sync_queue()
+        self.current_subject_trial_ind = 0
+        self.sync_queue()
     def next_subject(self):
         self.current_subject_ind += 1
         if self.current_subject_ind >= self.subjects_n:
@@ -824,152 +602,39 @@ class DataQueue:
         if len(self.queue) < self.minimum_length:
             remaining_length = self.maximum_length - len(self.queue)
             while remaining_length > 0:
-                # print("Importing data for",self.current_subject,"at index",self.current_subject_ind)
                 handled_data = self.importer.import_subject(self.current_subject)
                 handled_data.flatten()
-                handled_len = len(handled_data.flat_trials)
-
-                if SHUFFLE_QUEUE_IMPORTS:
-                    random.seed(IMPORT_SEED)
-                    random.shuffle(handled_data.flat_trials)
-
-
-                # print("Data Imported and flattened with", handled_len,"trials.")
                 gc.collect()
 
-                while remaining_length > 0 and self.current_subject_trial_ind < handled_len:
-                    # print("\tMapping step",self.current_subject_trial_ind, handled_len)
-                    trial_mapping = self.mapping(handled_data.flat_trials[self.current_subject_trial_ind], self.importer.args, self.importer.env_args)
-                    if SHUFFLE_QUEUE_IMPORTS: random.shuffle(trial_mapping)
-                    mapping_len = len(trial_mapping)
-
-                    self.queue += trial_mapping
-                    remaining_length -= mapping_len
-                    self.current_subject_trial_ind += 1
-                
-                if self.current_subject_trial_ind >= handled_len:
-                    self.current_subject_trial_ind = self.reserve_validation_trials
-
-
-                del handled_data.flat_trials
-                del handled_data
-            gc.collect()
-            # print("Sync completed")
+                handled_length = len(handled_data) - self.current_subject_trial_ind
+                if self.handled_length > remaining_length:
+                    for trial in handled_data.flat_trials[self.current_subject_trial_ind:self.current_subject_trial_ind + remaining_length]:
+                        self.queue.append(
+                            self.mapping(trial) if self.mapping != None else trial
+                        )
+                    self.current_subject_trial_ind += remaining_length
+                    remaining_length = 0
+                else:
+                    for trial in handled_data[self.current_subject_trial_ind:]:
+                        self.queue.append(
+                            self.mapping(trial) if self.mapping != None else trial
+                        )
+                    remaining_length -= handled_length
+                    self.next_subject()
+            del handled_data
+        gc.collect()
     def pop(self):
         out = self.queue.pop(0)
         self.sync_queue()
         return out
-    def pop_batch(self,n):
-        return [self.pop() for _ in range(n)]
-    def shuffle_queue(self, seed=None):
-        if seed != None: random.seed(seed)
-        random.shuffle(self.queue)
 
-    def reset_validation(self):
-        self.validation_trial_ind = 0
-        self.validation_in_trial_ind = 0
-        self.vld_queue = []
-    def start_validation(self):
-        self.reset_validation()
-        self.sync_validation()
-    def sync_validation(self):
-        if len(self.vld_queue) <= 0:
-            # assumes only one individual being used
-            handled_data = self.importer.import_subject(self.current_subject)
-            handled_data.flatten()
-            
-            if SHUFFLE_QUEUE_IMPORTS:
-                random.seed(IMPORT_SEED)
-                random.shuffle(handled_data.flat_trials)
-        
-            print(handled_data.flat_trials[self.validation_trial_ind])
-            trial_mapping = self.mapping(handled_data.flat_trials[self.validation_trial_ind], self.importer.args, self.importer.env_args)
 
-            while len(self.vld_queue) < self.reserve_validation + 20: #and len(self.vld_queue) < self.maximum_length
-                if self.validation_in_trial_ind >= len(trial_mapping):
-                    #increment, safetly avoiding empty data
-                    timeout_count = 0
-                    self.validation_trial_ind = (self.validation_trial_ind + 1) % self.reserve_validation_trials
-                    trial_mapping = self.mapping(handled_data.flat_trials[self.validation_trial_ind], self.importer.args, self.importer.env_args)
-                    while len(trial_mapping) == 0 and timeout_count < 300: 
-                        self.validation_trial_ind = (self.validation_trial_ind + 1) % self.reserve_validation_trials
-                        trial_mapping = self.mapping(handled_data.flat_trials[self.validation_trial_ind], self.importer.args, self.importer.env_args)
 
-                    self.validation_in_trial_ind = 0
-
-                    if timeout_count >= 300: raise ValueError("Trial Mappings are Empty. Check context length.")
-                
-                self.vld_queue.append(trial_mapping[self.validation_in_trial_ind])
-
-                self.validation_in_trial_ind += 1
-        
-            del handled_data.flat_trials
-            del handled_data
-    def pop_validation(self):
-        out = self.vld_queue.pop(0)
-        self.sync_validation()
-        return out
-    def pop_validation_queue(self, n):
-        return [self.pop_validation() for _ in range(n)]
-
-        
-MAPPING_FUNCS = [
-    convert_trial_into_transitions,
-    convert_trial_into_windows
-]
-
-class SimTorchDataset(Dataset): #TODO finish implementing this
-    """ Uses pytorch inbuilt to manage using simulated data. INCOMPLETE
-    """
-    def __init__(self, p_importer, lazy_load=False, index_by_trial=False, mapping = convert_trial_into_transitions):
-        self.importer, self.lazy_load, self.index_by_trial, self.mapping = p_importer, lazy_load, index_by_trial, mapping
-        
-        if self.lazy_load: raise NotImplementedError
-        else: self.load_full()
-
-        self.unique_dataset_name = '_'.join([str(i) for i in [
-            lazy_load, 
-            index_by_trial, 
-            MAPPING_FUNCS.index(mapping), 
-            self.importer.env_args.patient_id, 
-            ';'.join(list(self.importer.env_args.obs_features)),
-            self.importer.env_args.obs_window,
-            self.importer.args.data_type,
-            ';'.join(list(self.importer.args.data_protocols)),
-            ';'.join(list(self.importer.args.data_algorithms))
-        ]]) 
-    def load_full(self):
-        all_trials = self.importer.get_trials()
-        all_trials.flatten()
-
-        self.data = []
-        print(f"Converting dataset from {len(all_trials.flat_trials)}.")
-        for trial in all_trials.flat_trials:
-            trial_mapping = self.mapping(trial, self.importer.args, self.importer.env_args)
-            if self.index_by_trial and len(trial_mapping) != 0: 
-                self.data.append(trial_mapping)
-            else: 
-                for window in trial_mapping:
-                    self.data.append(window)
-        self.length = len(self.data)
-        print(f"Dataset converted into length {self.length}.")
-    def __len__(self):
-        return self.length
-    def __getitem__(self, ind):
-        if self.lazy_load: raise NotImplementedError
-        else: return self.data[ind]
-    def pop(self):
-        item = next(iter(self))
-        return item
-    def pop_batch(self,n):
-        return [self.pop() for _ in range(n)]
-
-### Main Logic
 
 if __name__ == "__main__":
-    main_function = input("| pickle | convert | import | convert 2 |\nChoose: \n").lower()
+    main_function = input("| pickle | convert | import |\nChoose: \n").lower()
 
-    if main_function == "convert": # Import the full pickled data and convert it into frames
+    if main_function == "convert":  # Import the full pickled data and convert it into frames
         subject = "adult0"
         overall_data_dict = dict()
         file_dest=DATA_DEST + "/object_save/data_dictionary_" + subject + "_data.pkl"
@@ -1006,54 +671,6 @@ if __name__ == "__main__":
             print(subject_data.flat_trials[0])
 
             del subject_data
-    
-    elif main_function == "convert 2": # Convert the pickled data into RL form for PortableLoader class
-
-        from utils.core import calculate_features
-        from experiments.offline_prediction_eval.portable_loader import CompactLoader, load_compact_loader_object
-        
-        for patient_id in list(range(0,10)) + list(range(20,30)):
-            args = OmegaConf.create({
-                "patient_ind" : patient_id,
-                "patient_id" : patient_id,
-                "batch_size" : 8192,
-                "data_type" : "simulated", #simulated | clinical,
-                "data_protocols" : ['evaluation'], #None defaults to all, 
-                "data_algorithms" : ["G2P2C"], #None defaults to all, #["A2C", "AUXML", "BBHE", "BBI", "G2P2C", "PPO", "SAC", "TD3", "DDPG", "DPG"]
-                "obs_window" : 12,
-                "control_space_type" : 'exponential',
-                "insulin_min" : 0,
-                "insulin_max" : 5,
-                "glucose_min" : 39,
-                "glucose_max" : 600,
-                "obs_features" : ['cgm','insulin','day_hour']
-            })
-            
-            importer = DataImporter(args=args,env_args=args)
-
-            handler = importer.get_trials()
-            handler.flatten()
-            flat_trials = handler.flat_trials
-            del handler
-            del importer
-            data = CompactLoader(
-                args, args.batch_size*2, args.batch_size*4, 
-                flat_trials,
-                lambda trial : calculate_augmented_features(trial, args, args),
-                1,
-                lambda trial : max(0, len(trial) - args.obs_window - 1),
-                0,
-                1024,
-                folder=SIM_DATA_PATH + "/object_save/"
-            )
-
-            data.save_compact_loader_object()
-            print("\tData saved for seed 0.")
-            for seed in range(1,3):
-                data.reset_shuffle(seed, data.n_list)
-
-                data.save_compact_loader_object()
-                print(f"\tData saved for seed {seed}.")
     
     else:
         raise ValueError("Invalid choice.")
