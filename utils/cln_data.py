@@ -800,7 +800,7 @@ if __name__ == "__main__":
     elif option == "convert 2": # Convert .csv subject data into a compressed format for the PortableLoader class
         import gc
         from utils.cln_data import ClnDataImporter
-        from experiments.glucose_prediction.portable_loader import CompactLoader
+        from experiments.offline_prediction_eval.portable_loader import CompactLoader
         from utils.sim_data import calculate_augmented_features
 
         SEEDS = [0,1,2]
@@ -851,7 +851,7 @@ if __name__ == "__main__":
     elif option == "generate types": #  Show the counts of different exclusion groups for subjects. Summaries must be generated before this
         import gc
         from utils.cln_data import ClnDataImporter
-        from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
+        from experiments.offline_prediction_eval.portable_loader import CompactLoader, load_compact_loader_object
         from utils.sim_data import calculate_augmented_features
 
         pump_nonempty = []

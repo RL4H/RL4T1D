@@ -13,6 +13,6 @@ data/raw_csv/
 data/summaries/
 tool_scripts/data_cleaning/
 tool_scripts/misc
-experiments/glucose_prediction/saves
+experiments/offline_prediction_eval/saves
 outputs/
-experiments/glucose_prediction/temp_data.pkl
+experiments/offline_prediction_eval/temp_data.pkl

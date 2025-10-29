@@ -1008,7 +1008,7 @@ if __name__ == "__main__":
     elif main_function == "convert 2":
 
         from utils.core import calculate_features
-        from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
+        from experiments.offline_prediction_eval.portable_loader import CompactLoader, load_compact_loader_object
         
         for patient_id in list(range(0,10)) + list(range(20,30)):
             args = OmegaConf.create({
@@ -1058,7 +1058,7 @@ if __name__ == "__main__":
 
         # from utils.sim_data import DataImporter, calculate_augmented_features
         from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
-        from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
+        from experiments.offline_prediction_eval.portable_loader import CompactLoader, load_compact_loader_object
         for patient_id in range(20):
             folder = SIM_DATA_PATH + "/object_save/"
             data_save_path = folder + f"temp_data_patient_{patient_id}_{0}.pkl"

@@ -21,8 +21,8 @@ CLN_DATA_SAVE_DEST = config('CLN_DATA_SAVE_DEST')
 
 from utils.sim_data import convert_trial_into_windows
 from utils.core import inverse_linear_scaling, MEAL_MAX, calculate_features
-from experiments.glucose_prediction.transformer_decoder import AutoregressiveDecoder
-from experiments.glucose_prediction.portable_loader import CompactLoader, load_compact_loader_object
+from experiments.offline_prediction_eval.transformer_decoder import AutoregressiveDecoder
+from experiments.offline_prediction_eval.portable_loader import CompactLoader, load_compact_loader_object
 
 
 """
@@ -165,7 +165,7 @@ class DataSampler:
         output = np.array([self.pop() for _ in range(self.batch_size)])
         return output
 
-@hydra.main(version_base=None, config_path=MAIN_PATH + "/experiments/glucose_prediction/config/", config_name="prediction_config.yaml")
+@hydra.main(version_base=None, config_path=MAIN_PATH + "/experiments/offline_prediction_eval/config/", config_name="prediction_config.yaml")
 def main(args: DictConfig):
     
     device = args.device
@@ -184,7 +184,7 @@ def main(args: DictConfig):
 
             if args.data_preload:
                 print("Preloading data")
-                folder = MAIN_PATH + f"/experiments/glucose_prediction/saves/"
+                folder = MAIN_PATH + f"/experiments/offline_prediction_eval/saves/"
                 data_save_path = folder + f"temp_data_patient_{args.patient_id}_{args.split_seed}.pkl"
                 data_save_path_args = folder + f"temp_args_{args.patient_id}_{args.split_seed}.pkl"
                 

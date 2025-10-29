@@ -50,7 +50,7 @@ retrieval_funcs = [
 ]
 
 class CompactLoader:
-    def __init__(self, args, min_length, max_length, trials_list, compact_conversion, retrieval_func_ind, calculate_trial_n, shuffle_seed=1, validation_items=1024, prebuilt=False, folder=MAIN_PATH + f"/experiments/glucose_prediction/saves/"):
+    def __init__(self, args, min_length, max_length, trials_list, compact_conversion, retrieval_func_ind, calculate_trial_n, shuffle_seed=1, validation_items=1024, prebuilt=False, folder=MAIN_PATH + f"/experiments/offline_prediction_eval/saves/"):
         self.retrieval_func = retrieval_funcs[retrieval_func_ind]
         self.retrieval_func_ind = retrieval_func_ind
         self.args = args

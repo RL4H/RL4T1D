@@ -1,5 +1,5 @@
 run_name: "test_23_fixed_actions"
-save_path: "/experiments/glucose_prediction/saves/"
+save_path: "/experiments/offline_prediction_eval/saves/"
 split_seed: 1
 device: 'cuda'
 # data source params
