@@ -17,7 +17,6 @@ PATIENT_PARA_FILE = pkg_resources.resource_filename('simglucose', 'params/vpatie
 def get_env(args, worker_id=None, env_type=None):
 
     patients, env_ids = get_patient_env()
-    print(patients) #FIXME remove
     patient_name = patients[args.patient_id]
     env_id = str(worker_id) + '_' + env_ids[args.patient_id]
     seed = worker_id + 100

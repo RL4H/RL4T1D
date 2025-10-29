@@ -7,8 +7,6 @@ from torch.utils.data import random_split
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from datetime import datetime, timedelta
-import gc
-import json
 import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -50,6 +48,9 @@ retrieval_funcs = [
 ]
 
 class CompactLoader:
+    """
+    Enables the loading and validation split of simulated and clinical data sources, with a queueing system and more efficient preloading.
+    """
     def __init__(self, args, min_length, max_length, trials_list, compact_conversion, retrieval_func_ind, calculate_trial_n, shuffle_seed=1, validation_items=1024, prebuilt=False, folder=MAIN_PATH + f"/experiments/offline_prediction_eval/saves/"):
         self.retrieval_func = retrieval_funcs[retrieval_func_ind]
         self.retrieval_func_ind = retrieval_func_ind
@@ -125,7 +126,6 @@ class CompactLoader:
         self.loaded = False
         self.validation_ind = 0
         self.training_ind = 0
-
     def prebuilt_init(self, args, min_length, max_length, _1, _2, retrieval_func_ind, _3, shuffle_seed, validation_length, training_indicies, validation_indicies, length, save_dest, args_save_dest):
         self.args, self.minimum_length, self.maximum_length, self.retrieval_func_ind, self.shuffle_seed, self.validation_length, self.training_indicies, self.validation_indicies, self.length = args, min_length, max_length, retrieval_func_ind, shuffle_seed, validation_length, training_indicies, validation_indicies, length
         self.retrieval_func = retrieval_funcs[self.retrieval_func_ind]
@@ -172,7 +172,6 @@ class CompactLoader:
             del self.cum_n
         
         return n_list
-
     def reset_shuffle(self,new_seed, n_list):
         clear_load = False
         if not self.loaded: 
@@ -235,9 +234,6 @@ class CompactLoader:
 
         if clear_load:
             self.clear_load()
-
-
-
     def start(self):
         self.sync_queue()
     def load(self):
@@ -275,7 +271,6 @@ class CompactLoader:
     def pop_batch(self,n):
         data = [self.pop() for _ in range(n)]
         return data
-
     def reset_validation(self):
         self.validation_ind = 0
         self.vld_queue = []
@@ -296,13 +291,9 @@ class CompactLoader:
         self.sync_validation()
         return out
     def pop_validation_batch(self, n):
-        return [self.pop_validation() for _ in range(n)]
-    
+        return [self.pop_validation() for _ in range(n)] 
     def save_compact_loader_object(self,overwrite_dest=None):
         args = (self.args, self.minimum_length, self.maximum_length, [], None, self.retrieval_func_ind, None, self.shuffle_seed, self.validation_length, self.training_indicies, self.validation_indicies, self.length, self.save_path)
         print(self.args, self.minimum_length, self.maximum_length, [], None, self.retrieval_func_ind, None, self.shuffle_seed, self.validation_length, len(self.training_indicies), len(self.validation_indicies), self.length, self.save_path)
         save_obj(args, self.save_path_args if overwrite_dest == None else overwrite_dest)
         print("Object Args saved to",self.save_path_args)
-
-        
-

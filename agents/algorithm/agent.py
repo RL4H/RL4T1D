@@ -20,7 +20,7 @@ SIM_DATA_PATH = config('SIM_DATA_PATH')
 try: CLN_DATA_SAVE_DEST = config('CLN_DATA_SAVE_DEST')
 except: 
     CLN_DATA_SAVE_DEST = None
-    print("'CLN_DATA_SAVE_DEST' environment variable not defined. Ensure to define it if using offline algorithms and a clinical data source." )
+    print("Warning: 'CLN_DATA_SAVE_DEST' environment variable not defined. Ensure to define it if using offline algorithms and a clinical data source." )
 
 from experiments.offline_prediction_eval.portable_loader import CompactLoader, load_compact_loader_object
 

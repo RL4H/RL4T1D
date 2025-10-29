@@ -69,19 +69,13 @@ class OnPolicyWorker(Worker):
 class OffPolicyWorker(Worker):
     def __init__(self, args, env_args, mode, worker_id):
         Worker.__init__(self, args, env_args, mode, worker_id)
-
     def rollout(self, policy=None, buffer=None, logger=None):
         logger = logger[self.worker_id]
         if self.worker_mode != 'training':  # always a fresh env for testing.
             self._reset()
 
         for _ in range(0, self.rollout_steps):
-
-            if len(self.args.obs_features) == 0:
-                rl_action = policy.get_action(self.state)
-            else:
-                features = [ ((self.rollout_steps * 5) // 60) % 24 ] #FIXME undo hard coding of features
-                rl_action = policy.get_action(self.state, features)
+            rl_action = policy.get_action(self.state)
 
             pump_action = self.controlspace.map(agent_action=rl_action['action'][0])  # map RL action => control space (pump)
 
@@ -116,17 +110,5 @@ class OfflineSampler:
         self.stop_factor = (args.max_epi_length - 1) if self.worker_mode == 'training' else (args.max_test_epi_len - 1)
         
         self.episode, self.counter = 0, 0
-
-    # def rollout(self, policy=None, buffer=None,logger=None):
-    #     logger = logger[self.worker_id]
-
-    #     for _ in range(0, self.rollout_steps):
-    #         item = self.importer_queue.pop()
-    #         # print("Saving transition, ",item)
-    #         buffer.store(*item)
-
-    #     return
-
-
     def rollout(self, policy=None, buffer=None,logger=None):
         buffer.store_batch(self.importer_queue.pop_batch(self.rollout_steps))
