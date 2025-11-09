@@ -19,14 +19,18 @@ experiment_summary:
   - 'policy_loss'
   - 'avg_rew'
   # specific for G2P2C
-#  - 'aux_val_grad'
-#  - 'aux_val_loss'
-#  - 'aux_pi_grad'
-#  - 'aux_pi_loss'
-#  - 'plan_pi_grad'
-#  - 'plan_loss'
-#  - 'RMSE'
-
+  # - 'aux_val_grad'
+  # - 'aux_val_loss'
+  # - 'aux_pi_grad'
+  # - 'aux_pi_loss'
+  # - 'plan_pi_grad'
+  # - 'plan_loss'
+  # - 'RMSE'
+  
+  # specific for td3+bc
+  # - 'td3_loss'
+  # - 'bc_loss'
+  
 worker_episode:
   - 'episode'
   - 't'

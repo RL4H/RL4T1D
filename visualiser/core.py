@@ -906,6 +906,3 @@ def get_concat_recent(path, seeds, filename, column, horizon):
         full_arr.append(d[column][-horizon:])
     data = pd.concat(full_arr, axis=0)
     return data
-
-
-

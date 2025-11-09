@@ -1,0 +1,80 @@
+run_name: "test_23_fixed_actions"
+save_path: "/experiments/offline_prediction_eval/saves/"
+split_seed: 1
+device: 'cuda'
+# data source params
+policy_type: "offline" #offline | online
+
+data_type: "clinical" #simulated | clinical
+data_protocols: [] #None defaults to all
+data_algorithms: [] #None defaults to all
+data_preload: true
+
+patient_id: 0
+
+
+input_window : 100
+t_future: 48
+obs_window: 148
+window_size : 148
+
+#NOTE: ensure input_window + t_future = obs_window
+
+# available features=> 'cgm', 'insulin', 'time_to_meal', 'future_carb', 'meal_type', 'day_hour', 'day_min'
+obs_features:
+  - 'cgm'
+  - 'insulin'
+  - 'day_hour'
+  - 'meal'
+
+sensor: 'GuardianRT'
+glucose_max: 600  
+glucose_min: 39
+
+pump: 'Insulet'
+insulin_max: 5 # 5 Units, max dose given / step
+insulin_min: 0
+
+meal_max: 100 #g
+
+
+control_space_type: 'exponential_alt'
+
+# algorithm params
+nhead: 4
+num_decoder_layers: 2
+dropout: 0.1
+
+mini_batch_n: 16
+batch_size: 256
+total_interactions: 500000
+
+vld_interactions: 512
+
+lr: 1e-2
+
+lr_decay: false 
+lr_minimum: 1e-7
+lr_90_iters: 500000
+
+weight_decay: 0
+
+#logs
+train_log_features:
+  - 'loss'
+  - 'policy_grad'
+  - 'lr'
+train_log_name: "training_logs" #goes from general save path
+
+eval_log_features:
+  - 'loss'
+eval_log_name: "eval_logs" #goes from general save path
+
+
+vld_log_features:
+  - 'loss'
+vld_log_name: "vld_logs" #goes from general save path
+vld_freq: 10
+
+# hydra/hydra_logging: none
+# hydra/job_logging: none

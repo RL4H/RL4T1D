@@ -1,6 +1,7 @@
 import scipy.signal
 import numpy as np
 import torch
+import math
 
 
 # from environment.utils import risk_index
@@ -93,3 +94,79 @@ def r_kl(log_p, log_q):
     log_ratio = log_p - log_q
     approx_kl = torch.mean(torch.exp(log_ratio)*log_ratio - (torch.exp(log_ratio) - 1))
     return approx_kl
+    
+EXP_SCALING_FACT = 4
+MEAL_MAX = 100
+EXP_FACT_PS_SUM = math.exp(EXP_SCALING_FACT) - math.exp(-EXP_SCALING_FACT)
+EXP_S_FACT = math.exp(-EXP_SCALING_FACT)
+
+def calculate_features(data_row, args, env_args):
+    #FIXME Meal announcement features are not implemented.
+    cgm, meal, ins, t, meta_data = tuple(data_row)
+    days,hours,mins = tuple([int(i) for i in t.split(':')])
+
+    info = dict()
+
+    if ins > args.insulin_max: 
+        print(data_row, ins, args.insulin_max)
+        raise ValueError
+    info["insulin"] = pump_to_rl_action(ins, args, env_args) #TODO decide if to use this or not
+
+    info["cgm"] = linear_scaling(x=cgm, x_min=args.glucose_min, x_max=args.glucose_max)
+    
+    info['future_carb'] = 0 
+    info['remaining_time'] = 0 
+    info['day_hour'] = linear_scaling(x=hours, x_min=0, x_max=23)
+    info['day_min'] = linear_scaling(x=mins, x_min=0, x_max=59)
+    info['meal_type'] = 0 
+    info['meal'] = linear_scaling(meal, 0, MEAL_MAX)
+
+    return [ info[feat] for feat in env_args.obs_features]
+
+
+def limit(n, t, b): return max(min(n, t), b)
+def pump_to_rl_action(pump_action, args, env_args):
+    control_space_type = args.control_space_type
+    pump_max = args.insulin_max
+
+    if control_space_type == 'normal':
+        # pump_action = ((rl_action + 1) / 2) * pump_max
+        rl_action = (2 * pump_action / pump_max) - 1
+
+
+    elif control_space_type == 'sparse':
+        # if agent_action <= 0: agent_action = 0
+        # else: agent_action = agent_action * pump_max
+        #not reversible
+
+        raise NotImplementedError
+
+    elif control_space_type == 'exponential':
+        # pump_action = pump_max * (math.exp((rl_action - 1) * 4))
+        rl_action = math.log((pump_action / pump_max)) / 4 + 1
+    
+    elif control_space_type == 'exponential_alt':
+        rl_action = 1/EXP_SCALING_FACT * math.log((pump_action / pump_max) * EXP_FACT_PS_SUM + EXP_S_FACT ) #maps to [0,1]
+        # rl_action =limit ( 1/EXP_SCALING_FACT * math.log((pump_action / pump_max) * (MATH_EXP_FACT - 1) + 1 ), 1, 0)
+
+
+
+    elif control_space_type == 'quadratic':
+        # if agent_action < 0:
+        #     agent_action = (agent_action**2) * 0.05
+        #     agent_action = min(0.05, agent_action)
+        # elif agent_action == 0: agent_action = 0
+        # else: agent_action = (agent_action**2) * pump_max
+
+        raise NotImplementedError
+
+    elif control_space_type == 'proportional_quadratic':
+        # if agent_action <= 0.5:
+        #     agent_action = ((agent_action-0.5)**2) * (0.5/(1.5**2))
+        #     agent_action = min(0.5, agent_action)
+        # else:
+        #     agent_action = ((agent_action-0.5)**2) * (pump_max/(0.5**2))
+
+        raise NotImplementedError
+
+    return rl_action

@@ -3,13 +3,25 @@ import abc
 import time
 import torch
 
-from utils.worker import OnPolicyWorker, OffPolicyWorker
+from utils.worker import OnPolicyWorker, OffPolicyWorker, OfflineSampler
 from utils.buffers import onpolicy_buffers, offpolicy_buffers
 from metrics.metrics import time_in_range
 from metrics.statistics import calc_stats
 
 import pandas as pd
-from omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf, DictConfig, open_dict
+
+
+from decouple import config
+MAIN_PATH = config('MAIN_PATH')
+SIM_DATA_PATH = config('SIM_DATA_PATH')
+
+try: CLN_DATA_SAVE_DEST = config('CLN_DATA_SAVE_DEST')
+except: 
+    CLN_DATA_SAVE_DEST = None
+    print("Warning: 'CLN_DATA_SAVE_DEST' environment variable not defined. Ensure to define it if using offline algorithms and a clinical data source." )
+
+from experiments.offline_prediction_eval.portable_loader import CompactLoader, load_compact_loader_object
 
 
 class Agent:
@@ -32,6 +44,9 @@ class Agent:
 
             self.args.feature_history = env_args.obs_window  # TODO: refactor G2P2C to use obs_window
 
+        self.using_OPE = (self.agent_type == "Offline" and (self.args.data_type == "clinical") or (self.agent_type == "Offline" and self.args.force_ope))
+        if self.using_OPE: self.args.n_val_trials = 0
+
         # initialise workers and buffers
         if type == "OnPolicy":
             self.training_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='training',
@@ -51,6 +66,107 @@ class Agent:
                                              worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
             self.buffer = offpolicy_buffers.ReplayMemory(self.args)
 
+        elif type == "Offline":
+            if args.data_type == "simulated":
+                if args.data_preload:
+                    folder = SIM_DATA_PATH + "/object_save/"
+                    data_save_path_args = folder + f"temp_args_{args.patient_id}_{args.seed}.pkl"
+                    print("Loading prebuilt data from",data_save_path_args)
+                    
+                    queue = load_compact_loader_object(data_save_path_args)
+                    queue.start()
+                    gc.collect()
+                else:
+                    from utils.sim_data import DataImporter, calculate_augmented_features
+
+                    importer = DataImporter(args=args,env_args=env_args)
+
+                    handler = importer.get_trials()
+                    handler.flatten()
+                    flat_trials = handler.flat_trials
+                    del handler
+                    del importer
+                    queue = CompactLoader(
+                        args, args.batch_size*10, args.batch_size*101, 
+                        flat_trials,
+                        lambda trial : calculate_augmented_features(trial, args, env_args),
+                        1,
+                        lambda trial : max(0, len(trial) - args.obs_window - 1),
+                        args.seed,
+                        0,
+                        folder=SIM_DATA_PATH + "/object_save/"
+                    )
+                    gc.collect()
+                    queue.start()
+                    gc.collect()
+                if args.use_all_interactions: #override total_interactions, use 98% of total transitions to avoid spilling over
+                    print("overriding total interactions from",args.total_interactions,"to",queue.total_transitions)
+                    self.args.total_interactions = int(queue.total_transitions*0.98)
+                    args.total_interactions = int(queue.total_transitions*0.98)
+                elif args.total_interactions > queue.total_transitions:
+                    print("WARNING: total interactions set (",args.total_interactions,") is greater than available data (",queue.total_transitions,"). ")           
+            elif args.data_type == "clinical":
+                if args.data_preload:
+
+                    folder = CLN_DATA_SAVE_DEST + '/'
+                    data_save_path_args = folder + f"temp_args_{args.patient_id}_{args.seed}.pkl"
+                    
+                    print("Loading prebuilt data from", data_save_path_args)
+                    queue = load_compact_loader_object(data_save_path_args)
+                    queue.start()
+                else:
+                    from utils.cln_data import ClnDataImporter, get_patient_attrs, convert_df_to_arr
+
+                    print("Importing for patient id",args.patient_id,"index",get_patient_attrs("clinical" + str(args.patient_id))['subj_id'])
+                    args = OmegaConf.create({
+                        "patient_ind" : args.patient_id,
+                        "patient_id" : args.patient_id,
+                        "batch_size" : 8192,
+                        "data_type" : "simulated", #simulated | clinical,
+                        "data_protocols" : ["evaluation","training"], #None defaults to all,
+                        "data_algorithms" : ["G2P2C","AUXML", "PPO","TD3"], #None defaults to all,
+                        "obs_window" : 12,
+                        "control_space_type" : 'exponential_alt',
+                        "insulin_min" : 0,
+                        "insulin_max" : 20,
+                        "glucose_min" : 39,
+                        "glucose_max" : 600,
+                        "obs_features" : ['cgm','insulin','day_hour']
+                    })
+
+                    importer = ClnDataImporter(args=args,env_args=args)
+                    
+                    flat_trials = importer.load()
+                    del importer
+
+                    queue = CompactLoader(
+                        args, args.batch_size*10, args.batch_size*101, 
+                        flat_trials,
+                        lambda trial : calculate_augmented_features(convert_df_to_arr(trial), args, args),
+                        1,
+                        lambda trial : max(0, len(trial) - args.obs_window - 1) if trial['meta'].loc[0].split('_')[-1] == 'Pump' else 0, #exclude non pump data
+                        0,
+                        0,
+                        folder= CLN_DATA_SAVE_DEST + '/current_run/'
+                    )
+
+                    gc.collect()
+                    queue.start()
+                    gc.collect()
+
+                    if len(queue) == 0:
+                        raise ValueError("Queue length is 0.")
+            else:
+                raise KeyError("Invlid data_type parameter.")
+            
+            self.training_agents = []
+            if args.data_type == "simulated": self.testing_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i+args.testing_agent_id_offset) for i in range(self.args.n_testing_workers)]
+            else: self.testing_agents = [] 
+            if args.data_type == "simulated": self.validation_agents = [OnPolicyWorker(args=self.args, env_args=self.env_args, mode='testing', worker_id=i + args.validation_agent_id_offset) for i in range(self.args.n_val_trials)]
+            else: self.validation_agents = []
+            self.buffer = offpolicy_buffers.ReplayMemory(self.args)
+            self.buffer_queue = queue
+
         self.logger = logger
 
     @abc.abstractmethod
@@ -63,6 +179,7 @@ class Agent:
         # learning
         rollout, completed_interactions, logs = 0, 0, {}
         while completed_interactions < self.args.total_interactions:  # steps * n_workers * epochs.
+
             tstart = time.perf_counter()
             for i in range(self.args.n_training_workers):  # run training workers to collect data
 
@@ -70,8 +187,12 @@ class Agent:
                 if self.agent_type == "OnPolicy":
                     self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer.Rollout, logger=self.logger.logWorker)
                     self.buffer.save_rollout(training_agent_index=i)
-                else:
+                elif self.agent_type == "OffPolicy":
                     self.training_agents[i].rollout(policy=self.policy, buffer=self.buffer, logger=self.logger.logWorker)
+
+
+            if self.agent_type == "Offline":
+                self.buffer.store_batch(self.buffer_queue.pop_batch(self.args.replay_buffer_step)) #store batch directly to avoid bottleneck
 
             logs = self.update()  # update the models
             self.logger.save_rollout(logs)  # logging
@@ -79,11 +200,15 @@ class Agent:
 
             # testing: run testing workers on the validation scenario
             with torch.no_grad():
-                for i in range(self.args.n_testing_workers):
-                    self.testing_agents[i].rollout(policy=self.policy, buffer=None, logger=self.logger.logWorker)  # these logs will be saved by the worker.
+                if self.using_OPE:
+                    pass #TODO 
+                else:
+                    for i in range(self.args.n_testing_workers):
+                        self.testing_agents[i].rollout(policy=self.policy, buffer=None, logger=self.logger.logWorker)  # these logs will be saved by the worker.
 
             # update the total number of completed interactions.
             completed_interactions += (self.args.n_step * self.args.n_training_workers)
+            self.completed_interactions = completed_interactions
             rollout += 1
             gc.collect()  # garbage collector to clean unused objects.
 
@@ -107,14 +232,37 @@ class Agent:
         print('\n---------------------------------------------------------')
         print('===> Starting Validation Trials ....')
         
-        with torch.no_grad():
-            for i in range(self.args.n_val_trials):
-                self.validation_agents[i].rollout(policy=self.policy, buffer=None, logger=self.logger.logWorker)
+        
+        if self.using_OPE:
+            print("Training FQE Model")
+            from agents.algorithm.td3_bc import FQE
+
+            fqe = FQE(self.args, self, self.buffer, self.buffer_queue)
+
+            completed_interactions = 0
+            while completed_interactions < self.args.fqe_interactions:
+                print("=========== fqe iteration")
+                self.buffer.store_batch(self.buffer_queue.pop_batch(self.args.replay_buffer_step))
+                fqe.update()
+                completed_interactions += (self.args.n_step * self.args.n_training_workers)
+
+            print("Conducting Offline Evaluation")
+
+            res = fqe.evaluate(self.args.experiment_dir + '/ope_summary.csv', self.args.experiment_dir + '/ope_network.pth')
+            for k in res: print(k, '\t', res[k])
+
+            print("Offline Policy Evaluation Completed")
+            exit()
+        elif (not self.agent_type == "Offline") or (self.agent_type == "Offline" and self.args.data_type != "clinical"):
+            
+            with torch.no_grad():
+                for i in range(self.args.n_val_trials):
+                    self.validation_agents[i].rollout(policy=self.policy, buffer=None, logger=self.logger.logWorker)
 
             # calculate the final metrics.
             cohort_res, summary_stats = [], []
             secondary_columns = ['epi', 't', 'reward', 'normo', 'hypo', 'sev_hypo', 'hyper', 'lgbi',
-                             'hgbi', 'ri', 'sev_hyper', 'aBGP_rmse', 'cBGP_rmse']
+                            'hgbi', 'ri', 'sev_hyper', 'aBGP_rmse', 'cBGP_rmse']
             data = []
             FOLDER_PATH = self.args.experiment_folder+'/testing/'
             for i in range(0, self.args.n_val_trials):

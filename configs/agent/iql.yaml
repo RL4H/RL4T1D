@@ -1,0 +1,67 @@
+agent: 'iql'
+debug: False
+
+n_rnn_hidden: 16
+n_rnn_layers: 1
+rnn_directions: 1
+bidirectional: False
+
+# parameters for RL discounting strategies
+return_type: 'average'   # discount | average; is average gamma and lamda -> 1.
+gamma: 0.99
+lambda_: 0.95
+
+# parameters for the RL rollout
+normalize_reward: True  # reward received is normalised
+shuffle_rollout: True  # rollout trajectory data is shuffled
+replay_buffer_size: 65536
+replay_buffer_step: 8192
+
+# train
+n_step: 8192
+max_epi_length: 2880
+n_training_workers: 1
+total_interactions: 312500 # total number of interactions the agent will train for #800000
+self.schedule_gamma: 1
+
+batch_size : 8192
+mini_batch_size : 8192
+n_pi_epochs: 100
+
+# test
+n_testing_workers: 4
+max_test_epi_len: 288  # testing conducted for 1 day: 12 steps/hr * 24 hours
+
+# validation
+n_val_trials: 5 #500
+
+#data source
+data_preload: true  # if preloading, args will be overriden
+data_type: "simulated" #simulated | clinical
+data_protocols: ["evaluation","training"] #None defaults to all
+data_algorithms : ["G2P2C","AUXML", "PPO","TD3"] #None defaults to all
+use_all_interactions : false
+force_ope: false
+
+n_hidden: 16
+noise_model: "normal_dist"
+noise_std: 0.05
+noise_application: 0
+target_action_std: 0.05
+target_action_lim: 0.2
+soft_tau: 0.005
+
+beta : 2.5
+
+pi_lr: 1e-5
+vf_lr: 0.001
+cr_lr: 1e-3
+
+
+n_handcrafted_features: -10 #NOTE: placeholder param, used to avoid errors
+n_features: 32
+use_handcraft: 0
+
+vf_lambda : 0
+fqe_gamma : 0.99
+fqe_interactions : 125000

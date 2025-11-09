@@ -2,11 +2,14 @@ from environment.t1denv import T1DEnv
 from utils.control_space import ControlSpace
 import torch
 from copy import deepcopy
+import numpy as np
+from utils.core import linear_scaling
 
 
 class Worker(T1DEnv):
     def __init__(self, args, env_args, mode, worker_id):
         T1DEnv.__init__(self, env_args, mode, worker_id)
+        self.env_args = env_args
         self.worker_id = worker_id
         self.episode, self.counter = 0, 0
         self.rollout_steps = args.n_step if self.worker_mode == 'training' else args.max_test_epi_len
@@ -14,7 +17,6 @@ class Worker(T1DEnv):
         self.controlspace = ControlSpace(control_space_type=args.control_space_type,
                                          insulin_min=self.action_space.low[0],
                                          insulin_max=self.action_space.high[0])
-
     def _reset(self):
         self.episode += 1
         self.counter = 0
@@ -30,9 +32,14 @@ class OnPolicyWorker(Worker):
         if self.worker_mode != 'training':  # always a fresh env for testing.
             self._reset()
 
+        self.ins_history = [0] * self.args.obs_window #FIXME make consistent with params
+
         for _ in range(0, self.rollout_steps):
 
-            rl_action = policy.get_action(self.state)  # get RL action
+            rl_action = policy.get_action(self.state, worker_mode=self.worker_mode) #FIXME turn this back
+
+
+            self.ins_history.append(rl_action['action'][0])
             pump_action = self.controlspace.map(agent_action=rl_action['action'][0])  # map RL action => control space (pump)
 
             state, reward, is_done, info = self.env.step(pump_action)
@@ -44,6 +51,7 @@ class OnPolicyWorker(Worker):
             logger.update(self.counter, self.episode, info['cgm'], rl_action, pump_action, 0, reward, info)
 
             self.state = state  # update -> state.
+
             self.counter += 1
             if is_done or self.counter > self.stop_factor:  # episode termination criteria.
                 logger.save(self.episode, self.counter)
@@ -53,21 +61,21 @@ class OnPolicyWorker(Worker):
                 # stop rollout if this is a testing worker; else reset an env and continue.
                 if self.worker_mode != 'training': break
                 self._reset()
+                self.ins_history = [0] * self.args.obs_window #FIXME make consistent with params
         return
 
 
 class OffPolicyWorker(Worker):
     def __init__(self, args, env_args, mode, worker_id):
         Worker.__init__(self, args, env_args, mode, worker_id)
-
     def rollout(self, policy=None, buffer=None, logger=None):
         logger = logger[self.worker_id]
         if self.worker_mode != 'training':  # always a fresh env for testing.
             self._reset()
 
         for _ in range(0, self.rollout_steps):
-
             rl_action = policy.get_action(self.state)
+
             pump_action = self.controlspace.map(agent_action=rl_action['action'][0])  # map RL action => control space (pump)
 
             state, reward, is_done, info = self.env.step(pump_action)
@@ -89,3 +97,17 @@ class OffPolicyWorker(Worker):
                 if self.worker_mode != 'training': break
                 self._reset()
         return
+
+class OfflineSampler:
+    def __init__(self, args, env_args, mode, worker_id, importer_queue):
+        # Worker.__init__(self, args, env_args, mode, worker_id)
+        self.importer_queue = importer_queue
+        self.args, self.env_args = args, env_args
+        self.worker_mode, self.worker_id = mode, worker_id
+        
+        self.rollout_steps = args.n_step if self.worker_mode == 'training' else args.max_test_epi_len
+        self.stop_factor = (args.max_epi_length - 1) if self.worker_mode == 'training' else (args.max_test_epi_len - 1)
+        
+        self.episode, self.counter = 0, 0
+    def rollout(self, policy=None, buffer=None,logger=None):
+        buffer.store_batch(self.importer_queue.pop_batch(self.rollout_steps))
