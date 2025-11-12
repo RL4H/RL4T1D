@@ -709,8 +709,12 @@ class DataHandler:
                 df.to_csv(dest_folder + name + str(num) + ".csv", sep=',', index=False, header=True)
                 num += 1
         elif self.flat: #saves all trials in a single, large, .csv file
-            print(self.flat_trials[0])
-            df = pd.DataFrame(np.vstack(self.flat_trials), columns=use_columns)
+            dfs = []
+            for i, trial in enumerate(self.flat_trials, start=1):
+                trial_df = pd.DataFrame(trial, columns=use_columns)
+                trial_df["trial"] = i  # same episode number for all rows in this trial
+                dfs.append(trial_df)
+            df = pd.concat(dfs, ignore_index=True)
             df.to_csv(dest_folder + name + ".csv", sep=',', index=False, header=True)
         else: #saves trials in seperate files, organised by folders.
             for subject in self.data_dict:
