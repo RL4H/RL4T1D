@@ -4,7 +4,7 @@ import pytest
 def test_run_rl_agent():
     """Test the RL agent script with PPO algorithm."""
     command = [
-        "python", "run_RL_agent.py",
+        "python", "experiments/run_RL_agent.py",
         "experiment.name=test1",
         "experiment.device=cpu",
         "agent=ppo",
