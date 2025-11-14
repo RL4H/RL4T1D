@@ -2,6 +2,7 @@ import subprocess
 import pytest
 import os
 
+@pytest.mark.order(2)
 def test_run_rl_agent():
     """Test the RL agent script with PPO algorithm."""
     command = [
@@ -23,6 +24,7 @@ def test_run_rl_agent():
     except subprocess.CalledProcessError as e:
         pytest.fail(f"Command failed with error: {e.stderr}")
 
+@pytest.mark.order(1)
 def test_create_env_file():
     """Test the creation of the .env file with MAIN_PATH."""
     try:
