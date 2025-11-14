@@ -159,7 +159,7 @@ class SAC(Agent):
 
             if self.n_updates % self.target_update_interval == 0:
                 with torch.no_grad():
-                    print("################updated target")
+                    print("################ Updated target")
                     if self.sac_v2:
                         for param, target_param in zip(self.policy.soft_q_net1.parameters(), self.policy.target_q_net1.parameters()):
                             target_param.data.mul_((1 - self.soft_tau))

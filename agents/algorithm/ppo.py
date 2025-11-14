@@ -114,7 +114,7 @@ class PPO(Agent):
                 var_y = torch.var(y_true)
                 true_var += var_y
                 explained_var += 1 - torch.var(y_true - y_pred) / (var_y + 1e-5)
-        print('The volicy loss is: {}'.format(val_loss_log))
+        print('The value loss is: {}'.format(val_loss_log))
         return value_grad / val_count, val_loss_log, explained_var / val_count, true_var / val_count
 
     def update(self):

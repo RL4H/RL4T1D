@@ -36,7 +36,7 @@ class OnPolicyWorker(Worker):
 
         for _ in range(0, self.rollout_steps):
 
-            rl_action = policy.get_action(self.state, worker_mode=self.worker_mode) #FIXME turn this back
+            rl_action = policy.get_action(self.state) 
 
 
             self.ins_history.append(rl_action['action'][0])
