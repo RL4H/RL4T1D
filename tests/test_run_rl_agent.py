@@ -14,6 +14,10 @@ def test_run_rl_agent():
 
     try:
         result = subprocess.run(command, capture_output=True, text=True, check=True)
-        assert "Experiment completed" in result.stdout  # Adjust based on expected output
+        output = result.stdout
+
+        # Check for the presence of the summary table and success message
+        assert "===> Starting Validation Trials ...." in output, "Validation trials not started."
+        assert "Algorithm Training/Validation Completed Successfully." in output, "Algorithm did not complete successfully."
     except subprocess.CalledProcessError as e:
         pytest.fail(f"Command failed with error: {e.stderr}")
