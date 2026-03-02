@@ -497,7 +497,7 @@ class FQE:
             value_loss.backward()
             self.value_optimizer.step()
 
-    def evaluate(self, save_dest_file=None, save_dest_network=None):
+    def evaluate(self, save_dest_file=None, save_dest_network=None, verbose_logs_dest=None):
         self.queue.start_validation()
 
         with torch.no_grad():
@@ -505,6 +505,7 @@ class FQE:
             critic_loss_list = []
             bc_loss_list = []
             bc_ins_loss_list = []
+            verbose_log_list = [("policy_action", "dataset_action")]
 
             completed_iters = 0
             while completed_iters < self.queue.validation_length:
@@ -533,6 +534,8 @@ class FQE:
                 policy_action = policy_action.detach().cpu().numpy()
                 actions_batch = actions_batch.detach().cpu().numpy()
 
+                verbose_log_list += [(policy_action, actions_batch) for act1, act2 in zip(policy_action, actions_batch)]
+
                 diff = [ (act1 - act2)**2 for act1,act2 in zip(policy_action, actions_batch) ]
                 bc_loss_list += diff
 
@@ -556,9 +559,14 @@ class FQE:
                 with open(save_dest_file, 'w') as f:
                     f.write(save_text)
             
-            
             if save_dest_network != None:
                 torch.save(self.value_net, save_dest_network)
+
+            if verbose_logs_dest != None:
+                save_text = '\n'.join([','.join([str(i) for i in row]) for row in verbose_log_list])
+                with open(verbose_logs_dest, 'w') as f:
+                    f.write(save_text)
+
             print("file and network saved")
 
             return ret_di

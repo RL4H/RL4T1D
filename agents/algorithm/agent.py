@@ -248,7 +248,7 @@ class Agent:
 
             print("Conducting Offline Evaluation")
 
-            res = fqe.evaluate(self.args.experiment_dir + '/ope_summary.csv', self.args.experiment_dir + '/ope_network.pth')
+            res = fqe.evaluate(self.args.experiment_dir + '/ope_summary.csv', self.args.experiment_dir + '/ope_network.pth', self.args.experiment_dir + '/verbose_action_logs.csv')
             for k in res: print(k, '\t', res[k])
 
             print("Offline Policy Evaluation Completed")
